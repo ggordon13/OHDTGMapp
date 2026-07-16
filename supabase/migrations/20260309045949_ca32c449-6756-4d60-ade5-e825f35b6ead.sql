@@ -1,0 +1,2 @@
+ALTER TABLE public.profiles DROP CONSTRAINT profiles_activity_level_check;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_activity_level_check CHECK (activity_level IN ('sedentary', 'lightly_active', 'very_active'));
