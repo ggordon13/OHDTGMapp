@@ -5,10 +5,10 @@ import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { requiresProfileSetup } from "@/lib/profile";
 import { formatDateInputValue } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import GameButton from "@/components/game/GameButton";
 import { toast } from "sonner";
 
 const activityMultipliers: Record<string, number> = {
@@ -38,8 +38,8 @@ function calculateTargets(age: number, heightCm: number, weight: number, gender:
   const targetWeightMin = Math.round(weight * 0.87 * 10) / 10;
   const targetWeightMax = Math.round(weight * 0.91 * 10) / 10;
 
-  // Water based on weight, converted to glasses (~250ml per glass)
-  const water = Math.max(1, Math.round((weight * 0.033) / 0.25));
+  // Fixed daily hydration goal (glasses) — matches the dashboard water target.
+  const water = 7;
 
   // Steps based on activity
   const stepsMap: Record<string, number> = {
@@ -144,7 +144,7 @@ const ProfileSetup = () => {
       daily_protein_target: preview.proteinMin, // primary target = min
       daily_protein_target_min: preview.proteinMin,
       daily_protein_target_max: preview.proteinMax,
-      daily_water_target: 7,
+      daily_water_target: preview.water,
       daily_steps_target: preview.steps,
       challenge_start_date: challengeStartDate,
     }).eq("user_id", user.id);
@@ -160,107 +160,116 @@ const ProfileSetup = () => {
 
   if (authLoading || !user || profileLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      <div className="wood-bg flex min-h-screen items-center justify-center">
+        <div className="animate-pulse font-display text-[hsl(35,30%,65%)]">Loading...</div>
       </div>
     );
   }
 
+  const labelClass = "font-display text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+
+  const targets = preview
+    ? [
+        { label: "Calories", value: `${preview.calorieMin}–${preview.calorieMax} kcal` },
+        { label: "Protein", value: `${preview.proteinMin}–${preview.proteinMax} g` },
+        { label: "Target Weight", value: `${preview.targetWeightMin}–${preview.targetWeightMax} kg` },
+        { label: "Water / Steps", value: `${preview.water} glasses / ${preview.steps.toLocaleString()}` },
+      ]
+    : [];
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
-      <form onSubmit={handleSubmit} className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold font-display">
+    <div className="wood-bg flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md space-y-6">
+        <div className="space-y-2 text-center">
+          <h1 className="font-display text-3xl font-bold tracking-wide text-[hsl(38,60%,90%)] [text-shadow:0_3px_0_rgba(0,0,0,0.4)]">
             {isUpdate ? "Update Your Profile" : "Set Up Your Profile"}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="font-semibold text-[hsl(35,30%,65%)]">
             {isUpdate
               ? "Adjust your stats and we'll recalculate your daily targets."
               : "We'll calculate personalized targets based on your data"}
           </p>
         </div>
 
-        {isUpdate && hasChangedStartingData && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Updating these details will restart your challenge from day 1.
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="game-panel space-y-5 p-6">
+          {isUpdate && hasChangedStartingData && (
+            <div className="rounded-lg border-2 border-[hsl(40,70%,45%)] bg-[hsl(45,82%,88%)] px-3 py-2 text-sm font-bold text-[hsl(30,55%,32%)]">
+              ⚠️ Updating these details will restart your challenge from day 1.
+            </div>
+          )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="age">Age</Label>
-            <Input id="age" type="number" value={age} onChange={(e) => setAge(e.target.value)} required placeholder="25" />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="age" className={labelClass}>Age</Label>
+              <Input id="age" type="number" value={age} onChange={(e) => setAge(e.target.value)} required placeholder="25" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="gender" className={labelClass}>Gender</Label>
+              <Select value={gender} onValueChange={setGender} required>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="gender">Gender</Label>
-            <Select value={gender} onValueChange={setGender} required>
-              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="height" className={labelClass}>Height (cm)</Label>
+            <Input id="height" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} required placeholder="170" />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="cw" className={labelClass}>Current Weight (kg)</Label>
+            <Input id="cw" type="number" step="0.1" value={currentWeight} onChange={(e) => setCurrentWeight(e.target.value)} required placeholder="85" />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="activity" className={labelClass}>Activity Level</Label>
+            <Select value={activityLevel} onValueChange={setActivityLevel} required>
+              <SelectTrigger><SelectValue placeholder="Select activity level" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="male">Male</SelectItem>
-                <SelectItem value="female">Female</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
+                <SelectItem value="sedentary">Sedentary: 0-1 exercises/wk, &lt;4k steps/day</SelectItem>
+                <SelectItem value="lightly_active">Lightly Active: 2-4 exercises/wk, 4-8k steps/day</SelectItem>
+                <SelectItem value="very_active">Very Active: 5-6 exercises/wk, &gt;8k steps/day</SelectItem>
               </SelectContent>
             </Select>
           </div>
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="height">Height (cm)</Label>
-          <Input id="height" type="number" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} required placeholder="170" />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="cw">Current Weight (kg)</Label>
-          <Input id="cw" type="number" step="0.1" value={currentWeight} onChange={(e) => setCurrentWeight(e.target.value)} required placeholder="85" />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="activity">Activity Level</Label>
-          <Select value={activityLevel} onValueChange={setActivityLevel} required>
-            <SelectTrigger><SelectValue placeholder="Select activity level" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="sedentary">Sedentary: 0-1 exercises/wk, &lt;4k steps/day</SelectItem>
-              <SelectItem value="lightly_active">Lightly Active: 2-4 exercises/wk, 4-8k steps/day</SelectItem>
-              <SelectItem value="very_active">Very Active: 5-6 exercises/wk, &gt;8k steps/day</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {preview && (
-          <div className="rounded-xl border bg-card p-4 space-y-3">
-            <h3 className="font-display font-semibold text-sm">Your Calculated Targets</h3>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <span className="text-muted-foreground">Calories:</span>
-                <p className="font-semibold">{preview.calorieMin} – {preview.calorieMax} kcal</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Protein:</span>
-                <p className="font-semibold">{preview.proteinMin} – {preview.proteinMax} g</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Target Weight:</span>
-                <p className="font-semibold">{preview.targetWeightMin} – {preview.targetWeightMax} kg</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Water / Steps:</span>
-                <p className="font-semibold">{preview.water} glasses / {preview.steps.toLocaleString()}</p>
+          {preview && (
+            <div className="rounded-xl border-2 border-[hsl(33,28%,60%)] bg-[hsl(37,40%,82%)] p-4">
+              <p className="font-display text-sm font-semibold uppercase tracking-wider text-card-foreground">
+                Your Calculated Targets
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {targets.map(({ label, value }) => (
+                  <div key={label} className="game-tag px-2.5 py-1.5">
+                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+                    <p className="font-bold text-card-foreground">{value}</p>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <Button type="submit" className="w-full" size="lg" disabled={saving || !gender || !activityLevel}>
-            {saving ? "Saving..." : isUpdate ? "Save Changes" : "Start My 100-Day Challenge 🚀"}
-          </Button>
-          {isUpdate && (
-            <Button type="button" variant="ghost" className="w-full" onClick={() => navigate("/")}>
-              Cancel
-            </Button>
           )}
-        </div>
-      </form>
+
+          <div className="space-y-3 pt-1">
+            <GameButton type="submit" color="red" size="lg" className="w-full" disabled={saving || !gender || !activityLevel}>
+              {saving ? "Saving..." : isUpdate ? "Save Changes" : "Start My 100-Day Challenge 🚀"}
+            </GameButton>
+            {isUpdate && (
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="w-full text-center font-display text-sm font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-card-foreground"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

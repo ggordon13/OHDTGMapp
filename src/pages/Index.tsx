@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,8 +24,7 @@ import {
   getWeeklyQuests,
   getNewlyCrossedMilestone,
 } from "@/lib/gamification";
-import { formatDateInputValue, parseDateInputValue, cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { formatDateInputValue, parseDateInputValue } from "@/lib/utils";
 import GameButton from "@/components/game/GameButton";
 
 const Index = () => {
@@ -48,7 +47,7 @@ const Index = () => {
     dailyProtein: profile?.daily_protein_target ?? 150,
     dailyProteinMin: profile?.daily_protein_target_min ?? null,
     dailyProteinMax: profile?.daily_protein_target_max ?? null,
-    dailyWater: profile?.daily_water_target ?? 7,
+    dailyWater: 7, // fixed daily hydration goal (glasses)
     dailySteps: profile?.daily_steps_target ?? 10000,
   }), [profile]);
 
@@ -140,7 +139,6 @@ const Index = () => {
     );
   }
 
-  const today = logs.length > 0 ? logs[logs.length - 1] : null;
   const todayEntry = dayRange.length > 0 ? dayRange[dayRange.length - 1] : null;
   const streakResult = getStreakWithShields(dayRange, shields);
   const currentDay = todayEntry?.day ?? 0;
@@ -157,10 +155,11 @@ const Index = () => {
     year: "numeric",
   });
 
-  const formatRange = (min: number | null, max: number | null, fallback: number, unit: string) => {
-    if (min != null && max != null) return `${min}–${max} ${unit}`;
-    return `${fallback} ${unit}`;
-  };
+  // Goal shown on each stat card: a "min–max" range when both bounds exist,
+  // otherwise the single target value. Returns a number when it's a lone value
+  // so the card can animate it, or a formatted string for ranges.
+  const formatGoal = (min: number | null, max: number | null, fallback: number): string | number =>
+    min != null && max != null ? `${min.toLocaleString()}–${max.toLocaleString()}` : fallback;
 
   return (
     <div className="wood-bg min-h-screen">
@@ -172,49 +171,14 @@ const Index = () => {
             My 100 Days
           </span>
           <div className="flex items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <GameButton color="wood" size="sm">
-                  <UserCog className="h-4 w-4" />
-                  <span className="hidden sm:inline">Update Profile</span>
-                </GameButton>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="game-panel w-72 border-0 p-4 text-card-foreground">
-                <p className="font-display text-sm font-semibold uppercase tracking-wider">Starting Point</p>
-                <div className="mt-3 space-y-2">
-                  <div className="game-tag px-3 py-2">
-                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Day 1 Date</p>
-                    <p className="font-bold text-card-foreground">{formattedDayOneDate}</p>
-                  </div>
-                  <div className="game-tag px-3 py-2">
-                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Starting Weight</p>
-                    <p className="font-bold text-card-foreground">{startWeight != null ? `${startWeight} kg` : "—"}</p>
-                  </div>
-                </div>
-                <div
-                  className={cn(
-                    "mt-3 flex items-center gap-1.5 text-sm font-bold",
-                    weightStatus.tone === "good" && "text-[hsl(84,45%,30%)]",
-                    weightStatus.tone === "bad" && "text-[hsl(6,62%,42%)]",
-                    weightStatus.tone === "neutral" && "text-muted-foreground",
-                  )}
-                >
-                  {weightStatus.tone === "good" && <TrendingDown className="h-4 w-4 shrink-0" />}
-                  {weightStatus.tone === "bad" && <TrendingUp className="h-4 w-4 shrink-0" />}
-                  {weightStatus.tone === "neutral" && <Minus className="h-4 w-4 shrink-0" />}
-                  {weightStatus.text}
-                </div>
-                <GameButton
-                  type="button"
-                  color="wood"
-                  size="sm"
-                  className="mt-4 w-full"
-                  onClick={() => navigate("/setup", { state: { intentional: true } })}
-                >
-                  Edit Full Profile
-                </GameButton>
-              </PopoverContent>
-            </Popover>
+            <GameButton
+              color="wood"
+              size="sm"
+              onClick={() => navigate("/setup", { state: { intentional: true } })}
+            >
+              <UserCog className="h-4 w-4" />
+              <span className="hidden sm:inline">Update Profile</span>
+            </GameButton>
             <GameButton color="wood" size="sm" onClick={signOut} title="Sign out" aria-label="Sign out">
               <LogOut className="h-4 w-4" />
             </GameButton>
@@ -228,6 +192,7 @@ const Index = () => {
           userName={displayName}
           levelProgress={levelProgress}
           shields={shields}
+          startPoint={{ date: formattedDayOneDate, weight: startWeight, status: weightStatus }}
         />
 
         <motion.div
@@ -238,56 +203,63 @@ const Index = () => {
         >
           <StatCard
             label="Weight"
-            value={today?.weight ?? "—"}
+            value={formatGoal(goals.targetWeightMin, goals.targetWeightMax, goals.targetWeight)}
             unit="kg"
             icon={Scale}
-            target={formatRange(goals.targetWeightMin, goals.targetWeightMax, goals.targetWeight, "kg")}
+            caption="Goal weight"
           />
           <StatCard
             label="Calories"
-            value={today?.calories ?? "—"}
+            value={formatGoal(goals.dailyCaloriesMin, goals.dailyCaloriesMax, goals.dailyCalories)}
             unit="kcal"
             icon={Utensils}
-            target={formatRange(goals.dailyCaloriesMin, goals.dailyCaloriesMax, goals.dailyCalories, "kcal")}
+            caption="Daily goal"
           />
           <StatCard
             label="Protein"
-            value={today?.protein ?? "—"}
+            value={formatGoal(goals.dailyProteinMin, goals.dailyProteinMax, goals.dailyProtein)}
             unit="g"
             icon={Beef}
-            target={formatRange(goals.dailyProteinMin, goals.dailyProteinMax, goals.dailyProtein, "g")}
+            caption="Daily goal"
           />
           <StatCard
             label="Water"
-            value={today?.water ?? "—"}
+            value={goals.dailyWater}
             unit="glasses"
             icon={Droplets}
-            target={`${goals.dailyWater} glasses`}
+            caption="Daily goal"
           />
           <StatCard
             label="Steps"
-            value={today?.steps ?? "—"}
+            value={goals.dailySteps}
+            unit="steps"
             icon={Footprints}
-            target={`${goals.dailySteps.toLocaleString()}`}
+            caption="Daily goal"
           />
         </motion.div>
 
         {/* Primary logging surface: edit rows here (today's is highlighted) and save. */}
         <DailyTracker logs={dayRange} onUpdate={updateLogs} highlightDate={todayDate} />
 
-        <div className="space-y-6">
-          <QuestBoard
-            dailyQuests={dailyQuests}
-            weeklyQuests={weeklyQuests}
-            dailyPeriod={todayDate}
-            weeklyPeriod={weeklyPeriod}
-            isClaimed={isClaimed}
-            onClaim={claimQuest}
-            claimingKey={claimingKey}
-          />
-          <WeightChart logs={logs} targetWeight={goals.targetWeight} startWeight={startWeight} />
-          <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
-          <BadgeShelf badges={badges} />
+        <div className="grid gap-6 lg:grid-cols-4">
+          {/* Left column (1/4): Trophy Case, then Quests below it */}
+          <div className="space-y-6 lg:col-span-1">
+            <BadgeShelf badges={badges} />
+            <QuestBoard
+              dailyQuests={dailyQuests}
+              weeklyQuests={weeklyQuests}
+              dailyPeriod={todayDate}
+              weeklyPeriod={weeklyPeriod}
+              isClaimed={isClaimed}
+              onClaim={claimQuest}
+              claimingKey={claimingKey}
+            />
+          </div>
+          {/* Right column (3/4): Weekly Achievements, then Weight Trend below it */}
+          <div className="space-y-6 lg:col-span-3">
+            <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
+            <WeightChart logs={logs} targetWeight={goals.targetWeight} startWeight={startWeight} />
+          </div>
         </div>
       </div>
     </div>

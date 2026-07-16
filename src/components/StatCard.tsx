@@ -7,11 +7,12 @@ interface StatCardProps {
   value: string | number;
   unit?: string;
   icon: LucideIcon;
-  target?: string;
+  /** Small chip under the value, e.g. "Daily goal". */
+  caption?: string;
   color?: string;
 }
 
-const StatCard = ({ label, value, unit, icon: Icon, target }: StatCardProps) => {
+const StatCard = ({ label, value, unit, icon: Icon, caption }: StatCardProps) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const valueRef = useRef<HTMLSpanElement>(null);
 
@@ -42,9 +43,9 @@ const StatCard = ({ label, value, unit, icon: Icon, target }: StatCardProps) => 
         </span>
         {unit && <span className="text-sm font-semibold text-muted-foreground">{unit}</span>}
       </div>
-      {target && (
+      {caption && (
         <p className="game-tag inline-block px-2 py-0.5 text-[11px] font-bold text-muted-foreground">
-          Target: {target}
+          {caption}
         </p>
       )}
     </div>

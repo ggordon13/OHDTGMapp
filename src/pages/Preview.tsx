@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, TrendingDown } from "lucide-react";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import DashboardHeader from "@/components/DashboardHeader";
 import StatCard from "@/components/StatCard";
 import QuestBoard from "@/components/QuestBoard";
@@ -62,34 +61,10 @@ const Preview = () => {
             My 100 Days
           </span>
           <div className="flex items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <GameButton color="wood" size="sm">
-                  <UserCog className="h-4 w-4" />
-                  <span className="hidden sm:inline">Update Profile</span>
-                </GameButton>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="game-panel w-72 border-0 p-4 text-card-foreground">
-                <p className="font-display text-sm font-semibold uppercase tracking-wider">Starting Point</p>
-                <div className="mt-3 space-y-2">
-                  <div className="game-tag px-3 py-2">
-                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Day 1 Date</p>
-                    <p className="font-bold text-card-foreground">May 18, 2026</p>
-                  </div>
-                  <div className="game-tag px-3 py-2">
-                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Starting Weight</p>
-                    <p className="font-bold text-card-foreground">88 kg</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-1.5 text-sm font-bold text-[hsl(84,45%,30%)]">
-                  <TrendingDown className="h-4 w-4 shrink-0" />
-                  -2.4 kg since Day 1
-                </div>
-                <GameButton type="button" color="wood" size="sm" className="mt-4 w-full">
-                  Edit Full Profile
-                </GameButton>
-              </PopoverContent>
-            </Popover>
+            <GameButton color="wood" size="sm">
+              <UserCog className="h-4 w-4" />
+              <span className="hidden sm:inline">Update Profile</span>
+            </GameButton>
             <GameButton color="wood" size="sm" aria-label="Sign out">
               <LogOut className="h-4 w-4" />
             </GameButton>
@@ -102,29 +77,34 @@ const Preview = () => {
           userName="Preview"
           levelProgress={getLevelProgress(430)}
           shields={2}
+          startPoint={{ date: "May 18, 2026", weight: 88, status: { text: "-2.4 kg since Day 1", tone: "good" } }}
         />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <StatCard label="Weight" value={85.6} unit="kg" icon={Scale} target="75 kg" />
-          <StatCard label="Calories" value={1850} unit="kcal" icon={Utensils} target="2000 kcal" />
-          <StatCard label="Protein" value={155} unit="g" icon={Beef} target="150 g" />
-          <StatCard label="Water" value={8} unit="glasses" icon={Droplets} target="7 glasses" />
-          <StatCard label="Steps" value={11240} icon={Footprints} target="10,000" />
+          <StatCard label="Weight" value="66.1–69.2" unit="kg" icon={Scale} caption="Goal weight" />
+          <StatCard label="Calories" value="1,420–1,654" unit="kcal" icon={Utensils} caption="Daily goal" />
+          <StatCard label="Protein" value="99–137" unit="g" icon={Beef} caption="Daily goal" />
+          <StatCard label="Water" value={7} unit="glasses" icon={Droplets} caption="Daily goal" />
+          <StatCard label="Steps" value={4000} unit="steps" icon={Footprints} caption="Daily goal" />
         </div>
         <DailyTracker logs={dayRange} onUpdate={() => {}} highlightDate={TODAY} />
 
-        <div className="space-y-6">
-          <QuestBoard
-            dailyQuests={dailyQuests}
-            weeklyQuests={weeklyQuests}
-            dailyPeriod="today"
-            weeklyPeriod="week"
-            isClaimed={(p, k) => claims.has(`${p}::${k}`)}
-            onClaim={(q, p) => setClaims((prev) => new Set(prev).add(`${p}::${q.key}`))}
-            claimingKey={claiming}
-          />
-          <WeightChart logs={dayRange} targetWeight={75} startWeight={88} />
-          <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
-          <BadgeShelf badges={badges} />
+        <div className="grid gap-6 lg:grid-cols-4">
+          <div className="space-y-6 lg:col-span-1">
+            <BadgeShelf badges={badges} />
+            <QuestBoard
+              dailyQuests={dailyQuests}
+              weeklyQuests={weeklyQuests}
+              dailyPeriod="today"
+              weeklyPeriod="week"
+              isClaimed={(p, k) => claims.has(`${p}::${k}`)}
+              onClaim={(q, p) => setClaims((prev) => new Set(prev).add(`${p}::${q.key}`))}
+              claimingKey={claiming}
+            />
+          </div>
+          <div className="space-y-6 lg:col-span-3">
+            <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
+            <WeightChart logs={dayRange} targetWeight={75} startWeight={88} />
+          </div>
         </div>
       </div>
     </div>

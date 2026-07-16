@@ -67,7 +67,7 @@ const BadgeShelf = ({ badges }: BadgeShelfProps) => {
           No badges yet — log your days and hit your targets to start unlocking trophies.
         </p>
       ) : (
-        <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-2 xl:grid-cols-3">
           {badges.map((b) => (
             <BadgeHex key={b.key} badge={b} />
           ))}
