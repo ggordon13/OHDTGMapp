@@ -1,13 +1,12 @@
 import { useState } from "react";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, TrendingDown } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import DashboardHeader from "@/components/DashboardHeader";
 import StatCard from "@/components/StatCard";
 import QuestBoard from "@/components/QuestBoard";
 import BadgeShelf from "@/components/BadgeShelf";
 import WeeklyAchievements from "@/components/WeeklyAchievements";
-import TodayEntry from "@/components/TodayEntry";
 import DailyTracker from "@/components/DailyTracker";
 import WeightChart from "@/components/WeightChart";
 import { DailyLog } from "@/lib/mockData";
@@ -39,7 +38,12 @@ const mkLog = (day: number, overrides: Partial<DailyLog> = {}): DailyLog => ({
   ...overrides,
 });
 
-const dayRange: DailyLog[] = Array.from({ length: 16 }, (_, i) => mkLog(i + 1));
+const TODAY = "2026-07-17";
+const dayRange: DailyLog[] = [
+  ...Array.from({ length: 16 }, (_, i) => mkLog(i + 1)),
+  // Day 17 is "today": an empty row the user fills in and saves.
+  { date: TODAY, day: 17, weight: null, calories: null, protein: null, water: null, exercise: "", steps: null },
+];
 const today = dayRange[dayRange.length - 1];
 
 const Preview = () => {
@@ -58,10 +62,34 @@ const Preview = () => {
             My 100 Days
           </span>
           <div className="flex items-center gap-2">
-            <GameButton color="wood" size="sm">
-              <UserCog className="h-4 w-4" />
-              <span className="hidden sm:inline">Update Profile</span>
-            </GameButton>
+            <Popover>
+              <PopoverTrigger asChild>
+                <GameButton color="wood" size="sm">
+                  <UserCog className="h-4 w-4" />
+                  <span className="hidden sm:inline">Update Profile</span>
+                </GameButton>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="game-panel w-72 border-0 p-4 text-card-foreground">
+                <p className="font-display text-sm font-semibold uppercase tracking-wider">Starting Point</p>
+                <div className="mt-3 space-y-2">
+                  <div className="game-tag px-3 py-2">
+                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Day 1 Date</p>
+                    <p className="font-bold text-card-foreground">May 18, 2026</p>
+                  </div>
+                  <div className="game-tag px-3 py-2">
+                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Starting Weight</p>
+                    <p className="font-bold text-card-foreground">88 kg</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-1.5 text-sm font-bold text-[hsl(84,45%,30%)]">
+                  <TrendingDown className="h-4 w-4 shrink-0" />
+                  -2.4 kg since Day 1
+                </div>
+                <GameButton type="button" color="wood" size="sm" className="mt-4 w-full">
+                  Edit Full Profile
+                </GameButton>
+              </PopoverContent>
+            </Popover>
             <GameButton color="wood" size="sm" aria-label="Sign out">
               <LogOut className="h-4 w-4" />
             </GameButton>
@@ -82,55 +110,22 @@ const Preview = () => {
           <StatCard label="Water" value={8} unit="glasses" icon={Droplets} target="7 glasses" />
           <StatCard label="Steps" value={11240} icon={Footprints} target="10,000" />
         </div>
-        <QuestBoard
-          dailyQuests={dailyQuests}
-          weeklyQuests={weeklyQuests}
-          dailyPeriod="today"
-          weeklyPeriod="week"
-          isClaimed={(p, k) => claims.has(`${p}::${k}`)}
-          onClaim={(q, p) => setClaims((prev) => new Set(prev).add(`${p}::${q.key}`))}
-          claimingKey={claiming}
-        />
-        <div className="grid gap-6 lg:grid-cols-6">
-          <aside className="game-panel p-6 lg:col-span-2">
-            <p className="font-display text-sm font-semibold uppercase tracking-wider">Starting data</p>
-            <p className="mt-2 text-sm font-semibold text-muted-foreground">
-              This is the baseline used to calculate your challenge targets.
-            </p>
-            <div className="mt-6 space-y-4 text-sm">
-              <div>
-                <p className="font-display text-xs font-semibold uppercase tracking-wide text-muted-foreground">Day 1 date</p>
-                <div className="mt-1.5 space-y-2">
-                  <Input type="date" value="2026-05-18" onChange={() => {}} className="h-9 text-sm" />
-                  <GameButton type="button" color="gold" size="sm" className="w-full">
-                    Update Day 1
-                  </GameButton>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "Age", value: "30", cap: false },
-                  { label: "Height", value: "170 cm", cap: false },
-                  { label: "Weight", value: "76 kg", cap: false },
-                  { label: "Activity", value: "sedentary", cap: true },
-                  { label: "Gender", value: "male", cap: true },
-                ].map(({ label, value, cap }) => (
-                  <div key={label} className="game-tag px-2.5 py-1.5">
-                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-                    <p className={`font-bold text-card-foreground ${cap ? "capitalize" : ""}`}>{value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-          <div className="space-y-6 lg:col-span-4">
-            <TodayEntry nextDay={17} onAdd={() => {}} />
-            <WeightChart logs={dayRange} targetWeight={75} startWeight={88} />
-          </div>
+        <DailyTracker logs={dayRange} onUpdate={() => {}} highlightDate={TODAY} />
+
+        <div className="space-y-6">
+          <QuestBoard
+            dailyQuests={dailyQuests}
+            weeklyQuests={weeklyQuests}
+            dailyPeriod="today"
+            weeklyPeriod="week"
+            isClaimed={(p, k) => claims.has(`${p}::${k}`)}
+            onClaim={(q, p) => setClaims((prev) => new Set(prev).add(`${p}::${q.key}`))}
+            claimingKey={claiming}
+          />
+          <WeightChart logs={dayRange} targetWeight={75} startWeight={88} />
+          <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
+          <BadgeShelf badges={badges} />
         </div>
-        <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
-        <BadgeShelf badges={badges} />
-        <DailyTracker logs={dayRange} onUpdate={() => {}} />
       </div>
     </div>
   );

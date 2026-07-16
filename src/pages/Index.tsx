@@ -1,23 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog } from "lucide-react";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useDailyLogs } from "@/hooks/useDailyLogs";
 import { useGamification } from "@/hooks/useGamification";
-import { supabase } from "@/integrations/supabase/client";
 import DashboardHeader from "@/components/DashboardHeader";
 import StatCard from "@/components/StatCard";
 import WeightChart from "@/components/WeightChart";
 import WeeklyAchievements from "@/components/WeeklyAchievements";
 import DailyTracker from "@/components/DailyTracker";
-import TodayEntry from "@/components/TodayEntry";
 import QuestBoard from "@/components/QuestBoard";
 import BadgeShelf from "@/components/BadgeShelf";
 import Confetti from "@/components/Confetti";
-import { buildDayRange, DailyLog } from "@/lib/mockData";
+import { buildDayRange } from "@/lib/mockData";
 import {
   getStreakWithShields,
   getCurrentWeek,
@@ -25,30 +23,20 @@ import {
   getDailyQuests,
   getWeeklyQuests,
   getNewlyCrossedMilestone,
-  isDayLogged,
-  isDayComplete,
 } from "@/lib/gamification";
-import { formatDateInputValue } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
+import { formatDateInputValue, parseDateInputValue, cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import GameButton from "@/components/game/GameButton";
 
 const Index = () => {
   const { user, signOut } = useAuth();
   const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
-  const { logs, loading, addLog, updateLogs } = useDailyLogs();
-  const [dayOneDate, setDayOneDate] = useState("");
-  const [updatingDayOneDate, setUpdatingDayOneDate] = useState(false);
+  const { logs, loading, updateLogs } = useDailyLogs();
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
   const celebratingRef = useRef(false);
 
   const todayDate = formatDateInputValue();
-
-  useEffect(() => {
-    if (profile) {
-      setDayOneDate(profile.challenge_start_date ?? todayDate);
-    }
-  }, [profile, todayDate]);
 
   const goals = useMemo(() => ({
     targetWeight: profile?.target_weight ?? 75,
@@ -126,22 +114,23 @@ const Index = () => {
     }
   }, [startWeight, latestWeight, targetWeight, profile?.last_celebrated_weight, celebrateMilestone]);
 
-  const handleUpdateDayOneDate = async () => {
-    if (!user) return;
-
-    setUpdatingDayOneDate(true);
-    const { error } = await supabase.from("profiles").update({
-      challenge_start_date: dayOneDate || todayDate,
-    }).eq("user_id", user.id);
-    setUpdatingDayOneDate(false);
-
-    if (error) {
-      toast.error("Failed to update Day 1 date");
-    } else {
-      toast.success("Day 1 date updated");
-      await refetchProfile();
+  // Quick weight-progress summary shown in the Update Profile popover: compares
+  // the baseline weight set at signup against the latest logged weight, judging
+  // "good" vs "bad" by whether the challenge goal is to lose or gain.
+  const weightStatus = useMemo(() => {
+    if (startWeight == null || latestWeight == null) {
+      return { text: "Log your weight to see progress", tone: "neutral" as const };
     }
-  };
+    const diff = Math.round((latestWeight - startWeight) * 10) / 10;
+    if (diff === 0) return { text: "Same as Day 1", tone: "neutral" as const };
+    const goalIsLoss = targetWeight < startWeight;
+    const madeProgress = goalIsLoss ? diff < 0 : diff > 0;
+    const sign = diff > 0 ? "+" : "-";
+    return {
+      text: `${sign}${Math.abs(diff)} kg since Day 1`,
+      tone: madeProgress ? ("good" as const) : ("bad" as const),
+    };
+  }, [startWeight, latestWeight, targetWeight]);
 
   if (loading || profileLoading) {
     return (
@@ -155,27 +144,18 @@ const Index = () => {
   const todayEntry = dayRange.length > 0 ? dayRange[dayRange.length - 1] : null;
   const streakResult = getStreakWithShields(dayRange, shields);
   const currentDay = todayEntry?.day ?? 0;
-  const nextDay = todayEntry?.day ?? 1;
-  const hasLoggedToday = logs.some((log) => log.date === todayDate);
-
-  // Today's own row is expected to be empty until it's logged with this form,
-  // so exclude the current day and only require prior days to be complete.
-  const pastDays = dayRange.filter((log) => log.date !== todayDate);
 
   const currentWeek = getCurrentWeek(dayRange);
   const weeklyPeriod = getCurrentWeekPeriod(dayRange);
   const dailyQuests = getDailyQuests(todayEntry, questGoals);
   const weeklyQuests = getWeeklyQuests(currentWeek, weeklyGoals);
 
-  const handleAddEntry = async (entry: DailyLog) => {
-    await addLog(entry);
-  };
-
   const displayName = profile?.display_name || user?.user_metadata?.full_name || "there";
-  // Only nag about days that were started but left half-filled. Days that were
-  // skipped entirely (never logged) are not "incomplete" — they just weren't
-  // logged, and shouldn't block adding today's brand-new entry.
-  const hasEmptyDailyLogEntries = pastDays.some((log) => isDayLogged(log) && !isDayComplete(log));
+  const formattedDayOneDate = parseDateInputValue(profile?.challenge_start_date ?? todayDate).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 
   const formatRange = (min: number | null, max: number | null, fallback: number, unit: string) => {
     if (min != null && max != null) return `${min}–${max} ${unit}`;
@@ -192,10 +172,49 @@ const Index = () => {
             My 100 Days
           </span>
           <div className="flex items-center gap-2">
-            <GameButton color="wood" size="sm" onClick={() => navigate("/setup", { state: { intentional: true } })}>
-              <UserCog className="h-4 w-4" />
-              <span className="hidden sm:inline">Update Profile</span>
-            </GameButton>
+            <Popover>
+              <PopoverTrigger asChild>
+                <GameButton color="wood" size="sm">
+                  <UserCog className="h-4 w-4" />
+                  <span className="hidden sm:inline">Update Profile</span>
+                </GameButton>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="game-panel w-72 border-0 p-4 text-card-foreground">
+                <p className="font-display text-sm font-semibold uppercase tracking-wider">Starting Point</p>
+                <div className="mt-3 space-y-2">
+                  <div className="game-tag px-3 py-2">
+                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Day 1 Date</p>
+                    <p className="font-bold text-card-foreground">{formattedDayOneDate}</p>
+                  </div>
+                  <div className="game-tag px-3 py-2">
+                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Starting Weight</p>
+                    <p className="font-bold text-card-foreground">{startWeight != null ? `${startWeight} kg` : "—"}</p>
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    "mt-3 flex items-center gap-1.5 text-sm font-bold",
+                    weightStatus.tone === "good" && "text-[hsl(84,45%,30%)]",
+                    weightStatus.tone === "bad" && "text-[hsl(6,62%,42%)]",
+                    weightStatus.tone === "neutral" && "text-muted-foreground",
+                  )}
+                >
+                  {weightStatus.tone === "good" && <TrendingDown className="h-4 w-4 shrink-0" />}
+                  {weightStatus.tone === "bad" && <TrendingUp className="h-4 w-4 shrink-0" />}
+                  {weightStatus.tone === "neutral" && <Minus className="h-4 w-4 shrink-0" />}
+                  {weightStatus.text}
+                </div>
+                <GameButton
+                  type="button"
+                  color="wood"
+                  size="sm"
+                  className="mt-4 w-full"
+                  onClick={() => navigate("/setup", { state: { intentional: true } })}
+                >
+                  Edit Full Profile
+                </GameButton>
+              </PopoverContent>
+            </Popover>
             <GameButton color="wood" size="sm" onClick={signOut} title="Sign out" aria-label="Sign out">
               <LogOut className="h-4 w-4" />
             </GameButton>
@@ -253,75 +272,22 @@ const Index = () => {
           />
         </motion.div>
 
-        <div className="grid gap-6 lg:grid-cols-6">
-          <aside className="game-panel p-6 lg:col-span-2">
-            <p className="font-display text-sm font-semibold uppercase tracking-wider">Starting data</p>
-            <p className="mt-2 text-sm font-semibold text-muted-foreground">
-              This is the baseline used to calculate your challenge targets.
-            </p>
-            <div className="mt-6 space-y-4 text-sm">
-              <div>
-                <p className="font-display text-xs font-semibold uppercase tracking-wide text-muted-foreground">Day 1 date</p>
-                <div className="mt-1.5 space-y-2">
-                  <Input
-                    type="date"
-                    value={dayOneDate}
-                    onChange={(e) => setDayOneDate(e.target.value)}
-                    className="h-9 text-sm"
-                  />
-                  <GameButton
-                    type="button"
-                    color="gold"
-                    size="sm"
-                    className="w-full"
-                    onClick={handleUpdateDayOneDate}
-                    disabled={updatingDayOneDate}
-                  >
-                    {updatingDayOneDate ? "Saving..." : "Update Day 1"}
-                  </GameButton>
-                </div>
-              </div>
+        {/* Primary logging surface: edit rows here (today's is highlighted) and save. */}
+        <DailyTracker logs={dayRange} onUpdate={updateLogs} highlightDate={todayDate} />
 
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "Age", value: profile?.age ?? "—", cap: false },
-                  { label: "Height", value: profile?.height_cm != null ? `${profile.height_cm} cm` : "—", cap: false },
-                  { label: "Weight", value: profile?.current_weight != null ? `${profile.current_weight} kg` : "—", cap: false },
-                  { label: "Activity", value: profile?.activity_level ? profile.activity_level.replace(/_/g, " ") : "—", cap: true },
-                  { label: "Gender", value: profile?.gender ?? "—", cap: true },
-                ].map(({ label, value, cap }) => (
-                  <div key={label} className="game-tag px-2.5 py-1.5">
-                    <p className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-                    <p className={`font-bold text-card-foreground ${cap ? "capitalize" : ""}`}>{value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          <div className="space-y-6 lg:col-span-4">
-            <TodayEntry
-              nextDay={nextDay}
-              onAdd={handleAddEntry}
-              disabled={hasLoggedToday}
-              disabledReason={hasLoggedToday ? "logged_today" : hasEmptyDailyLogEntries ? "incomplete_logs" : undefined}
-            />
-            <QuestBoard
-              dailyQuests={dailyQuests}
-              weeklyQuests={weeklyQuests}
-              dailyPeriod={todayDate}
-              weeklyPeriod={weeklyPeriod}
-              isClaimed={isClaimed}
-              onClaim={claimQuest}
-              claimingKey={claimingKey}
-            />
-            <WeightChart logs={logs} targetWeight={goals.targetWeight} startWeight={startWeight} />
-            <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
-            <BadgeShelf badges={badges} />
-          </div>
-          <div className="lg:col-span-6">
-            <DailyTracker logs={dayRange} onUpdate={updateLogs} />
-          </div>
+        <div className="space-y-6">
+          <QuestBoard
+            dailyQuests={dailyQuests}
+            weeklyQuests={weeklyQuests}
+            dailyPeriod={todayDate}
+            weeklyPeriod={weeklyPeriod}
+            isClaimed={isClaimed}
+            onClaim={claimQuest}
+            claimingKey={claimingKey}
+          />
+          <WeightChart logs={logs} targetWeight={goals.targetWeight} startWeight={startWeight} />
+          <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
+          <BadgeShelf badges={badges} />
         </div>
       </div>
     </div>
