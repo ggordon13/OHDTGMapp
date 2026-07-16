@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,52 +6,65 @@
 
 @layer base {
   :root {
-    --background: 40 20% 98%;
-    --foreground: 220 20% 10%;
+    /* Game theme: dark wood table, parchment panels, chunky candy accents */
+    --background: 22 42% 10%;
+    --foreground: 38 45% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --card: 39 52% 88%;
+    --card-foreground: 24 42% 16%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover: 39 52% 90%;
+    --popover-foreground: 24 42% 16%;
 
-    --primary: 160 45% 40%;
+    --primary: 6 66% 57%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 25% 93%;
-    --secondary-foreground: 220 20% 10%;
+    --secondary: 36 38% 79%;
+    --secondary-foreground: 24 42% 16%;
 
-    --muted: 40 15% 95%;
-    --muted-foreground: 220 10% 50%;
+    --muted: 37 34% 81%;
+    --muted-foreground: 27 24% 38%;
 
-    --accent: 28 80% 56%;
+    --accent: 178 52% 38%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 4 66% 47%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 10% 90%;
-    --input: 220 10% 90%;
-    --ring: 160 45% 40%;
+    --border: 32 28% 58%;
+    --input: 33 26% 60%;
+    --ring: 40 88% 55%;
 
     --radius: 0.75rem;
 
-    --chart-1: 160 45% 40%;
-    --chart-2: 28 80% 56%;
-    --chart-3: 220 60% 55%;
-    --chart-4: 340 65% 55%;
-    --chart-5: 45 90% 55%;
+    --chart-1: 178 52% 38%;
+    --chart-2: 6 66% 57%;
+    --chart-3: 68 48% 45%;
+    --chart-4: 40 88% 55%;
+    --chart-5: 268 40% 55%;
 
-    --success: 145 60% 42%;
+    --success: 84 42% 42%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 40 88% 55%;
+    --warning-foreground: 24 42% 16%;
 
-    --streak: 28 80% 56%;
-    --progress: 160 45% 40%;
+    --streak: 24 85% 55%;
+    --progress: 178 52% 38%;
 
-    --font-display: 'Space Grotesk', sans-serif;
-    --font-body: 'Inter', sans-serif;
+    /* Game-specific tokens */
+    --wood: 24 38% 26%;
+    --wood-dark: 23 40% 16%;
+    --wood-light: 26 36% 34%;
+    --parchment: 39 52% 88%;
+    --parchment-dark: 37 40% 76%;
+    --gold: 40 88% 55%;
+    --teal: 178 52% 38%;
+    --leaf: 68 48% 45%;
+    --game-red: 6 66% 57%;
+    --game-purple: 268 40% 55%;
+
+    --font-display: 'Fredoka', sans-serif;
+    --font-body: 'Nunito', sans-serif;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -64,33 +77,34 @@
   }
 
   .dark {
-    --background: 220 20% 7%;
-    --foreground: 40 20% 95%;
+    /* The game theme is already dark-on-wood; dark mode maps to the same look. */
+    --background: 22 42% 8%;
+    --foreground: 38 45% 92%;
 
-    --card: 220 18% 10%;
-    --card-foreground: 40 20% 95%;
+    --card: 39 45% 85%;
+    --card-foreground: 24 42% 16%;
 
-    --popover: 220 18% 10%;
-    --popover-foreground: 40 20% 95%;
+    --popover: 39 45% 88%;
+    --popover-foreground: 24 42% 16%;
 
-    --primary: 160 45% 45%;
+    --primary: 6 66% 57%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 15%;
-    --secondary-foreground: 40 20% 95%;
+    --secondary: 36 38% 76%;
+    --secondary-foreground: 24 42% 16%;
 
-    --muted: 220 15% 15%;
-    --muted-foreground: 220 10% 55%;
+    --muted: 37 34% 78%;
+    --muted-foreground: 27 24% 36%;
 
-    --accent: 28 80% 56%;
+    --accent: 178 52% 38%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 4 66% 42%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 18%;
-    --input: 220 15% 18%;
-    --ring: 160 45% 45%;
+    --border: 32 28% 54%;
+    --input: 33 26% 56%;
+    --ring: 40 88% 55%;
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
@@ -124,5 +138,123 @@
   }
   .font-body {
     font-family: var(--font-body);
+  }
+}
+
+@layer components {
+  /* Dark wooden table-top: vertical planks + grain, all CSS gradients */
+  .wood-bg {
+    background-color: hsl(var(--wood-dark));
+    background-image:
+      radial-gradient(ellipse 120% 90% at 50% 0%, hsl(24 40% 20% / 0.9), transparent 70%),
+      repeating-linear-gradient(
+        90deg,
+        transparent 0px,
+        transparent 138px,
+        hsl(20 45% 8% / 0.55) 138px,
+        hsl(20 45% 8% / 0.55) 142px
+      ),
+      repeating-linear-gradient(
+        0deg,
+        hsl(30 30% 40% / 0.03) 0px,
+        hsl(30 30% 40% / 0.03) 2px,
+        transparent 2px,
+        transparent 5px
+      );
+  }
+
+  /* Parchment sheet: mottled cream, slightly wonky corners, deep drop shadow */
+  .game-panel {
+    position: relative;
+    color: hsl(var(--card-foreground));
+    background-color: hsl(var(--parchment));
+    background-image:
+      radial-gradient(ellipse 60% 45% at 18% 8%, hsl(36 40% 78% / 0.55), transparent 65%),
+      radial-gradient(ellipse 55% 40% at 85% 90%, hsl(35 38% 74% / 0.5), transparent 65%),
+      radial-gradient(ellipse 40% 30% at 70% 20%, hsl(42 60% 94% / 0.6), transparent 60%);
+    border: 2px solid hsl(33 30% 55%);
+    border-radius: 14px 22px 16px 24px / 22px 14px 24px 16px;
+    box-shadow:
+      0 8px 22px hsl(20 60% 4% / 0.55),
+      inset 0 2px 0 hsl(42 65% 95% / 0.7),
+      inset 0 -3px 0 hsl(33 32% 62% / 0.55);
+  }
+
+  /* Wooden board variant (frames, quest zones) */
+  .game-panel-wood {
+    position: relative;
+    color: hsl(38 45% 90%);
+    background-color: hsl(var(--wood));
+    background-image:
+      linear-gradient(180deg, hsl(26 36% 32% / 0.9), hsl(24 40% 22% / 0.9)),
+      repeating-linear-gradient(
+        90deg,
+        transparent 0px,
+        transparent 90px,
+        hsl(20 45% 12% / 0.5) 90px,
+        hsl(20 45% 12% / 0.5) 93px
+      );
+    border: 2px solid hsl(22 45% 12%);
+    border-radius: 16px 20px 14px 22px / 20px 14px 22px 16px;
+    box-shadow:
+      0 8px 22px hsl(20 60% 4% / 0.6),
+      inset 0 2px 0 hsl(28 32% 45% / 0.8),
+      inset 0 -4px 0 hsl(22 45% 12% / 0.7);
+  }
+
+  /* Title plate that sits proud of a panel's top edge */
+  .game-banner {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: hsl(0 0% 100%);
+    padding: 0.3rem 1.1rem 0.35rem;
+    border-radius: 10px 14px 12px 14px / 14px 10px 14px 12px;
+    border: 2px solid hsl(20 50% 14% / 0.85);
+    text-shadow: 0 2px 0 hsl(0 0% 0% / 0.3);
+    transform: rotate(-1.25deg);
+    box-shadow:
+      0 4px 0 hsl(20 50% 14% / 0.75),
+      0 7px 12px hsl(20 60% 4% / 0.45),
+      inset 0 2px 0 hsl(0 0% 100% / 0.28);
+  }
+  .game-banner-red    { background: linear-gradient(180deg, hsl(6 70% 62%), hsl(6 62% 50%)); }
+  .game-banner-teal   { background: linear-gradient(180deg, hsl(178 48% 44%), hsl(178 54% 32%)); }
+  .game-banner-leaf   { background: linear-gradient(180deg, hsl(68 46% 50%), hsl(70 50% 38%)); }
+  .game-banner-gold   { background: linear-gradient(180deg, hsl(40 90% 58%), hsl(36 85% 46%)); }
+  .game-banner-purple { background: linear-gradient(180deg, hsl(268 42% 60%), hsl(268 44% 46%)); }
+  .game-banner-wood   { background: linear-gradient(180deg, hsl(26 36% 36%), hsl(24 40% 24%)); }
+
+  /* Chunky outlined display text (big numbers, "+XP") */
+  .text-sticker {
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-shadow:
+      -1.5px -1.5px 0 hsl(24 50% 14%), 1.5px -1.5px 0 hsl(24 50% 14%),
+      -1.5px 1.5px 0 hsl(24 50% 14%), 1.5px 1.5px 0 hsl(24 50% 14%),
+      0 3px 0 hsl(24 50% 14%);
+  }
+
+  /* Hexagon (badges, element slots) */
+  .hex-clip {
+    clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  }
+
+  /* Empty inventory-style slot */
+  .game-slot {
+    background: hsl(35 30% 70% / 0.6);
+    box-shadow: inset 0 3px 6px hsl(30 35% 40% / 0.55), inset 0 -1px 0 hsl(42 60% 92% / 0.7);
+  }
+
+  /* Small parchment tag */
+  .game-tag {
+    background: hsl(40 48% 92%);
+    border: 1.5px solid hsl(33 30% 58%);
+    border-radius: 8px 10px 8px 10px / 10px 8px 10px 8px;
+    box-shadow: 0 2px 0 hsl(33 32% 50% / 0.6);
   }
 }

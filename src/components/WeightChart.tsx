@@ -1,8 +1,9 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { DailyLog } from "@/lib/mockData";
 import { getWeightMilestones } from "@/lib/gamification";
-import { Progress } from "@/components/ui/progress";
-import { Flag } from "lucide-react";
+import { Flag, TrendingDown } from "lucide-react";
+import GamePanel from "@/components/game/GamePanel";
+import GameProgress from "@/components/game/GameProgress";
 
 interface WeightChartProps {
   logs: DailyLog[];
@@ -32,26 +33,25 @@ const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
   }
 
   return (
-    <div className="rounded-xl border bg-card p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-display font-semibold">Weight Trend</h3>
-        <span className="text-xs text-muted-foreground px-2 py-1 rounded-full bg-secondary">
-          Last {data.length} days
-        </span>
-      </div>
-
+    <GamePanel
+      title="Weight Trend"
+      icon={<TrendingDown className="h-4 w-4" />}
+      color="purple"
+      right={<span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">Last {data.length} days</span>}
+    >
+      <div className="space-y-4">
       {hasJourney && latestWeight != null && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="flex items-center gap-1 font-medium text-primary">
+            <span className="flex items-center gap-1 font-display font-bold text-[hsl(268,42%,42%)]">
               <Flag className="h-3.5 w-3.5" />
               {milestonesReached}/{milestones.length} milestones
             </span>
-            <span className="text-muted-foreground tabular-nums">
+            <span className="font-bold tabular-nums text-muted-foreground">
               {toGo > 0 ? `${toGo} kg to goal` : "Goal reached! 🎉"}
             </span>
           </div>
-          <Progress value={journeyPct} className="h-2" />
+          <GameProgress value={journeyPct} color="purple" size="h-2.5" />
         </div>
       )}
 
@@ -106,7 +106,8 @@ const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
           </LineChart>
         </ResponsiveContainer>
       </div>
-    </div>
+      </div>
+    </GamePanel>
   );
 };
 

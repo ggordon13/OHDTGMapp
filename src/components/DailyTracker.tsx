@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Save, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import GameButton from "@/components/game/GameButton";
 
 interface DailyTrackerProps {
   logs: DailyLog[];
@@ -54,9 +55,9 @@ const DailyTracker = ({ logs, onUpdate }: DailyTrackerProps) => {
   ];
 
   return (
-    <div className="rounded-xl border bg-card overflow-hidden">
-      <div className="flex items-center justify-between p-4 border-b">
-        <h3 className="font-display font-semibold">Daily Log</h3>
+    <div className="game-panel overflow-hidden">
+      <div className="flex items-center justify-between border-b-2 border-[hsl(33,28%,60%)] p-4">
+        <h3 className="font-display text-base font-semibold uppercase tracking-wider">Daily Log</h3>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -67,7 +68,7 @@ const DailyTracker = ({ logs, onUpdate }: DailyTrackerProps) => {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-xs text-muted-foreground">
+          <span className="game-tag px-2 py-0.5 text-xs font-bold text-muted-foreground">
             Week {page + 1} of {totalPages}
           </span>
           <Button
@@ -137,11 +138,11 @@ const DailyTracker = ({ logs, onUpdate }: DailyTrackerProps) => {
         </table>
       </div>
 
-      <div className="p-4 border-t flex justify-end">
-        <Button onClick={handleSave} className="gap-2">
+      <div className="flex justify-end border-t-2 border-[hsl(33,28%,60%)] p-4">
+        <GameButton onClick={handleSave} color="leaf">
           <Save className="h-4 w-4" />
           Save Progress
-        </Button>
+        </GameButton>
       </div>
     </div>
   );
