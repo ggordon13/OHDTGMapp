@@ -15,6 +15,7 @@ import DailyTracker from "@/components/DailyTracker";
 import QuestBoard from "@/components/QuestBoard";
 import BadgeShelf from "@/components/BadgeShelf";
 import Confetti from "@/components/Confetti";
+import DailyCheckIn from "@/components/DailyCheckIn";
 import { buildDayRange } from "@/lib/mockData";
 import {
   getStreakWithShields,
@@ -33,7 +34,9 @@ const Index = () => {
   const navigate = useNavigate();
   const { logs, loading, updateLogs } = useDailyLogs();
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
+  const [showCheckIn, setShowCheckIn] = useState(false);
   const celebratingRef = useRef(false);
+  const checkInDoneRef = useRef(false);
 
   const todayDate = formatDateInputValue();
 
@@ -131,6 +134,34 @@ const Index = () => {
     };
   }, [startWeight, latestWeight, targetWeight]);
 
+  // First open of the day for returning users (those with prior logs): greet
+  // them and ask for today's weight — once per calendar day, and only when
+  // today's weight isn't already recorded.
+  useEffect(() => {
+    if (checkInDoneRef.current) return;
+    if (loading || profileLoading || !user || !profile) return;
+    checkInDoneRef.current = true;
+
+    const key = `dailyCheckIn:${user.id}`;
+    const alreadyGreetedToday = localStorage.getItem(key) === todayDate;
+    const loggedWeightToday = logs.some((l) => l.date === todayDate && l.weight != null);
+    const isReturningUser = logs.length > 0;
+
+    if (isReturningUser && !alreadyGreetedToday && !loggedWeightToday) {
+      setShowCheckIn(true);
+      localStorage.setItem(key, todayDate);
+    }
+  }, [loading, profileLoading, user, profile, logs, todayDate]);
+
+  // Persist the check-in weight onto today's row without disturbing other fields.
+  const handleCheckInWeight = async (weight: number) => {
+    const todayRow = dayRange[dayRange.length - 1];
+    if (!todayRow) return;
+    await updateLogs([{ ...todayRow, weight }]);
+    setConfettiTrigger(Date.now());
+    toast.success(`Logged ${weight} kg for today 💪`);
+  };
+
   if (loading || profileLoading) {
     return (
       <div className="wood-bg flex min-h-screen items-center justify-center">
@@ -164,6 +195,16 @@ const Index = () => {
   return (
     <div className="wood-bg min-h-screen">
       <Confetti trigger={confettiTrigger} />
+      <DailyCheckIn
+        open={showCheckIn}
+        onOpenChange={setShowCheckIn}
+        userName={displayName}
+        currentDay={currentDay}
+        streak={streakResult.streak}
+        streakProtected={streakResult.protected}
+        onSaveWeight={handleCheckInWeight}
+        onLater={() => { /* dismissed; already marked as greeted for today */ }}
+      />
       <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
         {/* Top toolbar: app title + account actions, styled to match the game theme */}
         <div className="flex items-center justify-between gap-3">
