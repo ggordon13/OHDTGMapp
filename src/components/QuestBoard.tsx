@@ -1,8 +1,10 @@
-import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 import { Swords, CalendarDays, Check } from "lucide-react";
 import { Quest } from "@/lib/gamification";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import GamePanel from "@/components/game/GamePanel";
+import GameButton from "@/components/game/GameButton";
+import GameProgress from "@/components/game/GameProgress";
+import { xpFly, confettiBurst, shine, pop } from "@/lib/fx";
 
 interface QuestBoardProps {
   dailyQuests: Quest[];
@@ -28,41 +30,60 @@ const QuestRow = ({
   onClaim: (quest: Quest, period: string) => void;
 }) => {
   const pct = Math.min(100, Math.round((quest.current / quest.target) * 100));
+  const rowRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const sealRef = useRef<HTMLSpanElement>(null);
+  const wasClaimed = useRef(claimed);
+
+  // Stamp the seal when a claim lands (not for rows loaded already-claimed).
+  useEffect(() => {
+    if (claimed && !wasClaimed.current) pop(sealRef.current, 2.2);
+    wasClaimed.current = claimed;
+  }, [claimed]);
+
+  const handleClaim = () => {
+    if (btnRef.current) {
+      const xpTarget = document.querySelector('[data-fx="xp-target"]');
+      shine(rowRef.current);
+      confettiBurst(btnRef.current, 16);
+      xpFly(btnRef.current, xpTarget, quest.xp);
+    }
+    onClaim(quest, period);
+  };
 
   return (
     <div
-      className={`rounded-lg border p-3 transition-colors ${
-        claimed ? "border-primary/40 bg-primary/5" : quest.completed ? "border-accent/50 bg-accent/5" : "border-border/70 bg-background"
-      }`}
+      ref={rowRef}
+      className={`game-panel p-3 transition-[filter] ${claimed ? "brightness-[0.97] saturate-[0.85]" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium leading-tight">{quest.title}</p>
-          <p className="text-xs text-muted-foreground">{quest.description}</p>
+          <p className="font-display text-sm font-semibold leading-tight text-card-foreground">{quest.title}</p>
+          <p className="text-xs font-semibold text-muted-foreground">{quest.description}</p>
         </div>
         <div className="shrink-0 text-right">
           {claimed ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
-              <Check className="h-3 w-3" /> +{quest.xp}
+            <span
+              ref={sealRef}
+              className="inline-flex items-center gap-1 rounded-full border-2 border-[hsl(84,45%,24%)] bg-gradient-to-b from-[hsl(84,45%,48%)] to-[hsl(84,42%,36%)] px-2.5 py-1 font-display text-xs font-bold text-white shadow-[0_2px_0_hsl(84,45%,24%)] [text-shadow:0_1px_0_rgba(0,0,0,0.3)]"
+            >
+              <Check className="h-3 w-3" strokeWidth={4} /> +{quest.xp}
             </span>
           ) : quest.completed ? (
-            <Button
-              size="sm"
-              className="h-7 px-3 text-xs"
-              disabled={claiming}
-              onClick={() => onClaim(quest, period)}
-            >
+            <GameButton ref={btnRef} color="red" size="sm" disabled={claiming} onClick={handleClaim}>
               {claiming ? "…" : `Claim +${quest.xp}`}
-            </Button>
+            </GameButton>
           ) : (
-            <span className="text-xs font-medium text-muted-foreground">+{quest.xp} XP</span>
+            <span className="game-tag inline-block px-2 py-1 font-display text-xs font-bold text-muted-foreground">
+              +{quest.xp} XP
+            </span>
           )}
         </div>
       </div>
       {!claimed && (
         <div className="mt-2 flex items-center gap-2">
-          <Progress value={pct} className="h-1.5" />
-          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+          <GameProgress value={pct} color={quest.completed ? "leaf" : "teal"} size="h-2.5" className="flex-1" />
+          <span className="shrink-0 text-[10px] font-bold tabular-nums text-muted-foreground">
             {Math.round(quest.current).toLocaleString()}/{quest.target.toLocaleString()}
           </span>
         </div>
@@ -70,6 +91,18 @@ const QuestRow = ({
     </div>
   );
 };
+
+const SectionLabel = ({ icon, label, done, total }: { icon?: React.ReactNode; label: string; done: number; total: number }) => (
+  <div className="flex items-center justify-between">
+    <p className="flex items-center gap-1.5 font-display text-xs font-bold uppercase tracking-widest text-[hsl(42,80%,72%)] [text-shadow:0_2px_0_rgba(0,0,0,0.4)]">
+      {icon}
+      {label}
+    </p>
+    <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+      {done}/{total} claimed
+    </span>
+  </div>
+);
 
 const QuestBoard = ({
   dailyQuests,
@@ -84,61 +117,46 @@ const QuestBoard = ({
   const weeklyDone = weeklyQuests.filter((q) => isClaimed(weeklyPeriod, q.key)).length;
 
   return (
-    <motion.div
-      className="rounded-xl border bg-card p-5 space-y-5"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      <div className="flex items-center gap-2">
-        <Swords className="h-5 w-5 text-primary" />
-        <h3 className="font-display font-semibold">Quests</h3>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Daily</p>
-          <span className="text-[10px] text-muted-foreground">
-            {dailyDone}/{dailyQuests.length} claimed
-          </span>
-        </div>
+    <GamePanel variant="wood" title="Quests" icon={<Swords className="h-4 w-4" />} color="red">
+      <div className="space-y-5">
         <div className="space-y-2">
-          {dailyQuests.map((q) => (
-            <QuestRow
-              key={q.key}
-              quest={q}
-              period={dailyPeriod}
-              claimed={isClaimed(dailyPeriod, q.key)}
-              claiming={claimingKey === q.key}
-              onClaim={onClaim}
-            />
-          ))}
+          <SectionLabel label="Daily" done={dailyDone} total={dailyQuests.length} />
+          <div className="space-y-2.5">
+            {dailyQuests.map((q) => (
+              <QuestRow
+                key={q.key}
+                quest={q}
+                period={dailyPeriod}
+                claimed={isClaimed(dailyPeriod, q.key)}
+                claiming={claimingKey === q.key}
+                onClaim={onClaim}
+              />
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <CalendarDays className="h-3 w-3" /> This Week
-          </p>
-          <span className="text-[10px] text-muted-foreground">
-            {weeklyDone}/{weeklyQuests.length} claimed
-          </span>
-        </div>
         <div className="space-y-2">
-          {weeklyQuests.map((q) => (
-            <QuestRow
-              key={q.key}
-              quest={q}
-              period={weeklyPeriod}
-              claimed={isClaimed(weeklyPeriod, q.key)}
-              claiming={claimingKey === q.key}
-              onClaim={onClaim}
-            />
-          ))}
+          <SectionLabel
+            icon={<CalendarDays className="h-3.5 w-3.5" />}
+            label="This Week"
+            done={weeklyDone}
+            total={weeklyQuests.length}
+          />
+          <div className="space-y-2.5">
+            {weeklyQuests.map((q) => (
+              <QuestRow
+                key={q.key}
+                quest={q}
+                period={weeklyPeriod}
+                claimed={isClaimed(weeklyPeriod, q.key)}
+                claiming={claimingKey === q.key}
+                onClaim={onClaim}
+              />
+            ))}
+          </div>
         </div>
       </div>
-    </motion.div>
+    </GamePanel>
   );
 };
 

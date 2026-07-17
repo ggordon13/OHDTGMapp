@@ -57,6 +57,20 @@ export default {
         },
         streak: "hsl(var(--streak))",
         progress: "hsl(var(--progress))",
+        wood: {
+          DEFAULT: "hsl(var(--wood))",
+          dark: "hsl(var(--wood-dark))",
+          light: "hsl(var(--wood-light))",
+        },
+        parchment: {
+          DEFAULT: "hsl(var(--parchment))",
+          dark: "hsl(var(--parchment-dark))",
+        },
+        gold: "hsl(var(--gold))",
+        teal: "hsl(var(--teal))",
+        leaf: "hsl(var(--leaf))",
+        "game-red": "hsl(var(--game-red))",
+        "game-purple": "hsl(var(--game-purple))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -69,8 +83,8 @@ export default {
         },
       },
       fontFamily: {
-        display: ['Space Grotesk', 'sans-serif'],
-        body: ['Inter', 'sans-serif'],
+        display: ['Fredoka', 'sans-serif'],
+        body: ['Nunito', 'sans-serif'],
       },
       borderRadius: {
         lg: "var(--radius)",

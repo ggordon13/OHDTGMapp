@@ -1,61 +1,79 @@
-import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 import { Award } from "lucide-react";
 import { Badge, BadgeTier } from "@/lib/gamification";
+import GamePanel from "@/components/game/GamePanel";
+import { pop, sparkle } from "@/lib/fx";
 
 interface BadgeShelfProps {
   badges: (Badge & { unlocked: boolean })[];
 }
 
-const tierRing: Record<BadgeTier, string> = {
-  bronze: "ring-amber-600/40 bg-amber-500/10",
-  silver: "ring-slate-400/50 bg-slate-400/10",
-  gold: "ring-yellow-400/60 bg-yellow-400/10",
-  special: "ring-primary/40 bg-primary/10",
+const tierStyle: Record<BadgeTier, string> = {
+  bronze: "bg-gradient-to-b from-[hsl(24,60%,55%)] to-[hsl(22,55%,38%)]",
+  silver: "bg-gradient-to-b from-[hsl(210,15%,78%)] to-[hsl(210,12%,55%)]",
+  gold: "bg-gradient-to-b from-[hsl(44,95%,62%)] to-[hsl(36,85%,45%)]",
+  special: "bg-gradient-to-b from-[hsl(268,45%,62%)] to-[hsl(268,44%,44%)]",
+};
+
+const BadgeHex = ({ badge }: { badge: Badge & { unlocked: boolean } }) => {
+  const hexRef = useRef<HTMLDivElement>(null);
+  const wasUnlocked = useRef(badge.unlocked);
+
+  // Freshly earned badge: pop + star ring. Already-earned ones mount quietly.
+  useEffect(() => {
+    if (badge.unlocked && !wasUnlocked.current) {
+      pop(hexRef.current, 1.8);
+      sparkle(hexRef.current, 10);
+    }
+    wasUnlocked.current = badge.unlocked;
+  }, [badge.unlocked]);
+
+  return (
+    <div className="flex flex-col items-center gap-1.5 text-center" title={badge.description}>
+      {/* outer hex = rim, inner hex = face */}
+      <div className={`hex-clip p-[3px] ${badge.unlocked ? "bg-[hsl(24,50%,16%)]" : "bg-[hsl(33,25%,52%)]"}`}>
+        <div
+          ref={hexRef}
+          className={`hex-clip flex h-14 w-14 items-center justify-center text-2xl ${
+            badge.unlocked ? tierStyle[badge.tier] : "game-slot grayscale opacity-50"
+          }`}
+        >
+          <span className={badge.unlocked ? "drop-shadow-[0_2px_1px_rgba(0,0,0,0.4)]" : ""}>{badge.icon}</span>
+        </div>
+      </div>
+      <span
+        className={`font-display text-[11px] font-semibold leading-tight ${
+          badge.unlocked ? "text-card-foreground" : "text-muted-foreground"
+        }`}
+      >
+        {badge.label}
+      </span>
+    </div>
+  );
 };
 
 const BadgeShelf = ({ badges }: BadgeShelfProps) => {
   const unlockedCount = badges.filter((b) => b.unlocked).length;
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Award className="h-5 w-5 text-primary" />
-          <h3 className="font-display font-semibold">Trophy Case</h3>
-        </div>
-        <span className="text-xs text-muted-foreground">{unlockedCount} unlocked</span>
-      </div>
-
+    <GamePanel
+      title="Trophy Case"
+      icon={<Award className="h-4 w-4" />}
+      color="gold"
+      right={<span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">{unlockedCount} unlocked</span>}
+    >
       {badges.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm font-semibold text-muted-foreground">
           No badges yet — log your days and hit your targets to start unlocking trophies.
         </p>
       ) : (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-2 xl:grid-cols-3">
           {badges.map((b) => (
-            <motion.div
-              key={b.key}
-              className="flex flex-col items-center gap-1.5 text-center"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: "spring", stiffness: 260, damping: 20 }}
-              title={b.description}
-            >
-              <div
-                className={`flex h-14 w-14 items-center justify-center rounded-full text-2xl ring-2 ${
-                  b.unlocked ? tierRing[b.tier] : "bg-muted ring-border grayscale opacity-40"
-                }`}
-              >
-                {b.icon}
-              </div>
-              <span className={`text-[11px] font-medium leading-tight ${b.unlocked ? "" : "text-muted-foreground"}`}>
-                {b.label}
-              </span>
-            </motion.div>
+            <BadgeHex key={b.key} badge={b} />
           ))}
         </div>
       )}
-    </div>
+    </GamePanel>
   );
 };
 

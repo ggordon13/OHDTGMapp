@@ -6,10 +6,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { requiresProfileSetup } from "@/lib/profile";
+import { lazy, Suspense } from "react";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import ProfileSetup from "./pages/ProfileSetup";
 import NotFound from "./pages/NotFound";
+
+// Dev-only style preview (mock data, no auth); excluded from production routing.
+const Preview = import.meta.env.DEV ? lazy(() => import("./pages/Preview")) : null;
 
 const queryClient = new QueryClient();
 
@@ -39,6 +43,16 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            {Preview && (
+              <Route
+                path="/preview"
+                element={
+                  <Suspense fallback={null}>
+                    <Preview />
+                  </Suspense>
+                }
+              />
+            )}
             <Route path="/setup" element={<ProfileSetup />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

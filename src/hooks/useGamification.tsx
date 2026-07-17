@@ -101,7 +101,8 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
         if (error) throw error;
         await awardXp(quest.xp);
         toast.success(`+${quest.xp} XP · ${quest.title}`);
-      } catch {
+      } catch (error) {
+        console.error("claimQuest failed", error);
         setClaims((prev) => {
           const n = new Set(prev);
           n.delete(key);
