@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DailyLog } from "@/lib/mockData";
 import {
+  ALL_BADGES,
   Badge,
   Quest,
   WeeklyGoals,
@@ -178,8 +179,8 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
 
   const isClaimed = useCallback((period: string, questKey: string) => claims.has(claimKey(period, questKey)), [claims]);
 
-  // All badges the player currently qualifies for, flagged as unlocked or not.
-  const allBadges: (Badge & { unlocked: boolean })[] = getEarnedBadges(dayRange, weeklyGoals).map((b) => ({
+  // The whole trophy catalog, each flagged unlocked (earned) or still locked.
+  const allBadges: (Badge & { unlocked: boolean })[] = ALL_BADGES.map((b) => ({
     ...b,
     unlocked: earnedBadgeKeys.has(b.key),
   }));

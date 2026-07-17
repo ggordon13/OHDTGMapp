@@ -16,6 +16,8 @@ import QuestBoard from "@/components/QuestBoard";
 import BadgeShelf from "@/components/BadgeShelf";
 import Confetti from "@/components/Confetti";
 import DailyCheckIn from "@/components/DailyCheckIn";
+import FireflyCanvas from "@/components/FireflyCanvas";
+import { revealPanels } from "@/lib/fx";
 import { buildDayRange } from "@/lib/mockData";
 import {
   getStreakWithShields,
@@ -153,6 +155,19 @@ const Index = () => {
     }
   }, [loading, profileLoading, user, profile, logs, todayDate]);
 
+  // Scroll-triggered entrances for the main panels once the data has loaded.
+  useEffect(() => {
+    if (loading || profileLoading) return;
+    let cleanup: (() => void) | undefined;
+    const raf = requestAnimationFrame(() => {
+      cleanup = revealPanels();
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      cleanup?.();
+    };
+  }, [loading, profileLoading]);
+
   // Persist the check-in weight onto today's row without disturbing other fields.
   const handleCheckInWeight = async (weight: number) => {
     const todayRow = dayRange[dayRange.length - 1];
@@ -194,6 +209,7 @@ const Index = () => {
 
   return (
     <div className="wood-bg min-h-screen">
+      <FireflyCanvas />
       <Confetti trigger={confettiTrigger} />
       <DailyCheckIn
         open={showCheckIn}
@@ -205,7 +221,7 @@ const Index = () => {
         onSaveWeight={handleCheckInWeight}
         onLater={() => { /* dismissed; already marked as greeted for today */ }}
       />
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
+      <div className="relative z-10 mx-auto max-w-[1720px] space-y-8 px-4 py-8 lg:px-8">
         {/* Top toolbar: app title + account actions, styled to match the game theme */}
         <div className="flex items-center justify-between gap-3">
           <span className="font-display text-lg font-semibold uppercase tracking-widest text-[hsl(42,80%,70%)] [text-shadow:0_2px_0_rgba(0,0,0,0.4)]">
@@ -226,80 +242,95 @@ const Index = () => {
           </div>
         </div>
 
-        <DashboardHeader
-          currentDay={currentDay}
-          streak={streakResult.streak}
-          streakProtected={streakResult.protected}
-          userName={displayName}
-          levelProgress={levelProgress}
-          shields={shields}
-          startPoint={{ date: formattedDayOneDate, weight: startWeight, status: weightStatus }}
-        />
-
-        <motion.div
-          className="grid grid-cols-2 md:grid-cols-5 gap-3"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2, staggerChildren: 0.05 }}
-        >
-          <StatCard
-            label="Weight"
-            value={formatGoal(goals.targetWeightMin, goals.targetWeightMax, goals.targetWeight)}
-            unit="kg"
-            icon={Scale}
-            caption="Goal weight"
+        {/* Header row: greeting + progress bars on the left half, Trophy Case on the right */}
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          <DashboardHeader
+            currentDay={currentDay}
+            streak={streakResult.streak}
+            streakProtected={streakResult.protected}
+            userName={displayName}
+            levelProgress={levelProgress}
+            shields={shields}
+            startPoint={{ date: formattedDayOneDate, weight: startWeight, status: weightStatus }}
           />
-          <StatCard
-            label="Calories"
-            value={formatGoal(goals.dailyCaloriesMin, goals.dailyCaloriesMax, goals.dailyCalories)}
-            unit="kcal"
-            icon={Utensils}
-            caption="Daily goal"
-          />
-          <StatCard
-            label="Protein"
-            value={formatGoal(goals.dailyProteinMin, goals.dailyProteinMax, goals.dailyProtein)}
-            unit="g"
-            icon={Beef}
-            caption="Daily goal"
-          />
-          <StatCard
-            label="Water"
-            value={goals.dailyWater}
-            unit="glasses"
-            icon={Droplets}
-            caption="Daily goal"
-          />
-          <StatCard
-            label="Steps"
-            value={goals.dailySteps}
-            unit="steps"
-            icon={Footprints}
-            caption="Daily goal"
-          />
-        </motion.div>
-
-        {/* Primary logging surface: edit rows here (today's is highlighted) and save. */}
-        <DailyTracker logs={dayRange} onUpdate={updateLogs} highlightDate={todayDate} />
-
-        <div className="grid gap-6 lg:grid-cols-4">
-          {/* Left column (1/4): Trophy Case, then Quests below it */}
-          <div className="space-y-6 lg:col-span-1">
+          <div data-reveal>
             <BadgeShelf badges={badges} />
-            <QuestBoard
-              dailyQuests={dailyQuests}
-              weeklyQuests={weeklyQuests}
-              dailyPeriod={todayDate}
-              weeklyPeriod={weeklyPeriod}
-              isClaimed={isClaimed}
-              onClaim={claimQuest}
-              claimingKey={claimingKey}
-            />
           </div>
-          {/* Right column (3/4): Weekly Achievements, then Weight Trend below it */}
-          <div className="space-y-6 lg:col-span-3">
-            <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
-            <WeightChart logs={logs} targetWeight={goals.targetWeight} startWeight={startWeight} />
+        </div>
+
+        {/* Wide two-lane layout: quest rail on the left, tracking lane on the right */}
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="order-2 space-y-6 lg:order-1 lg:col-span-4 xl:col-span-3">
+            <div data-reveal>
+              <QuestBoard
+                dailyQuests={dailyQuests}
+                weeklyQuests={weeklyQuests}
+                dailyPeriod={todayDate}
+                weeklyPeriod={weeklyPeriod}
+                isClaimed={isClaimed}
+                onClaim={claimQuest}
+                claimingKey={claimingKey}
+              />
+            </div>
+          </div>
+
+          <div className="order-1 space-y-6 lg:order-2 lg:col-span-8 xl:col-span-9">
+            <motion.div
+              className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2, staggerChildren: 0.05 }}
+            >
+              <StatCard
+                label="Weight"
+                value={formatGoal(goals.targetWeightMin, goals.targetWeightMax, goals.targetWeight)}
+                unit="kg"
+                icon={Scale}
+                caption="Goal weight"
+              />
+              <StatCard
+                label="Calories"
+                value={formatGoal(goals.dailyCaloriesMin, goals.dailyCaloriesMax, goals.dailyCalories)}
+                unit="kcal"
+                icon={Utensils}
+                caption="Daily goal"
+              />
+              <StatCard
+                label="Protein"
+                value={formatGoal(goals.dailyProteinMin, goals.dailyProteinMax, goals.dailyProtein)}
+                unit="g"
+                icon={Beef}
+                caption="Daily goal"
+              />
+              <StatCard
+                label="Water"
+                value={goals.dailyWater}
+                unit="glasses"
+                icon={Droplets}
+                caption="Daily goal"
+              />
+              <StatCard
+                label="Steps"
+                value={goals.dailySteps}
+                unit="steps"
+                icon={Footprints}
+                caption="Daily goal"
+              />
+            </motion.div>
+
+            {/* Primary logging surface: edit rows here (today's is highlighted) and save. */}
+            <div data-reveal>
+              <DailyTracker logs={dayRange} onUpdate={updateLogs} highlightDate={todayDate} />
+            </div>
+
+            <div className="grid gap-6 2xl:grid-cols-5">
+              <div data-reveal className="2xl:col-span-3">
+                <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
+              </div>
+              <div data-reveal className="2xl:col-span-2">
+                <WeightChart logs={logs} targetWeight={goals.targetWeight} startWeight={startWeight} />
+              </div>
+            </div>
           </div>
         </div>
       </div>

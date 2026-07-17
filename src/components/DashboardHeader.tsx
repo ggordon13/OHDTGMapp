@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Flame, Target, Shield, Star, Flag, Scale, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { LevelProgress } from "@/lib/gamification";
 import GameProgress from "@/components/game/GameProgress";
-import { pop, pulse } from "@/lib/fx";
+import { pop, pulse, floatIdle } from "@/lib/fx";
 import { cn } from "@/lib/utils";
 
 export interface StartPoint {
@@ -41,6 +41,8 @@ const DashboardHeader = ({
   useEffect(() => {
     pop(streakRef.current);
     pop(medalRef.current);
+    // Idle bob so the medal feels alive between XP events.
+    return floatIdle(medalRef.current);
   }, []);
 
   // Level-up: make the medal celebrate.
