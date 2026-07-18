@@ -1,10 +1,58 @@
 import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+gsap.registerPlugin(ScrollTrigger);
 
 // ---------------------------------------------------------------------------
 // Imperative GSAP effects for the game UI. Everything here is fire-and-forget:
 // helpers spawn their own fixed-position DOM, animate, and clean up after
 // themselves, so components can call them from event handlers without state.
 // ---------------------------------------------------------------------------
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * Slide-and-fade every `[data-reveal]` element in as it scrolls into view
+ * (elements already on screen animate immediately, lightly staggered).
+ * Returns a cleanup that kills the created tweens/triggers.
+ */
+export function revealPanels(selector = "[data-reveal]"): () => void {
+  if (prefersReducedMotion()) return () => {};
+  const tweens = gsap.utils.toArray<HTMLElement>(selector).map((el, i) =>
+    gsap.from(el, {
+      y: 28,
+      opacity: 0,
+      duration: 0.7,
+      delay: (i % 3) * 0.08,
+      ease: "power2.out",
+      scrollTrigger: { trigger: el, start: "top 92%", once: true },
+    }),
+  );
+  return () => {
+    tweens.forEach((tw) => {
+      tw.scrollTrigger?.kill();
+      tw.kill();
+    });
+  };
+}
+
+/** Endless gentle bob (level medals, mascots). Returns a cleanup. */
+export function floatIdle(el: Element | null, distance = 3): () => void {
+  if (!el || prefersReducedMotion()) return () => {};
+  const tw = gsap.to(el, {
+    y: -distance,
+    duration: 1.9,
+    repeat: -1,
+    yoyo: true,
+    ease: "sine.inOut",
+    delay: 0.8,
+  });
+  return () => {
+    tw.kill();
+    gsap.set(el, { y: 0 });
+  };
+}
 
 const CONFETTI_COLORS = ["#e05b4d", "#2fa7a3", "#a4b73c", "#f2b53c", "#8e5bc0", "#f3e5cd"];
 

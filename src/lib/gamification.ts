@@ -372,53 +372,53 @@ function maxConsecutiveStars(weeks: DailyLog[][], goals: WeeklyGoals): number {
   return longest;
 }
 
+interface BadgeContext {
+  goals: WeeklyGoals;
+  weeks: DailyLog[][];
+  loggedDays: number;
+  starRun: number;
+  longestStreak: number;
+}
+
+/** A badge definition plus the predicate that decides when it's earned. */
+type BadgeDef = Badge & { earned: (ctx: BadgeContext) => boolean };
+
+// Single source of truth: the full trophy catalog and its unlock rules. The
+// `description` doubles as the "how to earn it" hint shown for locked badges.
+const BADGE_CATALOG: BadgeDef[] = [
+  { key: "first-steps", label: "First Steps", description: "Logged your very first day", tier: "special", icon: "🌱", xp: 25, earned: (c) => c.loggedDays >= 1 },
+  { key: "star-bronze", label: "Bronze Star", description: "Earned a ⭐ week", tier: "bronze", icon: "🥉", xp: 50, earned: (c) => c.starRun >= 1 },
+  { key: "star-silver", label: "Silver Star", description: "3 ⭐ weeks in a row", tier: "silver", icon: "🥈", xp: 100, earned: (c) => c.starRun >= 3 },
+  { key: "star-gold", label: "Gold Star", description: "6 ⭐ weeks in a row", tier: "gold", icon: "🥇", xp: 200, earned: (c) => c.starRun >= 6 },
+  {
+    key: "hydration-hero", label: "Hydration Hero", description: "Hit your water goal every logged day of a week", tier: "special", icon: "💧", xp: 60,
+    earned: (c) => c.weeks.some((week) => {
+      const logged = week.filter(isDayLogged).length;
+      const hit = week.filter((d) => d.water != null && d.water >= c.goals.dailyWater).length;
+      return logged >= 5 && hit >= logged;
+    }),
+  },
+  {
+    key: "step-master", label: "Step Master", description: "Hit your step goal on 5 days in a week", tier: "special", icon: "👟", xp: 60,
+    earned: (c) => c.weeks.some((week) => week.filter((d) => d.steps != null && d.steps >= c.goals.dailySteps).length >= 5),
+  },
+  { key: "iron-streak", label: "Iron Streak", description: "Logged 14 days in a row", tier: "gold", icon: "🔥", xp: 120, earned: (c) => c.longestStreak >= 14 },
+];
+
+/** The complete trophy catalog (every badge that can ever be earned). */
+export const ALL_BADGES: Badge[] = BADGE_CATALOG.map(({ earned: _earned, ...badge }) => badge);
+
 /** Every badge the player currently qualifies for, given their whole history. */
 export function getEarnedBadges(dayRange: DailyLog[], goals: WeeklyGoals): Badge[] {
-  const badges: Badge[] = [];
   const weeks = chunkIntoWeeks(dayRange);
-  const loggedDays = dayRange.filter(isDayLogged).length;
-
-  if (loggedDays >= 1) {
-    badges.push({
-      key: "first-steps",
-      label: "First Steps",
-      description: "Logged your very first day",
-      tier: "special",
-      icon: "🌱",
-      xp: 25,
-    });
-  }
-
-  const starRun = maxConsecutiveStars(weeks, goals);
-  if (starRun >= 1) {
-    badges.push({ key: "star-bronze", label: "Bronze Star", description: "Earned a ⭐ week", tier: "bronze", icon: "🥉", xp: 50 });
-  }
-  if (starRun >= 3) {
-    badges.push({ key: "star-silver", label: "Silver Star", description: "3 ⭐ weeks in a row", tier: "silver", icon: "🥈", xp: 100 });
-  }
-  if (starRun >= 6) {
-    badges.push({ key: "star-gold", label: "Gold Star", description: "6 ⭐ weeks in a row", tier: "gold", icon: "🥇", xp: 200 });
-  }
-
-  const hydrationHero = weeks.some((week) => {
-    const logged = week.filter(isDayLogged).length;
-    const hit = week.filter((d) => d.water != null && d.water >= goals.dailyWater).length;
-    return logged >= 5 && hit >= logged;
-  });
-  if (hydrationHero) {
-    badges.push({ key: "hydration-hero", label: "Hydration Hero", description: "Hit your water goal every logged day of a week", tier: "special", icon: "💧", xp: 60 });
-  }
-
-  const stepMaster = weeks.some((week) => week.filter((d) => d.steps != null && d.steps >= goals.dailySteps).length >= 5);
-  if (stepMaster) {
-    badges.push({ key: "step-master", label: "Step Master", description: "Hit your step goal on 5 days in a week", tier: "special", icon: "👟", xp: 60 });
-  }
-
-  if (getLongestStreak(dayRange) >= 14) {
-    badges.push({ key: "iron-streak", label: "Iron Streak", description: "Logged 14 days in a row", tier: "gold", icon: "🔥", xp: 120 });
-  }
-
-  return badges;
+  const ctx: BadgeContext = {
+    goals,
+    weeks,
+    loggedDays: dayRange.filter(isDayLogged).length,
+    starRun: maxConsecutiveStars(weeks, goals),
+    longestStreak: getLongestStreak(dayRange),
+  };
+  return BADGE_CATALOG.filter((b) => b.earned(ctx)).map(({ earned: _earned, ...badge }) => badge);
 }
 
 // ---------------------------------------------------------------------------

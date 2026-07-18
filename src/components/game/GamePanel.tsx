@@ -38,8 +38,9 @@ const GamePanel = ({ title, icon, color = "wood", right, variant = "parchment", 
         </span>
       </div>
     )}
-    {right && <div className="absolute right-3 top-2 z-10">{right}</div>}
-    <div className={cn("p-5", title ? "pt-7" : "")}>{children}</div>
+    {right && <div className="absolute right-4 top-2.5 z-10">{right}</div>}
+    {/* Extra top padding when a right slot is present so content clears it. */}
+    <div className={cn("p-5", right ? "pt-11" : title ? "pt-7" : "")}>{children}</div>
   </section>
 );
 
