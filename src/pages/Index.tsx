@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, BookOpen } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -17,6 +17,8 @@ import QuestBoard from "@/components/QuestBoard";
 import BadgeShelf from "@/components/BadgeShelf";
 import Confetti from "@/components/Confetti";
 import CelebrationModal from "@/components/CelebrationModal";
+import Logo from "@/components/Logo";
+import QuickGuide from "@/components/QuickGuide";
 import DailyCheckIn from "@/components/DailyCheckIn";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import { revealPanels } from "@/lib/fx";
@@ -39,8 +41,12 @@ const Index = () => {
   const { logs, loading, updateLogs } = useDailyLogs();
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
   const [showCheckIn, setShowCheckIn] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [guideIsOnboarding, setGuideIsOnboarding] = useState(false);
   const celebratingRef = useRef(false);
   const checkInDoneRef = useRef(false);
+  const guideDoneRef = useRef(false);
+  const location = useLocation();
 
   const todayDate = formatDateInputValue();
 
@@ -159,6 +165,25 @@ const Index = () => {
     }
   }, [loading, profileLoading, user, profile, logs, todayDate]);
 
+  // Show the quick guide once, right after the first profile setup, before the
+  // user starts tracking. Persisted per-user so it never nags twice.
+  useEffect(() => {
+    if (guideDoneRef.current || !user) return;
+    guideDoneRef.current = true;
+
+    const key = `quickGuideSeen:${user.id}`;
+    const seen = localStorage.getItem(key) === "1";
+    const justOnboarded = (location.state as { justOnboarded?: boolean } | null)?.justOnboarded === true;
+
+    if (justOnboarded && !seen) {
+      setGuideIsOnboarding(true);
+      setShowGuide(true);
+      localStorage.setItem(key, "1");
+      // Drop the flag so a refresh doesn't replay the onboarding guide.
+      navigate(".", { replace: true, state: {} });
+    }
+  }, [user, location.state, navigate]);
+
   // Scroll-triggered entrances for the main panels once the data has loaded.
   useEffect(() => {
     if (loading || profileLoading) return;
@@ -232,12 +257,18 @@ const Index = () => {
         onSaveWeight={handleCheckInWeight}
         onLater={() => { /* dismissed; already marked as greeted for today */ }}
       />
+      <QuickGuide
+        open={showGuide}
+        onOpenChange={(v) => {
+          setShowGuide(v);
+          if (!v) setGuideIsOnboarding(false);
+        }}
+        mustAcknowledge={guideIsOnboarding}
+      />
       <div className="relative z-10 mx-auto max-w-[1720px] space-y-8 px-4 py-8 lg:px-8">
         {/* Top toolbar: app title + account actions, styled to match the game theme */}
         <div className="flex items-center justify-between gap-3">
-          <span className="font-display text-lg font-semibold uppercase tracking-widest text-[hsl(42,80%,70%)] [text-shadow:0_2px_0_rgba(0,0,0,0.4)]">
-            My 100 Days
-          </span>
+          <Logo className="h-11 w-11" withWordmark wordmarkClassName="hidden text-lg sm:inline" />
           <div className="flex items-center gap-2">
             <GameButton
               color="wood"
@@ -246,6 +277,10 @@ const Index = () => {
             >
               <UserCog className="h-4 w-4" />
               <span className="hidden sm:inline">Update Profile</span>
+            </GameButton>
+            <GameButton color="gold" size="sm" onClick={() => setShowGuide(true)} title="Open the quick guide">
+              <BookOpen className="h-4 w-4" />
+              <span className="hidden sm:inline">Quick Guide</span>
             </GameButton>
             <GameButton color="wood" size="sm" onClick={signOut} title="Sign out" aria-label="Sign out">
               <LogOut className="h-4 w-4" />

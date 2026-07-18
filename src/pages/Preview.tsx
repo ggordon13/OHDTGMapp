@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog } from "lucide-react";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, BookOpen } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
 import DashboardHeader from "@/components/DashboardHeader";
 import StatCard from "@/components/StatCard";
@@ -9,6 +9,8 @@ import WeeklyAchievements from "@/components/WeeklyAchievements";
 import DailyTracker from "@/components/DailyTracker";
 import TodayData from "@/components/TodayData";
 import CelebrationModal from "@/components/CelebrationModal";
+import Logo from "@/components/Logo";
+import QuickGuide from "@/components/QuickGuide";
 import type { Celebration } from "@/hooks/useGamification";
 import WeightChart from "@/components/WeightChart";
 import FireflyCanvas from "@/components/FireflyCanvas";
@@ -56,6 +58,7 @@ const Preview = () => {
   const [claiming] = useState<string | null>(null);
   const [todayRow, setTodayRow] = useState<DailyLog>(today);
   const [cheer, setCheer] = useState<Celebration | null>(null);
+  const [guide, setGuide] = useState(false);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => revealPanels());
@@ -76,11 +79,10 @@ const Preview = () => {
     <div className="wood-bg min-h-screen">
       <FireflyCanvas />
       <CelebrationModal event={cheer} onDismiss={() => setCheer(null)} />
+      <QuickGuide open={guide} onOpenChange={setGuide} />
       <div className="relative z-10 mx-auto max-w-[1720px] space-y-8 px-4 py-8 lg:px-8">
         <div className="flex items-center justify-between gap-3">
-          <span className="font-display text-lg font-semibold uppercase tracking-widest text-[hsl(42,80%,70%)] [text-shadow:0_2px_0_rgba(0,0,0,0.4)]">
-            My 100 Days
-          </span>
+          <Logo className="h-11 w-11" withWordmark wordmarkClassName="hidden text-lg sm:inline" />
           <div className="flex items-center gap-2">
             {/* Dev-only triggers to exercise the celebration modal */}
             <GameButton color="gold" size="sm" onClick={demoBadge}>🏆 Demo trophy</GameButton>
@@ -89,6 +91,7 @@ const Preview = () => {
               <UserCog className="h-4 w-4" />
               <span className="hidden sm:inline">Update Profile</span>
             </GameButton>
+            <GameButton color="gold" size="sm" onClick={() => setGuide(true)} title="Open the quick guide"><BookOpen className="h-4 w-4" /><span className="hidden sm:inline">Quick Guide</span></GameButton>
             <GameButton color="wood" size="sm" aria-label="Sign out">
               <LogOut className="h-4 w-4" />
             </GameButton>

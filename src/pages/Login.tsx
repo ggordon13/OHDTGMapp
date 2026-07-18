@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { Scale, Utensils, Footprints, Flame, ShieldCheck } from "lucide-react";
 import FireflyCanvas from "@/components/FireflyCanvas";
+import Logo from "@/components/Logo";
 import { floatIdle, shine } from "@/lib/fx";
 
 const features = [
@@ -87,28 +88,21 @@ const Login = () => {
       <FireflyCanvas count={140} />
 
       <div ref={rootRef} className="relative z-10 w-full max-w-xl space-y-6 text-center">
-        {/* Floating welcome medallion */}
-        <div
-          ref={medalRef}
-          className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border-4 border-[hsl(33,75%,28%)] bg-gradient-to-b from-[hsl(42,95%,62%)] to-[hsl(36,85%,46%)] text-4xl shadow-[0_6px_0_hsl(33,75%,28%),0_10px_18px_rgba(0,0,0,0.45),inset_0_2px_0_rgba(255,255,255,0.5)]"
-        >
-          👋
-        </div>
-
-        <span data-in className="game-banner game-banner-gold mx-auto text-sm">🎯 My 100 Days</span>
+        {/* Floating brand badge */}
+        <Logo ref={medalRef} className="mx-auto h-36 w-36 sm:h-44 sm:w-44" />
 
         <h1
           data-in
           className="font-display text-4xl font-bold leading-[1.05] tracking-wide text-[hsl(38,60%,90%)] [text-shadow:0_4px_0_rgba(0,0,0,0.45)] sm:text-5xl"
         >
-          100 days to change
+          Level up your fitness,
           <br />
-          <span className="text-[hsl(42,88%,62%)]">everything.</span>
+          <span className="text-[hsl(42,88%,62%)]">one day at a time.</span>
         </h1>
 
         <p data-in className="mx-auto max-w-md font-semibold text-[hsl(35,30%,66%)]">
-          A daily tracker for weight, food and movement — leveled up like a game to keep you honest
-          for the long haul, not just the first week.
+          A daily tracker for weight, food and movement — turned into a game of levels, streaks and
+          trophies so you stick with it for the long haul.
         </p>
 
         {/* Feature chips */}

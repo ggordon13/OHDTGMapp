@@ -224,7 +224,9 @@ const ProfileSetup = () => {
       toast.error("Failed to save profile");
     } else {
       toast.success(isUpdate ? "Profile updated" : "Profile saved! Let's start your journey 💪");
-      navigate("/");
+      // First-time setup hands off to the dashboard with a flag so the quick
+      // guide is shown before the user starts tracking.
+      navigate("/", { state: { justOnboarded: !isUpdate } });
     }
   };
 

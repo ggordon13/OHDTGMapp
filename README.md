@@ -1,6 +1,10 @@
-# My 100 Days
+# LevelUp Fitness
 
-A focused daily tracker for weight, nutrition, water and steps — built to keep you honest for 100 days straight.
+A gamified daily tracker for weight, nutrition, water and steps — levels, streaks, quests and trophies that keep you honest across a 100-day challenge.
+
+## Branding
+
+The logo lives at `public/logo.png` and is referenced by the in-app `<Logo />` component, the favicon and the social (OG/Twitter) preview tags. Replace that one file to reskin the brand mark everywhere; a transparent PNG looks best against the wooden background.
 
 ## Tech stack
 
