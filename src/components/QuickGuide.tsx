@@ -163,8 +163,9 @@ const QuickGuide = ({ open, onOpenChange, mustAcknowledge = false }: QuickGuideP
                     intake and <Em>after</Em> using the restroom.
                   </Bullet>
                   <Bullet>
-                    Keep a consistent eating window — first intake <Chip>12:00 PM</Chip>, last intake{" "}
-                    <Chip>8:00 PM</Chip>.
+                    Set regular times for your first and last food/drink intake, then stick to them daily.
+                    The exact hours are up to you — <Em>for example</Em>, first intake <Chip>12:00 PM</Chip>,
+                    last intake <Chip>8:00 PM</Chip>.
                   </Bullet>
                 </ul>
               </Card>
