@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarCheck, Scale, Utensils, Beef, Droplets, Dumbbell, Footprints, Save, PartyPopper } from "lucide-react";
+import { CalendarCheck, Scale, Utensils, Beef, Droplets, Dumbbell, Footprints, Save, Pencil } from "lucide-react";
 import { DailyLog, exerciseOptions } from "@/lib/mockData";
 import { isDayComplete } from "@/lib/gamification";
 import { Input } from "@/components/ui/input";
@@ -29,10 +29,14 @@ const toFormValue = (v: string | number | null | undefined) => (v == null ? "" :
 const TodayData = ({ entry, onSave }: TodayDataProps) => {
   const [form, setForm] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  // Re-opens the form on a day that's already complete, so today's numbers
+  // can be corrected without leaving the panel.
+  const [editing, setEditing] = useState(false);
   const doneRef = useRef<HTMLDivElement>(null);
   const saveRef = useRef<HTMLButtonElement>(null);
   const complete = entry != null && isDayComplete(entry);
   const wasComplete = useRef(complete);
+  const showDone = complete && !editing;
 
   // Mirror whatever is already saved for today into the form.
   useEffect(() => {
@@ -70,6 +74,22 @@ const TodayData = ({ entry, onSave }: TodayDataProps) => {
       exercise: form.exercise || "None",
     });
     setSaving(false);
+    setEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    // Discard edits by re-mirroring what's currently saved.
+    if (entry) {
+      setForm({
+        weight: toFormValue(entry.weight),
+        calories: toFormValue(entry.calories),
+        protein: toFormValue(entry.protein),
+        water: toFormValue(entry.water),
+        steps: toFormValue(entry.steps),
+        exercise: entry.exercise || "None",
+      });
+    }
+    setEditing(false);
   };
 
   const filled = fields.filter((f) =>
@@ -87,7 +107,7 @@ const TodayData = ({ entry, onSave }: TodayDataProps) => {
         </span>
       }
     >
-      {complete ? (
+      {showDone ? (
         <div ref={doneRef} className="flex flex-col items-center gap-3 py-4 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-[hsl(84,45%,24%)] bg-gradient-to-b from-[hsl(84,46%,52%)] to-[hsl(70,50%,38%)] text-3xl shadow-[0_4px_0_hsl(84,45%,24%),0_6px_12px_rgba(0,0,0,0.35),inset_0_2px_0_rgba(255,255,255,0.4)]">
             🎉
@@ -111,15 +131,17 @@ const TodayData = ({ entry, onSave }: TodayDataProps) => {
             ))}
           </div>
 
-          <GameButton color="wood" size="sm" className="mt-1" onClick={() => wasComplete.current && handleSave()} disabled={saving}>
-            <PartyPopper className="h-3.5 w-3.5" />
-            {saving ? "Saving..." : "Re-save"}
+          <GameButton color="wood" size="sm" className="mt-1" onClick={() => setEditing(true)}>
+            <Pencil className="h-3.5 w-3.5" />
+            Update Data
           </GameButton>
         </div>
       ) : (
         <div className="space-y-4">
           <p className="text-xs font-semibold text-muted-foreground">
-            Fill in today's numbers — they save straight into the Daily Log.
+            {editing
+              ? "Update today's numbers — changes save straight into the Daily Log."
+              : "Fill in today's numbers — they save straight into the Daily Log."}
           </p>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -163,10 +185,23 @@ const TodayData = ({ entry, onSave }: TodayDataProps) => {
             ))}
           </div>
 
-          <GameButton ref={saveRef} color="leaf" className="w-full" onClick={handleSave} disabled={saving || !entry}>
-            <Save className="h-4 w-4" />
-            {saving ? "Saving..." : "Save Today's Data"}
-          </GameButton>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <GameButton
+              ref={saveRef}
+              color="leaf"
+              className="w-full flex-1"
+              onClick={handleSave}
+              disabled={saving || !entry}
+            >
+              <Save className="h-4 w-4" />
+              {saving ? "Saving..." : editing ? "Save Changes" : "Save Today's Data"}
+            </GameButton>
+            {editing && (
+              <GameButton color="wood" className="w-full sm:w-auto" onClick={handleCancelEdit} disabled={saving}>
+                Cancel
+              </GameButton>
+            )}
+          </div>
         </div>
       )}
     </GamePanel>

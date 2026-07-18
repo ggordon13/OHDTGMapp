@@ -1,4 +1,5 @@
-import { Trophy, Check, Flame, Star } from "lucide-react";
+import { useState } from "react";
+import { Trophy, Check, Flame, Star, ChevronDown, Utensils, Beef, Droplets, Footprints, Dumbbell, type LucideIcon } from "lucide-react";
 import { DailyLog } from "@/lib/mockData";
 import { WeeklyGoals, getWeeklyAvg, isAchieved, chunkIntoWeeks } from "@/lib/gamification";
 import GamePanel from "@/components/game/GamePanel";
@@ -22,7 +23,17 @@ const MetricCell = ({ value, met }: { value: string; met: boolean }) =>
 
 const tierMedal: Record<string, string> = { bronze: "🥉", silver: "🥈", gold: "🥇" };
 
+/** One goal condition, shown as a compact labelled chip. */
+const Cond = ({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) => (
+  <span className="game-tag inline-flex items-baseline gap-1.5 px-2 py-1">
+    <Icon className="h-3 w-3 shrink-0 translate-y-0.5 text-[hsl(24,55%,42%)]" />
+    <span className="font-display text-[9px] font-bold uppercase tracking-wide text-muted-foreground">{label}</span>
+    <span className="text-[11px] font-bold text-card-foreground">{value}</span>
+  </span>
+);
+
 const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
+  const [showRules, setShowRules] = useState(true);
   const weeks = chunkIntoWeeks(logs);
 
   // Running count of consecutive ⭐ weeks, so each qualifying week can show a
@@ -79,9 +90,74 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
           </div>
         </div>
 
-        <p className="game-tag px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-muted-foreground">
-          ⭐ = Avg calories ≤ {goals.dailyCalories} + 2 of: protein ≥ {goals.dailyProtein}g, water ≥ {goals.dailyWater} glasses, steps ≥ {goals.dailySteps.toLocaleString()}, exercise ≥ 1 day/week · a streak of ⭐ weeks earns 🥉→🥈→🥇
-        </p>
+        {/* How a ⭐ week is earned. Mirrors isAchieved(): either the calorie
+            route with 2 extras, or the steps + exercise fallback. */}
+        <div className="rounded-xl border-2 border-[hsl(33,28%,60%)] bg-[hsl(37,40%,82%)]">
+          <button
+            type="button"
+            onClick={() => setShowRules((v) => !v)}
+            aria-expanded={showRules}
+            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+          >
+            <span className="font-display text-xs font-bold uppercase tracking-wide text-card-foreground">
+              ⭐ How to earn a star week
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${showRules ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          {showRules && (
+            <div className="space-y-3 border-t-2 border-[hsl(33,28%,68%)] px-3 py-3">
+              {/* Route 1 */}
+              <div className="space-y-1.5">
+                <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(70,45%,32%)]">
+                  Option 1 — stay in your calorie budget
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Cond icon={Utensils} label="Avg calories" value={`≤ ${goals.dailyCalories.toLocaleString()}`} />
+                  <span className="text-[11px] font-bold text-muted-foreground">plus any 2 of:</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Cond icon={Beef} label="Protein" value={`≥ ${goals.dailyProtein}g`} />
+                  <Cond icon={Droplets} label="Water" value={`≥ ${goals.dailyWater} glasses`} />
+                  <Cond icon={Footprints} label="Steps" value={`≥ ${goals.dailySteps.toLocaleString()}`} />
+                  <Cond icon={Dumbbell} label="Exercise" value="≥ 1 day" />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="h-px flex-1 bg-[hsl(33,28%,68%)]" />
+                <span className="font-display text-[10px] font-bold uppercase tracking-widest text-muted-foreground">or</span>
+                <span className="h-px flex-1 bg-[hsl(33,28%,68%)]" />
+              </div>
+
+              {/* Route 2 */}
+              <div className="space-y-1.5">
+                <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(70,45%,32%)]">
+                  Option 2 — over budget? Move instead
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Cond icon={Footprints} label="Steps" value={`≥ ${goals.dailySteps.toLocaleString()}`} />
+                  <span className="text-[11px] font-bold text-muted-foreground">and</span>
+                  <Cond icon={Dumbbell} label="Exercise" value="≥ 1 day" />
+                </div>
+              </div>
+
+              {/* Tiers */}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t-2 border-[hsl(33,28%,68%)] pt-2.5">
+                <span className="font-display text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                  Stack star weeks in a row:
+                </span>
+                <span className="text-[11px] font-bold text-card-foreground">🥉 1–2</span>
+                <span className="text-muted-foreground">→</span>
+                <span className="text-[11px] font-bold text-card-foreground">🥈 3–5</span>
+                <span className="text-muted-foreground">→</span>
+                <span className="text-[11px] font-bold text-card-foreground">🥇 6+</span>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
