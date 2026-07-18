@@ -119,7 +119,7 @@ const FireflyCanvas = ({ count: COUNT = 90 }: FireflyCanvasProps) => {
       renderer.dispose();
       host.removeChild(renderer.domElement);
     };
-  }, []);
+  }, [COUNT]);
 
   return <div ref={hostRef} aria-hidden className="pointer-events-none fixed inset-0 z-0" />;
 };
