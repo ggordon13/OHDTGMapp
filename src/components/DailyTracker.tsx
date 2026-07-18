@@ -179,15 +179,15 @@ const DailyTracker = ({ logs, onUpdate, highlightDate }: DailyTrackerProps) => {
           </table>
         </div>
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {highlightDate != null && visibleLogs.some((l) => l.date === highlightDate) ? (
             <p className="text-xs font-bold text-[hsl(70,45%,32%)]">
               Fill in the highlighted <span className="uppercase">Today</span> row, then save.
             </p>
           ) : (
-            <span />
+            <span className="hidden sm:block" />
           )}
-          <GameButton onClick={handleSave} color="leaf">
+          <GameButton onClick={handleSave} color="leaf" className="w-full shrink-0 whitespace-nowrap sm:w-auto">
             <Save className="h-4 w-4" />
             Save Progress
           </GameButton>

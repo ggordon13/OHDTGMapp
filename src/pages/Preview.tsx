@@ -79,7 +79,7 @@ const Preview = () => {
           </div>
         </div>
 
-        <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="grid items-start gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           <DashboardHeader
             currentDay={16}
             streak={12}
@@ -94,7 +94,7 @@ const Preview = () => {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-12">
-          <div className="order-2 space-y-6 lg:order-1 lg:col-span-4 xl:col-span-3">
+          <div className="order-2 min-w-0 space-y-6 lg:order-1 lg:col-span-4 xl:col-span-3">
             <div data-reveal>
               <QuestBoard
                 dailyQuests={dailyQuests}
@@ -108,7 +108,7 @@ const Preview = () => {
             </div>
           </div>
 
-          <div className="order-1 space-y-6 lg:order-2 lg:col-span-8 xl:col-span-9">
+          <div className="order-1 min-w-0 space-y-6 lg:order-2 lg:col-span-8 xl:col-span-9">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
               <StatCard label="Weight" value="66.1–69.2" unit="kg" icon={Scale} caption="Goal weight" />
               <StatCard label="Calories" value="1,420–1,654" unit="kcal" icon={Utensils} caption="Daily goal" />
@@ -122,10 +122,10 @@ const Preview = () => {
             </div>
 
             <div className="grid gap-6 2xl:grid-cols-5">
-              <div data-reveal className="2xl:col-span-3">
+              <div data-reveal className="min-w-0 2xl:col-span-3">
                 <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
               </div>
-              <div data-reveal className="2xl:col-span-2">
+              <div data-reveal className="min-w-0 2xl:col-span-2">
                 <WeightChart logs={dayRange} targetWeight={75} startWeight={88} />
               </div>
             </div>

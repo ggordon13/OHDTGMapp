@@ -20,13 +20,25 @@ const FireflyCanvas = ({ count: COUNT = 90 }: FireflyCanvasProps) => {
     if (!host) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
+    // Measure the host (a fixed, full-viewport box) rather than window.innerWidth
+    // so the canvas can never end up wider than the layout viewport on mobile.
+    const measure = () => ({
+      w: host.clientWidth || window.innerWidth,
+      h: host.clientHeight || window.innerHeight,
+    });
+    const { w: w0, h: h0 } = measure();
+
+    // Phones get fewer motes and a lower pixel ratio to stay smooth on battery.
+    const isNarrow = w0 < 640;
+    const count = isNarrow ? Math.max(24, Math.round(COUNT * 0.45)) : COUNT;
+
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 500);
+    const camera = new THREE.PerspectiveCamera(60, w0 / h0, 1, 500);
     camera.position.z = 140;
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false, powerPreference: "low-power" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isNarrow ? 1.5 : 2));
+    renderer.setSize(w0, h0);
     renderer.setClearColor(0x000000, 0);
     host.appendChild(renderer.domElement);
 
@@ -46,9 +58,9 @@ const FireflyCanvas = ({ count: COUNT = 90 }: FireflyCanvasProps) => {
     const SPREAD_X = 190;
     const SPREAD_Y = 110;
     const SPREAD_Z = 80;
-    const positions = new Float32Array(COUNT * 3);
+    const positions = new Float32Array(count * 3);
     const seeds: { ax: number; ay: number; speed: number; phase: number }[] = [];
-    for (let i = 0; i < COUNT; i++) {
+    for (let i = 0; i < count; i++) {
       positions[i * 3] = (Math.random() * 2 - 1) * SPREAD_X;
       positions[i * 3 + 1] = (Math.random() * 2 - 1) * SPREAD_Y;
       positions[i * 3 + 2] = (Math.random() * 2 - 1) * SPREAD_Z;
@@ -77,23 +89,29 @@ const FireflyCanvas = ({ count: COUNT = 90 }: FireflyCanvasProps) => {
 
     const mouse = { x: 0, y: 0 };
     const onMouseMove = (e: MouseEvent) => {
-      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = (e.clientY / window.innerHeight) * 2 - 1;
+      const { w, h } = measure();
+      mouse.x = (e.clientX / w) * 2 - 1;
+      mouse.y = (e.clientY / h) * 2 - 1;
     };
     const onResize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
+      const { w, h } = measure();
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setSize(w, h);
     };
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("resize", onResize);
+    // Catches mobile URL-bar show/hide and orientation changes that don't
+    // always fire a window resize.
+    const ro = new ResizeObserver(onResize);
+    ro.observe(host);
 
     const clock = new THREE.Clock();
     let raf = 0;
     const tick = () => {
       const t = clock.getElapsedTime();
       const attr = geometry.getAttribute("position") as THREE.BufferAttribute;
-      for (let i = 0; i < COUNT; i++) {
+      for (let i = 0; i < count; i++) {
         const s = seeds[i];
         attr.setX(i, basePositions[i * 3] + Math.sin(t * s.speed + s.phase) * s.ax);
         attr.setY(i, basePositions[i * 3 + 1] + Math.cos(t * s.speed * 0.9 + s.phase * 1.3) * s.ay);
@@ -113,6 +131,7 @@ const FireflyCanvas = ({ count: COUNT = 90 }: FireflyCanvasProps) => {
       cancelAnimationFrame(raf);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("resize", onResize);
+      ro.disconnect();
       geometry.dispose();
       material.dispose();
       texture.dispose();
@@ -121,7 +140,7 @@ const FireflyCanvas = ({ count: COUNT = 90 }: FireflyCanvasProps) => {
     };
   }, [COUNT]);
 
-  return <div ref={hostRef} aria-hidden className="pointer-events-none fixed inset-0 z-0" />;
+  return <div ref={hostRef} aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden" />;
 };
 
 export default FireflyCanvas;
