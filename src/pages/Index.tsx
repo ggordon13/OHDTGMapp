@@ -243,7 +243,7 @@ const Index = () => {
         </div>
 
         {/* Header row: greeting + progress bars on the left half, Trophy Case on the right */}
-        <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="grid items-start gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           <DashboardHeader
             currentDay={currentDay}
             streak={streakResult.streak}
@@ -260,7 +260,7 @@ const Index = () => {
 
         {/* Wide two-lane layout: quest rail on the left, tracking lane on the right */}
         <div className="grid gap-6 lg:grid-cols-12">
-          <div className="order-2 space-y-6 lg:order-1 lg:col-span-4 xl:col-span-3">
+          <div className="order-2 min-w-0 space-y-6 lg:order-1 lg:col-span-4 xl:col-span-3">
             <div data-reveal>
               <QuestBoard
                 dailyQuests={dailyQuests}
@@ -274,7 +274,7 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="order-1 space-y-6 lg:order-2 lg:col-span-8 xl:col-span-9">
+          <div className="order-1 min-w-0 space-y-6 lg:order-2 lg:col-span-8 xl:col-span-9">
             <motion.div
               className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
               initial={{ opacity: 0 }}
@@ -324,10 +324,10 @@ const Index = () => {
             </div>
 
             <div className="grid gap-6 2xl:grid-cols-5">
-              <div data-reveal className="2xl:col-span-3">
+              <div data-reveal className="min-w-0 2xl:col-span-3">
                 <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
               </div>
-              <div data-reveal className="2xl:col-span-2">
+              <div data-reveal className="min-w-0 2xl:col-span-2">
                 <WeightChart logs={logs} targetWeight={goals.targetWeight} startWeight={startWeight} />
               </div>
             </div>

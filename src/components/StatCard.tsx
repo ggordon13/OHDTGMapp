@@ -37,8 +37,9 @@ const StatCard = ({ label, value, unit, icon: Icon, caption }: StatCardProps) =>
           <Icon className="h-3.5 w-3.5 text-[hsl(42,80%,72%)]" />
         </span>
       </div>
-      <div className="flex items-baseline gap-1">
-        <span ref={valueRef} className="font-display text-2xl font-bold text-card-foreground">
+      {/* Keep ranges like "1,420–1,654" on one line; let the unit wrap instead. */}
+      <div className="flex flex-wrap items-baseline gap-x-1">
+        <span ref={valueRef} className="whitespace-nowrap font-display text-xl font-bold text-card-foreground sm:text-2xl">
           {typeof value === "number" ? 0 : value}
         </span>
         {unit && <span className="text-sm font-semibold text-muted-foreground">{unit}</span>}
