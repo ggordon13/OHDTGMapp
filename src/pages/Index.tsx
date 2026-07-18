@@ -12,13 +12,15 @@ import StatCard from "@/components/StatCard";
 import WeightChart from "@/components/WeightChart";
 import WeeklyAchievements from "@/components/WeeklyAchievements";
 import DailyTracker from "@/components/DailyTracker";
+import TodayData from "@/components/TodayData";
 import QuestBoard from "@/components/QuestBoard";
 import BadgeShelf from "@/components/BadgeShelf";
 import Confetti from "@/components/Confetti";
+import CelebrationModal from "@/components/CelebrationModal";
 import DailyCheckIn from "@/components/DailyCheckIn";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import { revealPanels } from "@/lib/fx";
-import { buildDayRange } from "@/lib/mockData";
+import { buildDayRange, type DailyLog } from "@/lib/mockData";
 import {
   getStreakWithShields,
   getCurrentWeek,
@@ -84,6 +86,8 @@ const Index = () => {
     claimingKey,
     badges,
     celebrateMilestone,
+    celebrations,
+    dismissCelebration,
   } = useGamification({
     userId: user?.id,
     profile,
@@ -177,6 +181,12 @@ const Index = () => {
     toast.success(`Logged ${weight} kg for today 💪`);
   };
 
+  // Save the "Today's Data" panel straight onto today's row in the Daily Log.
+  const handleSaveToday = async (updated: DailyLog) => {
+    await updateLogs([updated]);
+    toast.success("Today's data saved 💪");
+  };
+
   if (loading || profileLoading) {
     return (
       <div className="wood-bg flex min-h-screen items-center justify-center">
@@ -211,6 +221,7 @@ const Index = () => {
     <div className="wood-bg min-h-screen">
       <FireflyCanvas />
       <Confetti trigger={confettiTrigger} />
+      <CelebrationModal event={celebrations[0] ?? null} onDismiss={dismissCelebration} />
       <DailyCheckIn
         open={showCheckIn}
         onOpenChange={setShowCheckIn}
@@ -242,7 +253,7 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Header row: greeting + progress bars on the left half, Trophy Case on the right */}
+        {/* Header row: greeting + progress bars on the left half, today's entry on the right */}
         <div className="grid items-start gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           <DashboardHeader
             currentDay={currentDay}
@@ -254,13 +265,16 @@ const Index = () => {
             startPoint={{ date: formattedDayOneDate, weight: startWeight, status: weightStatus }}
           />
           <div data-reveal>
-            <BadgeShelf badges={badges} />
+            <TodayData entry={todayEntry} onSave={handleSaveToday} />
           </div>
         </div>
 
-        {/* Wide two-lane layout: quest rail on the left, tracking lane on the right */}
+        {/* Wide two-lane layout: trophies + quests on the left, tracking lane on the right */}
         <div className="grid gap-6 lg:grid-cols-12">
           <div className="order-2 min-w-0 space-y-6 lg:order-1 lg:col-span-4 xl:col-span-3">
+            <div data-reveal>
+              <BadgeShelf badges={badges} />
+            </div>
             <div data-reveal>
               <QuestBoard
                 dailyQuests={dailyQuests}

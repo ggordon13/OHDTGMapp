@@ -14,6 +14,8 @@ export interface UserProfile {
   target_weight_max: number | null;
   activity_level: string | null;
   gender: string | null;
+  /** "lose" | "maintain" — drives the calorie formula and target-weight limits. */
+  goal_type: string | null;
   daily_calorie_target: number | null;
   daily_calorie_target_min: number | null;
   daily_calorie_target_max: number | null;

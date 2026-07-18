@@ -131,6 +131,7 @@ export type Database = {
           daily_water_target: number | null
           display_name: string | null
           gender: string | null
+          goal_type: string
           height_cm: number | null
           id: string
           last_celebrated_weight: number | null
@@ -160,6 +161,7 @@ export type Database = {
           daily_water_target?: number | null
           display_name?: string | null
           gender?: string | null
+          goal_type?: string
           height_cm?: number | null
           id?: string
           last_celebrated_weight?: number | null
@@ -189,6 +191,7 @@ export type Database = {
           daily_water_target?: number | null
           display_name?: string | null
           gender?: string | null
+          goal_type?: string
           height_cm?: number | null
           id?: string
           last_celebrated_weight?: number | null

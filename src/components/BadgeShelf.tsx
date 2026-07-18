@@ -41,7 +41,12 @@ const BadgeHex = ({ badge, size = "h-14 w-14 text-2xl" }: { badge: BadgeWithStat
           badge.unlocked ? tierStyle[badge.tier] : "game-slot grayscale opacity-50"
         }`}
       >
-        <span className={badge.unlocked ? "drop-shadow-[0_2px_1px_rgba(0,0,0,0.4)]" : ""}>{badge.icon}</span>
+        <span
+          className={badge.unlocked ? "drop-shadow-[0_2px_1px_rgba(0,0,0,0.4)]" : ""}
+          style={badge.iconColor ? { color: badge.iconColor } : undefined}
+        >
+          {badge.icon}
+        </span>
       </div>
     </div>
   );
