@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
-import { requiresProfileSetup } from "@/lib/profile";
+import { requiresProfileSetup, targetWeightRange, recommendedTargetRange, type GoalType } from "@/lib/profile";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatDateInputValue } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +18,14 @@ const activityMultipliers: Record<string, number> = {
   very_active: 1.7,
 };
 
-function calculateTargets(age: number, heightCm: number, weight: number, gender: string, activity: string) {
+function calculateTargets(
+  age: number,
+  heightCm: number,
+  weight: number,
+  gender: string,
+  activity: string,
+  goal: GoalType,
+) {
   // Mifflin-St Jeor BMR
   const bmr = gender === "male"
     ? (10 * weight + 6.25 * heightCm - 5 * age + 5)
@@ -26,17 +34,18 @@ function calculateTargets(age: number, heightCm: number, weight: number, gender:
   const multiplier = activityMultipliers[activity] || 1.45;
   const tdee = bmr * multiplier;
 
-  // Calorie targets: TDEE - (weight * factor * 7700 / 100)
-  const calorieMin = Math.round(tdee - (weight * 0.13 * 7700 / 100)); // aggressive
-  const calorieMax = Math.round(tdee - (weight * 0.09 * 7700 / 100)); // moderate
+  // Losing runs a deficit sized off body mass; maintaining sits in a narrow
+  // band around TDEE so weight holds steady.
+  const calorieMin = goal === "lose"
+    ? Math.round(tdee - (weight * 0.13 * 7700 / 100)) // aggressive
+    : Math.round(tdee - (weight * 7));
+  const calorieMax = goal === "lose"
+    ? Math.round(tdee - (weight * 0.09 * 7700 / 100)) // moderate
+    : Math.round(tdee - (weight * 4));
 
   // Protein targets
   const proteinMin = Math.round(weight * 1.3);
   const proteinMax = Math.round(weight * 1.8);
-
-  // Target weight after 100 days
-  const targetWeightMin = Math.round(weight * 0.87 * 10) / 10;
-  const targetWeightMax = Math.round(weight * 0.91 * 10) / 10;
 
   // Fixed daily hydration goal (glasses) — matches the dashboard water target.
   const water = 7;
@@ -53,8 +62,6 @@ function calculateTargets(age: number, heightCm: number, weight: number, gender:
     calorieMax,
     proteinMin,
     proteinMax,
-    targetWeightMin,
-    targetWeightMax,
     water,
     steps: stepsMap[activity] || 6000,
   };
@@ -71,16 +78,26 @@ const ProfileSetup = () => {
   const [currentWeight, setCurrentWeight] = useState("");
   const [gender, setGender] = useState("");
   const [activityLevel, setActivityLevel] = useState("");
+  const [goalType, setGoalType] = useState<GoalType>("lose");
+  const [targetWeight, setTargetWeight] = useState("");
+  const [useRecommended, setUseRecommended] = useState(false);
+  const [dayOneDate, setDayOneDate] = useState(formatDateInputValue());
   const [saving, setSaving] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
 
   const isUpdate = !requiresProfileSetup(profile);
+  // Any of these changing re-bases the challenge, so the user has to start
+  // logging again from Day 1 — including the goal, target and Day 1 itself.
   const hasChangedStartingData = profile != null && (
     age !== (profile.age != null ? String(profile.age) : "") ||
     heightCm !== (profile.height_cm != null ? String(profile.height_cm) : "") ||
     currentWeight !== (profile.current_weight != null ? String(profile.current_weight) : "") ||
     gender !== (profile.gender ?? "") ||
-    activityLevel !== (profile.activity_level ?? "")
+    activityLevel !== (profile.activity_level ?? "") ||
+    goalType !== (profile.goal_type ?? "lose") ||
+    targetWeight !== (profile.target_weight != null ? String(profile.target_weight) : "") ||
+    useRecommended !== (profile.target_weight_min != null && profile.target_weight_max != null) ||
+    dayOneDate !== (profile.challenge_start_date ?? formatDateInputValue())
   );
 
   useEffect(() => {
@@ -105,12 +122,38 @@ const ProfileSetup = () => {
     if (profile.current_weight != null) setCurrentWeight(String(profile.current_weight));
     if (profile.gender) setGender(profile.gender);
     if (profile.activity_level) setActivityLevel(profile.activity_level);
+    if (profile.goal_type === "lose" || profile.goal_type === "maintain") setGoalType(profile.goal_type);
+    if (profile.target_weight != null) setTargetWeight(String(profile.target_weight));
+    // A stored min/max band means they opted into the recommended range.
+    setUseRecommended(profile.target_weight_min != null && profile.target_weight_max != null);
+    if (profile.challenge_start_date) setDayOneDate(profile.challenge_start_date);
     setPrefilled(true);
   }, [profile, profileLoading, prefilled]);
 
   const w = Number(currentWeight);
-  const preview = currentWeight && age && heightCm && gender && activityLevel
-    ? calculateTargets(Number(age), Number(heightCm), w, gender, activityLevel)
+  const hasWeight = currentWeight !== "" && !Number.isNaN(w) && w > 0;
+  const range = hasWeight ? targetWeightRange(w, goalType) : null;
+  const recommended = hasWeight ? recommendedTargetRange(w, goalType) : null;
+
+  // Snap an out-of-range target back into the allowed band when the goal or
+  // current weight changes, so the form can never hold an invalid value.
+  useEffect(() => {
+    if (!range || targetWeight === "") return;
+    const t = Number(targetWeight);
+    if (Number.isNaN(t)) return;
+    if (t < range.min) setTargetWeight(String(range.min));
+    else if (t > range.max) setTargetWeight(String(range.max));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goalType, currentWeight]);
+
+  const target = Number(targetWeight);
+  // Following the recommended range needs no manual entry to be valid.
+  const targetValid = useRecommended
+    ? recommended != null
+    : range != null && targetWeight !== "" && !Number.isNaN(target) && target >= range.min && target <= range.max;
+
+  const preview = hasWeight && age && heightCm && gender && activityLevel && targetValid
+    ? calculateTargets(Number(age), Number(heightCm), w, gender, activityLevel, goalType)
     : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -119,23 +162,27 @@ const ProfileSetup = () => {
 
     if (isUpdate && hasChangedStartingData) {
       const shouldRestart = window.confirm(
-        "Changing your starting data will reset your challenge back to day 1. Continue?"
+        "Changing your age, height, weight, gender, activity, goal, target weight or Day 1 date restarts your challenge — you'll begin logging again from Day 1. Continue?"
       );
       if (!shouldRestart) return;
     }
 
-    const challengeStartDate = !isUpdate || hasChangedStartingData
-      ? formatDateInputValue()
-      : profile?.challenge_start_date ?? formatDateInputValue();
+    // The user picks their own Day 1 now (they may have started ahead).
+    const challengeStartDate = dayOneDate || formatDateInputValue();
 
     setSaving(true);
     const { error } = await supabase.from("profiles").update({
       age: Number(age),
       height_cm: Number(heightCm),
       current_weight: w,
-      target_weight: preview.targetWeightMax, // used as primary display target
-      target_weight_min: preview.targetWeightMin,
-      target_weight_max: preview.targetWeightMax,
+      goal_type: goalType,
+      // Following the recommendation stores the whole band (the dashboard then
+      // shows a range); a manual pick stores just that single number.
+      target_weight: useRecommended
+        ? (goalType === "lose" ? recommended!.max : w)
+        : target,
+      target_weight_min: useRecommended ? recommended!.min : null,
+      target_weight_max: useRecommended ? recommended!.max : null,
       gender,
       activity_level: activityLevel,
       daily_calorie_target: preview.calorieMax, // primary target = max (moderate)
@@ -148,6 +195,29 @@ const ProfileSetup = () => {
       daily_steps_target: preview.steps,
       challenge_start_date: challengeStartDate,
     }).eq("user_id", user.id);
+
+    // Seed Day 1's weight from the profile so the challenge starts from a real
+    // data point. Merge into any existing row for that date rather than
+    // overwriting the other metrics the user may have already logged.
+    if (!error) {
+      const { data: existing } = await supabase
+        .from("daily_logs")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("date", challengeStartDate)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from("daily_logs").update({ weight: w }).eq("id", existing.id);
+      } else {
+        await supabase.from("daily_logs").insert({
+          user_id: user.id,
+          date: challengeStartDate,
+          day_number: 1,
+          weight: w,
+        });
+      }
+    }
 
     setSaving(false);
     if (error) {
@@ -172,10 +242,18 @@ const ProfileSetup = () => {
     ? [
         { label: "Calories", value: `${preview.calorieMin}–${preview.calorieMax} kcal` },
         { label: "Protein", value: `${preview.proteinMin}–${preview.proteinMax} g` },
-        { label: "Target Weight", value: `${preview.targetWeightMin}–${preview.targetWeightMax} kg` },
+        {
+          label: "Target Weight",
+          value: useRecommended && recommended ? `${recommended.min}–${recommended.max} kg` : `${target} kg`,
+        },
         { label: "Water / Steps", value: `${preview.water} glasses / ${preview.steps.toLocaleString()}` },
       ]
     : [];
+
+  // Bounds hint under the target-weight field: just the numbers.
+  const rangeHint = !range
+    ? "Enter your current weight first."
+    : `${range.min} kg – ${range.max} kg`;
 
   return (
     <div className="wood-bg flex min-h-screen items-center justify-center px-4 py-12">
@@ -194,7 +272,7 @@ const ProfileSetup = () => {
         <form onSubmit={handleSubmit} className="game-panel space-y-5 p-6">
           {isUpdate && hasChangedStartingData && (
             <div className="rounded-lg border-2 border-[hsl(40,70%,45%)] bg-[hsl(45,82%,88%)] px-3 py-2 text-sm font-bold text-[hsl(30,55%,32%)]">
-              ⚠️ Updating these details will restart your challenge from day 1.
+              ⚠️ Changing your stats, goal, target weight or Day 1 date restarts the challenge — you'll start logging again from Day 1.
             </div>
           )}
 
@@ -238,6 +316,98 @@ const ProfileSetup = () => {
             </Select>
           </div>
 
+          {/* Goal: two-tab switch driving the target-weight limits + calorie math */}
+          <div className="space-y-1.5">
+            <Label className={labelClass}>Goal</Label>
+            <div
+              role="tablist"
+              aria-label="Goal"
+              className="grid grid-cols-2 gap-1 rounded-xl border-2 border-[hsl(33,28%,58%)] bg-[hsl(37,40%,82%)] p-1"
+            >
+              {([
+                { value: "lose", label: "Lose", hint: "Drop weight" },
+                { value: "maintain", label: "Maintain", hint: "Hold steady" },
+              ] as const).map((opt) => {
+                const active = goalType === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setGoalType(opt.value)}
+                    className={`rounded-lg px-3 py-2 text-center transition ${
+                      active
+                        ? "border-2 border-[hsl(70,50%,22%)] bg-gradient-to-b from-[hsl(68,46%,50%)] to-[hsl(70,50%,38%)] text-white shadow-[0_2px_0_hsl(70,50%,22%)]"
+                        : "border-2 border-transparent text-muted-foreground hover:bg-[hsl(40,48%,92%)]"
+                    }`}
+                  >
+                    <span className="block font-display text-sm font-bold uppercase tracking-wide">{opt.label}</span>
+                    <span className={`block text-[10px] font-bold ${active ? "text-white/80" : "opacity-70"}`}>
+                      {opt.hint}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="tw" className={labelClass}>Target Weight (kg)</Label>
+            <Input
+              id="tw"
+              type="number"
+              step="0.1"
+              min={range?.min}
+              max={range?.max}
+              value={useRecommended ? "" : targetWeight}
+              onChange={(e) => setTargetWeight(e.target.value)}
+              disabled={!hasWeight || useRecommended}
+              required={!useRecommended}
+              placeholder={
+                useRecommended && recommended ? `${recommended.min} – ${recommended.max}` : range ? String(range.min) : "—"
+              }
+            />
+            <p
+              className={`text-xs font-bold ${
+                !useRecommended && targetWeight !== "" && !targetValid ? "text-[hsl(6,62%,42%)]" : "text-muted-foreground"
+              }`}
+            >
+              {useRecommended && recommended
+                ? `Using the recommended range: ${recommended.min} kg – ${recommended.max} kg`
+                : !useRecommended && targetWeight !== "" && !targetValid
+                  ? `Must be between ${rangeHint}`
+                  : rangeHint}
+            </p>
+
+            <label className="flex cursor-pointer items-start gap-2 pt-1">
+              <Checkbox
+                checked={useRecommended}
+                onCheckedChange={(v) => setUseRecommended(v === true)}
+                disabled={!hasWeight}
+                className="mt-0.5 border-[hsl(33,30%,45%)] data-[state=checked]:border-[hsl(70,50%,22%)] data-[state=checked]:bg-[hsl(70,50%,38%)]"
+              />
+              <span className="text-xs font-bold text-muted-foreground">
+                Just use the recommended weight range
+              </span>
+            </label>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="day1" className={labelClass}>Day 1 Date</Label>
+            <Input
+              id="day1"
+              type="date"
+              max={formatDateInputValue()}
+              value={dayOneDate}
+              onChange={(e) => setDayOneDate(e.target.value)}
+              required
+            />
+            <p className="text-xs font-bold text-muted-foreground">
+              Already started? Pick the day your challenge began.
+            </p>
+          </div>
+
           {preview && (
             <div className="rounded-xl border-2 border-[hsl(33,28%,60%)] bg-[hsl(37,40%,82%)] p-4">
               <p className="font-display text-sm font-semibold uppercase tracking-wider text-card-foreground">
@@ -255,7 +425,7 @@ const ProfileSetup = () => {
           )}
 
           <div className="space-y-3 pt-1">
-            <GameButton type="submit" color="red" size="lg" className="w-full" disabled={saving || !gender || !activityLevel}>
+            <GameButton type="submit" color="red" size="lg" className="w-full" disabled={saving || !gender || !activityLevel || !targetValid}>
               {saving ? "Saving..." : isUpdate ? "Save Changes" : "Start My 100-Day Challenge 🚀"}
             </GameButton>
             {isUpdate && (

@@ -24,6 +24,11 @@ interface UseGamificationArgs {
 
 const claimKey = (period: string, questKey: string) => `${period}::${questKey}`;
 
+/** A queued full-screen celebration: a freshly unlocked trophy or a level-up. */
+export type Celebration =
+  | { id: string; type: "badge"; badge: Badge }
+  | { id: string; type: "level"; level: number };
+
 export function useGamification({ userId, profile, refetchProfile, dayRange, weeklyGoals }: UseGamificationArgs) {
   const [xp, setXp] = useState(profile?.total_xp ?? 0);
   const xpRef = useRef(profile?.total_xp ?? 0);
@@ -35,6 +40,12 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
   const [achievementsLoaded, setAchievementsLoaded] = useState(false);
   const grantingRef = useRef<Set<string>>(new Set());
   const shieldSyncRef = useRef(false);
+
+  const [celebrations, setCelebrations] = useState<Celebration[]>([]);
+  const pushCelebration = useCallback((c: Omit<Celebration, "id">) => {
+    setCelebrations((q) => [...q, { ...c, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` } as Celebration]);
+  }, []);
+  const dismissCelebration = useCallback(() => setCelebrations((q) => q.slice(1)), []);
 
   // Keep local XP in sync with the DB value whenever the profile is (re)loaded.
   useEffect(() => {
@@ -73,15 +84,21 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
   const awardXp = useCallback(
     async (amount: number) => {
       if (!userId || amount <= 0) return;
-      const next = xpRef.current + amount;
+      const prev = xpRef.current;
+      const next = prev + amount;
       xpRef.current = next;
       setXp(next);
+      // Crossing a level threshold earns a full-screen celebration.
+      const newLevel = levelFromXp(next);
+      if (newLevel > levelFromXp(prev)) {
+        pushCelebration({ type: "level", level: newLevel });
+      }
       await supabase
         .from("profiles")
-        .update({ total_xp: next, level: levelFromXp(next) })
+        .update({ total_xp: next, level: newLevel })
         .eq("user_id", userId);
     },
-    [userId],
+    [userId, pushCelebration],
   );
 
   const claimQuest = useCallback(
@@ -123,7 +140,10 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
     // Wait for the profile (and thus the seeded XP total) before writing XP,
     // otherwise a grant fired mid-load could overwrite the stored total with 0.
     if (!userId || !profile || !achievementsLoaded || dayRange.length === 0) return;
-    const derived = getEarnedBadges(dayRange, weeklyGoals);
+    const derived = getEarnedBadges(dayRange, weeklyGoals, {
+      startWeight: profile.current_weight,
+      targetWeight: profile.target_weight,
+    });
     const toGrant = derived.filter((b) => !earnedBadgeKeys.has(b.key) && !grantingRef.current.has(b.key));
     if (toGrant.length === 0) return;
 
@@ -137,8 +157,9 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
           xp_awarded: b.xp,
         });
         if (!error) {
+          // Queue the trophy celebration first, then any level-up it causes.
+          pushCelebration({ type: "badge", badge: b });
           await awardXp(b.xp);
-          toast.success(`🏆 ${b.label} unlocked · +${b.xp} XP`);
         }
       }
       setEarnedBadgeKeys((prev) => {
@@ -147,7 +168,7 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
         return n;
       });
     })();
-  }, [userId, profile, achievementsLoaded, dayRange, weeklyGoals, earnedBadgeKeys, awardXp]);
+  }, [userId, profile, achievementsLoaded, dayRange, weeklyGoals, earnedBadgeKeys, awardXp, pushCelebration]);
 
   // Reconcile earned streak shields (deterministic from history → safe to write).
   useEffect(() => {
@@ -194,5 +215,7 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
     claimingKey,
     badges: allBadges,
     celebrateMilestone,
+    celebrations,
+    dismissCelebration,
   };
 }

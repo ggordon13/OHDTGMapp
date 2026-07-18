@@ -7,11 +7,15 @@ import QuestBoard from "@/components/QuestBoard";
 import BadgeShelf from "@/components/BadgeShelf";
 import WeeklyAchievements from "@/components/WeeklyAchievements";
 import DailyTracker from "@/components/DailyTracker";
+import TodayData from "@/components/TodayData";
+import CelebrationModal from "@/components/CelebrationModal";
+import type { Celebration } from "@/hooks/useGamification";
 import WeightChart from "@/components/WeightChart";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import { revealPanels } from "@/lib/fx";
 import { DailyLog } from "@/lib/mockData";
 import {
+  ALL_BADGES,
   getDailyQuests,
   getWeeklyQuests,
   getEarnedBadges,
@@ -50,6 +54,8 @@ const today = dayRange[dayRange.length - 1];
 const Preview = () => {
   const [claims, setClaims] = useState<Set<string>>(new Set());
   const [claiming] = useState<string | null>(null);
+  const [todayRow, setTodayRow] = useState<DailyLog>(today);
+  const [cheer, setCheer] = useState<Celebration | null>(null);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => revealPanels());
@@ -60,15 +66,25 @@ const Preview = () => {
   const weeklyQuests = getWeeklyQuests(dayRange.slice(-7), weeklyGoals);
   const badges = getEarnedBadges(dayRange, weeklyGoals).map((b, i) => ({ ...b, unlocked: i % 2 === 0 }));
 
+  const demoBadge = () => {
+    const b = ALL_BADGES.find((x) => x.key === "built-different") ?? ALL_BADGES[0];
+    setCheer({ id: String(Date.now()), type: "badge", badge: b });
+  };
+  const demoLevel = () => setCheer({ id: String(Date.now()), type: "level", level: 4 });
+
   return (
     <div className="wood-bg min-h-screen">
       <FireflyCanvas />
+      <CelebrationModal event={cheer} onDismiss={() => setCheer(null)} />
       <div className="relative z-10 mx-auto max-w-[1720px] space-y-8 px-4 py-8 lg:px-8">
         <div className="flex items-center justify-between gap-3">
           <span className="font-display text-lg font-semibold uppercase tracking-widest text-[hsl(42,80%,70%)] [text-shadow:0_2px_0_rgba(0,0,0,0.4)]">
             My 100 Days
           </span>
           <div className="flex items-center gap-2">
+            {/* Dev-only triggers to exercise the celebration modal */}
+            <GameButton color="gold" size="sm" onClick={demoBadge}>🏆 Demo trophy</GameButton>
+            <GameButton color="gold" size="sm" onClick={demoLevel}>⬆ Demo level</GameButton>
             <GameButton color="wood" size="sm">
               <UserCog className="h-4 w-4" />
               <span className="hidden sm:inline">Update Profile</span>
@@ -89,12 +105,15 @@ const Preview = () => {
             startPoint={{ date: "May 18, 2026", weight: 88, status: { text: "-2.4 kg since Day 1", tone: "good" } }}
           />
           <div data-reveal>
-            <BadgeShelf badges={badges} />
+            <TodayData entry={todayRow} onSave={(e) => setTodayRow(e)} />
           </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-12">
           <div className="order-2 min-w-0 space-y-6 lg:order-1 lg:col-span-4 xl:col-span-3">
+            <div data-reveal>
+              <BadgeShelf badges={badges} />
+            </div>
             <div data-reveal>
               <QuestBoard
                 dailyQuests={dailyQuests}

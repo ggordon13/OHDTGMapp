@@ -355,6 +355,8 @@ export interface Badge {
   description: string;
   tier: BadgeTier;
   icon: string;
+  /** CSS color for text glyphs (e.g. the "★" stars); emoji ignore it. */
+  iconColor?: string;
   xp: number;
 }
 
@@ -372,12 +374,51 @@ function maxConsecutiveStars(weeks: DailyLog[][], goals: WeeklyGoals): number {
   return longest;
 }
 
+function maxConsecutiveProteinWeeks(weeks: DailyLog[][], goals: WeeklyGoals): number {
+  let longest = 0;
+  let run = 0;
+  for (const week of weeks) {
+    const avg = getWeeklyAvg(week);
+    if (avg.protein != null && avg.protein >= goals.dailyProtein) {
+      run++;
+      longest = Math.max(longest, run);
+    } else {
+      run = 0;
+    }
+  }
+  return longest;
+}
+
+/** A week where every single target was met (not just the 2-of-4 star rule). */
+function hasPerfectWeek(weeks: DailyLog[][], goals: WeeklyGoals): boolean {
+  return weeks.some((week) => {
+    const avg = getWeeklyAvg(week);
+    return (
+      avg.calories != null && avg.calories <= goals.dailyCalories &&
+      avg.protein != null && avg.protein >= goals.dailyProtein &&
+      avg.water != null && avg.water >= goals.dailyWater &&
+      avg.steps != null && avg.steps >= goals.dailySteps &&
+      avg.exerciseDays >= 1
+    );
+  });
+}
+
+/** Extra context for badges that depend on the weight journey. */
+export interface BadgeWeightOpts {
+  startWeight?: number | null;
+  targetWeight?: number | null;
+}
+
 interface BadgeContext {
   goals: WeeklyGoals;
   weeks: DailyLog[][];
   loggedDays: number;
   starRun: number;
+  totalStars: number;
   longestStreak: number;
+  proteinRun: number;
+  perfectWeek: boolean;
+  reachedTargetWeight: boolean;
 }
 
 /** A badge definition plus the predicate that decides when it's earned. */
@@ -387,9 +428,18 @@ type BadgeDef = Badge & { earned: (ctx: BadgeContext) => boolean };
 // `description` doubles as the "how to earn it" hint shown for locked badges.
 const BADGE_CATALOG: BadgeDef[] = [
   { key: "first-steps", label: "First Steps", description: "Logged your very first day", tier: "special", icon: "🌱", xp: 25, earned: (c) => c.loggedDays >= 1 },
-  { key: "star-bronze", label: "Bronze Star", description: "Earned a ⭐ week", tier: "bronze", icon: "🥉", xp: 50, earned: (c) => c.starRun >= 1 },
-  { key: "star-silver", label: "Silver Star", description: "3 ⭐ weeks in a row", tier: "silver", icon: "🥈", xp: 100, earned: (c) => c.starRun >= 3 },
-  { key: "star-gold", label: "Gold Star", description: "6 ⭐ weeks in a row", tier: "gold", icon: "🥇", xp: 200, earned: (c) => c.starRun >= 6 },
+
+  // Consecutive-star trio: colored stars matching their tier.
+  { key: "star-bronze", label: "Bronze Star", description: "Earned a ⭐ week", tier: "bronze", icon: "★", iconColor: "#8a4a16", xp: 50, earned: (c) => c.starRun >= 1 },
+  { key: "star-silver", label: "Silver Star", description: "3 ⭐ weeks in a row", tier: "silver", icon: "★", iconColor: "#f4f6fb", xp: 100, earned: (c) => c.starRun >= 3 },
+  { key: "star-gold", label: "Gold Star", description: "6 ⭐ weeks in a row", tier: "gold", icon: "★", iconColor: "#fff3b0", xp: 200, earned: (c) => c.starRun >= 6 },
+
+  // Lifetime-star medallions: cumulative ⭐ weeks, no streak required.
+  { key: "medallion-bronze", label: "Bronze Medallion", description: "Earn 4 ⭐ weeks in total", tier: "bronze", icon: "🥉", xp: 75, earned: (c) => c.totalStars >= 4 },
+  { key: "medallion-silver", label: "Silver Medallion", description: "Earn 8 ⭐ weeks in total", tier: "silver", icon: "🥈", xp: 150, earned: (c) => c.totalStars >= 8 },
+  { key: "medallion-gold", label: "Gold Medallion", description: "Earn 12 ⭐ weeks in total", tier: "gold", icon: "🥇", xp: 250, earned: (c) => c.totalStars >= 12 },
+  { key: "virtuoso", label: "Virtuoso", description: "Earn 15 ⭐ weeks in total", tier: "special", icon: "👑", xp: 350, earned: (c) => c.totalStars >= 15 },
+
   {
     key: "hydration-hero", label: "Hydration Hero", description: "Hit your water goal every logged day of a week", tier: "special", icon: "💧", xp: 60,
     earned: (c) => c.weeks.some((week) => {
@@ -402,21 +452,42 @@ const BADGE_CATALOG: BadgeDef[] = [
     key: "step-master", label: "Step Master", description: "Hit your step goal on 5 days in a week", tier: "special", icon: "👟", xp: 60,
     earned: (c) => c.weeks.some((week) => week.filter((d) => d.steps != null && d.steps >= c.goals.dailySteps).length >= 5),
   },
+  { key: "protein-master", label: "Protein Master", description: "Hit your protein target 5 weeks in a row", tier: "special", icon: "🥩", xp: 120, earned: (c) => c.proteinRun >= 5 },
+  { key: "perfectionist", label: "The Perfectionist", description: "A perfect week — every single target met", tier: "gold", icon: "💯", xp: 150, earned: (c) => c.perfectWeek },
   { key: "iron-streak", label: "Iron Streak", description: "Logged 14 days in a row", tier: "gold", icon: "🔥", xp: 120, earned: (c) => c.longestStreak >= 14 },
+  { key: "built-different", label: "Built Different", description: "Reached your target weight", tier: "special", icon: "🗿", xp: 300, earned: (c) => c.reachedTargetWeight },
 ];
 
 /** The complete trophy catalog (every badge that can ever be earned). */
 export const ALL_BADGES: Badge[] = BADGE_CATALOG.map(({ earned: _earned, ...badge }) => badge);
 
 /** Every badge the player currently qualifies for, given their whole history. */
-export function getEarnedBadges(dayRange: DailyLog[], goals: WeeklyGoals): Badge[] {
+export function getEarnedBadges(dayRange: DailyLog[], goals: WeeklyGoals, weightOpts?: BadgeWeightOpts): Badge[] {
   const weeks = chunkIntoWeeks(dayRange);
+  const totalStars = weeks.filter((w) => isAchieved(getWeeklyAvg(w), goals)).length;
+
+  // "Built Different": the latest logged weight has reached the target, in
+  // whichever direction the journey goes (loss or gain).
+  const { startWeight, targetWeight } = weightOpts ?? {};
+  const weighed = dayRange.filter((d) => d.weight != null);
+  const latestWeight = weighed.length ? (weighed[weighed.length - 1].weight as number) : null;
+  const reachedTargetWeight =
+    startWeight != null && targetWeight != null && latestWeight != null && startWeight !== targetWeight
+      ? startWeight > targetWeight
+        ? latestWeight <= targetWeight
+        : latestWeight >= targetWeight
+      : false;
+
   const ctx: BadgeContext = {
     goals,
     weeks,
     loggedDays: dayRange.filter(isDayLogged).length,
     starRun: maxConsecutiveStars(weeks, goals),
+    totalStars,
     longestStreak: getLongestStreak(dayRange),
+    proteinRun: maxConsecutiveProteinWeeks(weeks, goals),
+    perfectWeek: hasPerfectWeek(weeks, goals),
+    reachedTargetWeight,
   };
   return BADGE_CATALOG.filter((b) => b.earned(ctx)).map(({ earned: _earned, ...badge }) => badge);
 }
