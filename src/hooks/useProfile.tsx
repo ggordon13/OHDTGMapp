@@ -16,6 +16,8 @@ export interface UserProfile {
   gender: string | null;
   /** "lose" | "maintain" — drives the calorie formula and target-weight limits. */
   goal_type: string | null;
+  role: string | null;
+  access_level: string | null;
   daily_calorie_target: number | null;
   daily_calorie_target_min: number | null;
   daily_calorie_target_max: number | null;
@@ -39,11 +41,16 @@ export function useProfile() {
 
   const fetchProfile = useCallback(async () => {
     if (!user) { setProfile(null); setLoading(false); return; }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
+
+    if (error && error.code !== "PGRST116") {
+      console.error("Failed to load profile", error);
+    }
+
     setProfile(data as UserProfile | null);
     setLoading(false);
   }, [user]);
@@ -52,6 +59,28 @@ export function useProfile() {
     setLoading(true);
     fetchProfile();
   }, [fetchProfile]);
+
+  useEffect(() => {
+    if (!user?.email) return;
+
+    const normalizedEmail = user.email.trim().toLowerCase();
+    if (normalizedEmail !== "gordongaming13@gmail.com") return;
+
+    void supabase
+      .from("profiles")
+      .upsert({
+        user_id: user.id,
+        role: "admin",
+        access_level: "premium",
+      }, { onConflict: "user_id" })
+      .then(({ error }) => {
+        if (error) {
+          console.error("Failed to sync admin access", error);
+          return;
+        }
+        void fetchProfile();
+      });
+  }, [fetchProfile, user?.email, user?.id]);
 
   const isProfileComplete = !requiresProfileSetup(profile);
 
