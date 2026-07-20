@@ -217,6 +217,7 @@ export function getWeeklyQuests(weekLogs: DailyLog[], goals: WeeklyGoals): Quest
 // ---------------------------------------------------------------------------
 
 export interface WeeklyAvg {
+  weight: number | null;
   calories: number | null;
   protein: number | null;
   water: number | null;
@@ -231,6 +232,7 @@ export function getWeeklyAvg(week: DailyLog[]): WeeklyAvg {
     return valid.length ? Math.round((valid.reduce((a, b) => a + b, 0) / valid.length) * 10) / 10 : null;
   };
   return {
+    weight: avg(week.map((d) => d.weight)),
     calories: avg(week.map((d) => d.calories)),
     protein: avg(week.map((d) => d.protein)),
     water: avg(week.map((d) => d.water)),

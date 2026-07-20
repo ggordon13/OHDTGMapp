@@ -4,6 +4,7 @@ import { isAchieved } from "@/lib/gamification";
 describe("isAchieved", () => {
   it("counts a single exercise day per week as enough", () => {
     const avg = {
+      weight: 80,
       calories: 1800,
       protein: 160,
       water: 7,
