@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trophy, Check, Flame, Star, ChevronDown, Utensils, Beef, Droplets, Footprints, Dumbbell, type LucideIcon } from "lucide-react";
+import { Trophy, Check, Flame, Star, ChevronDown, Utensils, Beef, Droplets, Footprints, Dumbbell, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
 import { DailyLog } from "@/lib/mockData";
 import { WeeklyGoals, getWeeklyAvg, isAchieved, chunkIntoWeeks } from "@/lib/gamification";
 import GamePanel from "@/components/game/GamePanel";
@@ -167,47 +167,71 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
                 <th className="px-2 py-2 text-right font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Cal</th>
                 <th className="px-2 py-2 text-right font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Prot</th>
                 <th className="px-2 py-2 text-right font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Water</th>
+                <th className="px-2 py-2 text-right font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Weight</th>
                 <th className="px-2 py-2 text-right font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Steps</th>
                 <th className="px-2 py-2 text-right font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Exer</th>
                 <th className="px-2 py-2 text-center font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Star</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ avg, achieved, tier }, wi) => (
-                <tr
-                  key={wi}
-                  className={cn(
-                    "border-b border-[hsl(33,28%,72%)] transition-colors last:border-0 hover:bg-[hsl(36,38%,80%)]/40",
-                    achieved && "bg-[hsl(84,44%,52%)]/12",
-                  )}
-                >
-                  <td className="px-2 py-2 font-display text-xs font-bold text-card-foreground">Wk {wi + 1}</td>
-                  <td className="px-2 py-2 text-right">
-                    <MetricCell value={avg.calories?.toFixed(0) ?? "—"} met={avg.calories !== null && avg.calories <= goals.dailyCalories} />
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <MetricCell value={`${avg.protein?.toFixed(0) ?? "—"}g`} met={avg.protein !== null && avg.protein >= goals.dailyProtein} />
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <MetricCell value={`${avg.water?.toFixed(0) ?? "—"}gl`} met={avg.water !== null && avg.water >= goals.dailyWater} />
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <MetricCell value={avg.steps?.toFixed(0) ?? "—"} met={avg.steps !== null && avg.steps >= goals.dailySteps} />
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <MetricCell value={`${avg.exerciseDays}/${avg.totalDays}d`} met={avg.exerciseDays >= 1} />
-                  </td>
-                  <td className="px-2 py-2 text-center">
-                    {achieved && tier ? (
-                      <span className="inline-flex items-center gap-0.5 rounded-full border-2 border-[hsl(40,65%,32%)] bg-gradient-to-b from-[hsl(44,92%,62%)] to-[hsl(38,85%,48%)] px-1.5 py-0.5 text-xs shadow-[0_2px_0_hsl(38,65%,32%)]">
-                        ⭐{tierMedal[tier]}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground/40">⭕</span>
+              {rows.map(({ avg, achieved, tier }, wi) => {
+                const prevAvg = wi > 0 ? rows[wi - 1].avg : null;
+                const weightTrend = avg.weight !== null && prevAvg?.weight !== null
+                  ? avg.weight > prevAvg.weight
+                    ? "up"
+                    : avg.weight < prevAvg.weight
+                      ? "down"
+                      : "flat"
+                  : null;
+                const weightColor = weightTrend === "up"
+                  ? "text-[hsl(6,62%,42%)]" // red for weight increase
+                  : weightTrend === "down" || weightTrend === "flat"
+                    ? "text-[hsl(84,45%,28%)]" // green for weight decrease or flat
+                    : "text-muted-foreground/70";
+
+                return (
+                  <tr
+                    key={wi}
+                    className={cn(
+                      "border-b border-[hsl(33,28%,72%)] transition-colors last:border-0 hover:bg-[hsl(36,38%,80%)]/40",
+                      achieved && "bg-[hsl(84,44%,52%)]/12",
                     )}
-                  </td>
-                </tr>
-              ))}
+                  >
+                    <td className="px-2 py-2 font-display text-xs font-bold text-card-foreground">Wk {wi + 1}</td>
+                    <td className="px-2 py-2 text-right">
+                      <MetricCell value={avg.calories?.toFixed(0) ?? "—"} met={avg.calories !== null && avg.calories <= goals.dailyCalories} />
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <MetricCell value={`${avg.protein?.toFixed(0) ?? "—"}g`} met={avg.protein !== null && avg.protein >= goals.dailyProtein} />
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <MetricCell value={`${avg.water?.toFixed(0) ?? "—"}gl`} met={avg.water !== null && avg.water >= goals.dailyWater} />
+                    </td>
+                    <td className={`px-2 py-2 text-right font-display text-[11px] font-semibold ${weightColor}`}>
+                      <div className="inline-flex items-center gap-1">
+                        {avg.weight?.toFixed(1) ?? "—"} kg
+                        {weightTrend === "up" && <TrendingUp className="h-3 w-3" />}
+                        {weightTrend === "down" && <TrendingDown className="h-3 w-3" />}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <MetricCell value={avg.steps?.toFixed(0) ?? "—"} met={avg.steps !== null && avg.steps >= goals.dailySteps} />
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <MetricCell value={`${avg.exerciseDays}/${avg.totalDays}d`} met={avg.exerciseDays >= 1} />
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      {achieved && tier ? (
+                        <span className="inline-flex items-center gap-0.5 rounded-full border-2 border-[hsl(40,65%,32%)] bg-gradient-to-b from-[hsl(44,92%,62%)] to-[hsl(38,85%,48%)] px-1.5 py-0.5 text-xs shadow-[0_2px_0_hsl(38,65%,32%)]">
+                          ⭐{tierMedal[tier]}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/40">⭕</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
