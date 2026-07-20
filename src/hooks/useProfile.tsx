@@ -42,32 +42,42 @@ export function useProfile() {
 
   const fetchProfile = useCallback(async () => {
     if (!user) { setProfile(null); setLoading(false); return; }
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (error && error.code !== "PGRST116") {
-      console.error("Failed to load profile", error);
-    }
-
-    const effectiveAccessLevel = await resolveEffectiveAccessLevel(user.email, data?.access_level ?? null);
-    if (data && effectiveAccessLevel !== data.access_level) {
-      const { error: updateError } = await supabase
+    try {
+      const { data, error } = await supabase
         .from("profiles")
-        .update({ access_level: effectiveAccessLevel })
-        .eq("user_id", user.id);
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-      if (updateError) {
-        console.error("Failed to sync effective access level", updateError);
-      } else {
-        data.access_level = effectiveAccessLevel;
+      if (error && error.code !== "PGRST116") {
+        console.error("Failed to load profile", error);
       }
-    }
 
-    setProfile(data as UserProfile | null);
-    setLoading(false);
+      try {
+        const effectiveAccessLevel = await resolveEffectiveAccessLevel(user.email, data?.access_level ?? null);
+        if (data && effectiveAccessLevel !== data.access_level) {
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update({ access_level: effectiveAccessLevel })
+            .eq("user_id", user.id);
+
+          if (updateError) {
+            console.error("Failed to sync effective access level", updateError);
+          } else {
+            data.access_level = effectiveAccessLevel;
+          }
+        }
+      } catch (accessError) {
+        console.error("Error resolving access level", accessError);
+      }
+
+      setProfile(data as UserProfile | null);
+      setLoading(false);
+    } catch (err) {
+      console.error("Error in fetchProfile", err);
+      setProfile(null);
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => {
