@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export type AccessRole = "user" | "admin" | "dev";
 export type AccessLevel = "free" | "premium";
 
@@ -59,4 +61,16 @@ export function getAccessBadgeLabel(role?: string | null, accessLevel?: string |
   }
 
   return normalizedAccessLevel === "premium" ? "Premium" : "Free";
+}
+
+export async function resolveEffectiveAccessLevel(userEmail: string | null | undefined, profileAccessLevel?: string | null) {
+  const normalizedEmail = userEmail?.trim().toLowerCase();
+  if (!normalizedEmail) return normalizeAccessLevel(profileAccessLevel);
+
+  const { data, error } = await supabase.from("premium_allowlist").select("email, access_level, is_active").eq("email", normalizedEmail).maybeSingle();
+  if (error || !data) return normalizeAccessLevel(profileAccessLevel);
+
+  if (data.is_active === false) return normalizeAccessLevel(profileAccessLevel);
+  if (normalizeAccessLevel(data.access_level) === "premium") return "premium";
+  return normalizeAccessLevel(profileAccessLevel);
 }

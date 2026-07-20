@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveEffectiveAccessLevel } from "@/lib/access";
 import { requiresProfileSetup } from "@/lib/profile";
 import { useAuth } from "./useAuth";
 
@@ -49,6 +50,20 @@ export function useProfile() {
 
     if (error && error.code !== "PGRST116") {
       console.error("Failed to load profile", error);
+    }
+
+    const effectiveAccessLevel = await resolveEffectiveAccessLevel(user.email, data?.access_level ?? null);
+    if (data && effectiveAccessLevel !== data.access_level) {
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ access_level: effectiveAccessLevel })
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        console.error("Failed to sync effective access level", updateError);
+      } else {
+        data.access_level = effectiveAccessLevel;
+      }
     }
 
     setProfile(data as UserProfile | null);
