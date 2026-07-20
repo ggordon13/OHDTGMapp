@@ -52,8 +52,11 @@ export function useProfile() {
       console.error("Failed to load profile", error);
     }
 
-    const effectiveAccessLevel = await resolveEffectiveAccessLevel(user.email, data?.access_level ?? null);
-    if (data && effectiveAccessLevel !== data.access_level) {
+    // `role` and `access_level` post-date the generated Supabase types.
+    const accessRow = data as (NonNullable<typeof data> & { role: string | null; access_level: string | null }) | null;
+
+    const effectiveAccessLevel = await resolveEffectiveAccessLevel(user.email, accessRow?.access_level ?? null, accessRow?.role ?? null);
+    if (accessRow && effectiveAccessLevel !== accessRow.access_level) {
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ access_level: effectiveAccessLevel })
@@ -62,7 +65,7 @@ export function useProfile() {
       if (updateError) {
         console.error("Failed to sync effective access level", updateError);
       } else {
-        data.access_level = effectiveAccessLevel;
+        accessRow.access_level = effectiveAccessLevel;
       }
     }
 

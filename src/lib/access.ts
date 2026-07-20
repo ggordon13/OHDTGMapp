@@ -63,14 +63,32 @@ export function getAccessBadgeLabel(role?: string | null, accessLevel?: string |
   return normalizedAccessLevel === "premium" ? "Premium" : "Free";
 }
 
-export async function resolveEffectiveAccessLevel(userEmail: string | null | undefined, profileAccessLevel?: string | null) {
+/**
+ * The access level a user should actually have right now.
+ *
+ * The allowlist is authoritative: losing an active premium entry demotes the
+ * user back to free. Two deliberate exceptions — a failed lookup keeps the
+ * current level (a network blip must not strip access), and admins/devs keep
+ * theirs, since their premium is granted by role rather than by the allowlist.
+ */
+export async function resolveEffectiveAccessLevel(
+  userEmail: string | null | undefined,
+  profileAccessLevel?: string | null,
+  role?: string | null,
+): Promise<AccessLevel> {
+  const currentLevel = normalizeAccessLevel(profileAccessLevel);
+
   const normalizedEmail = userEmail?.trim().toLowerCase();
-  if (!normalizedEmail) return normalizeAccessLevel(profileAccessLevel);
+  if (!normalizedEmail) return currentLevel;
 
   const { data, error } = await supabase.from("premium_allowlist").select("email, access_level, is_active").eq("email", normalizedEmail).maybeSingle();
-  if (error || !data) return normalizeAccessLevel(profileAccessLevel);
+  if (error) return currentLevel;
 
-  if (data.is_active === false) return normalizeAccessLevel(profileAccessLevel);
-  if (normalizeAccessLevel(data.access_level) === "premium") return "premium";
-  return normalizeAccessLevel(profileAccessLevel);
+  const hasActivePremiumEntry =
+    !!data && data.is_active !== false && normalizeAccessLevel(data.access_level) === "premium";
+  if (hasActivePremiumEntry) return "premium";
+
+  if (canManageAccess(role)) return currentLevel;
+
+  return "free";
 }
