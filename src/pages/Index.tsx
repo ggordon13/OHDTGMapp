@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, BookOpen } from "lucide-react";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, BookOpen, ShieldCheck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,6 +33,8 @@ import {
 } from "@/lib/gamification";
 import { formatDateInputValue, parseDateInputValue } from "@/lib/utils";
 import GameButton from "@/components/game/GameButton";
+import PremiumAccessManager from "@/components/PremiumAccessManager";
+import { getAccessBadgeLabel } from "@/lib/access";
 
 const Index = () => {
   const { user, signOut } = useAuth();
@@ -230,6 +232,7 @@ const Index = () => {
   const weeklyQuests = getWeeklyQuests(currentWeek, weeklyGoals);
 
   const displayName = profile?.display_name || user?.user_metadata?.full_name || "there";
+  const accessBadgeLabel = getAccessBadgeLabel(profile?.role ?? undefined, profile?.access_level ?? undefined);
   const formattedDayOneDate = parseDateInputValue(profile?.challenge_start_date ?? todayDate).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -269,7 +272,10 @@ const Index = () => {
         {/* Top toolbar: app title + account actions, styled to match the game theme */}
         <div className="flex items-center justify-between gap-3">
           <Logo className="h-11 w-11" withWordmark wordmarkClassName="hidden text-lg sm:inline" />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="rounded-full border border-[hsl(42,95%,62%)]/50 bg-[hsl(45,82%,88%)] px-3 py-1 text-sm font-bold text-[hsl(30,55%,32%)]">
+              {accessBadgeLabel}
+            </div>
             <GameButton
               color="wood"
               size="sm"
@@ -282,11 +288,23 @@ const Index = () => {
               <BookOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Quick Guide</span>
             </GameButton>
+            {(profile?.role === "admin" || profile?.role === "dev") && (
+              <GameButton color="red" size="sm" onClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} title="Manage premium access">
+                <ShieldCheck className="h-4 w-4" />
+                <span className="hidden sm:inline">Manage Access</span>
+              </GameButton>
+            )}
             <GameButton color="wood" size="sm" onClick={signOut} title="Sign out" aria-label="Sign out">
               <LogOut className="h-4 w-4" />
             </GameButton>
           </div>
         </div>
+
+        {(profile?.role === "admin" || profile?.role === "dev") && (
+          <div className="mx-auto w-full max-w-[1720px] px-0 lg:px-0">
+            <PremiumAccessManager />
+          </div>
+        )}
 
         {/* Header row: greeting + progress bars on the left half, today's entry on the right */}
         <div className="grid items-start gap-6 lg:grid-cols-2 [&>*]:min-w-0">
