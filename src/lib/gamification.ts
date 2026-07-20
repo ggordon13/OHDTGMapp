@@ -221,6 +221,7 @@ export interface WeeklyAvg {
   protein: number | null;
   water: number | null;
   steps: number | null;
+  weight: number | null;
   exerciseDays: number;
   totalDays: number;
 }
@@ -235,6 +236,7 @@ export function getWeeklyAvg(week: DailyLog[]): WeeklyAvg {
     protein: avg(week.map((d) => d.protein)),
     water: avg(week.map((d) => d.water)),
     steps: avg(week.map((d) => d.steps)),
+    weight: avg(week.map((d) => d.weight)),
     exerciseDays: week.filter((d) => d.exercise && d.exercise !== "None" && d.exercise !== "").length,
     totalDays: week.length,
   };
