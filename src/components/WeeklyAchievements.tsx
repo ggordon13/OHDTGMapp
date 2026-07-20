@@ -21,6 +21,27 @@ const MetricCell = ({ value, met }: { value: string; met: boolean }) =>
     <span className="font-display text-[11px] font-semibold text-muted-foreground/70">{value}</span>
   );
 
+/**
+ * Weekly average weight, tinted against the previous week: green when it held
+ * or dropped, red when it rose. The first week (and any week without a
+ * comparison) stays neutral.
+ */
+const WeightCell = ({ value, trend }: { value: number | null; trend: "down" | "up" | null }) => {
+  if (value === null) return <span className="font-display text-[11px] font-semibold text-muted-foreground/70">—</span>;
+  return (
+    <span
+      className={cn(
+        "font-display text-[11px] font-bold",
+        trend === "up" && "text-[hsl(0,65%,42%)]",
+        trend === "down" && "text-[hsl(84,45%,28%)]",
+        trend === null && "text-muted-foreground/70",
+      )}
+    >
+      {value.toFixed(1)}kg
+    </span>
+  );
+};
+
 const tierMedal: Record<string, string> = { bronze: "🥉", silver: "🥈", gold: "🥇" };
 
 /** One goal condition, shown as a compact labelled chip. */
@@ -40,13 +61,21 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
   // Bronze/Silver/Gold tier the same way the Trophy Case awards them.
   let starRun = 0;
   let bestRun = 0;
+  // Last week that actually had a weight average, so the comparison skips over
+  // gaps instead of resetting to neutral after an unlogged week.
+  let prevWeight: number | null = null;
   const rows = weeks.map((week) => {
     const avg = getWeeklyAvg(week);
     const achieved = isAchieved(avg, goals);
     starRun = achieved ? starRun + 1 : 0;
     bestRun = Math.max(bestRun, starRun);
     const tier = !achieved ? null : starRun >= 6 ? "gold" : starRun >= 3 ? "silver" : "bronze";
-    return { avg, achieved, tier };
+
+    const weightTrend: "down" | "up" | null =
+      avg.weight === null || prevWeight === null ? null : avg.weight > prevWeight ? "up" : "down";
+    if (avg.weight !== null) prevWeight = avg.weight;
+
+    return { avg, achieved, tier, weightTrend };
   });
 
   const starWeeks = rows.filter((r) => r.achieved).length;
@@ -164,6 +193,7 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
             <thead>
               <tr className="border-b-2 border-[hsl(33,28%,60%)]">
                 <th className="px-2 py-2 text-left font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Week</th>
+                <th className="px-2 py-2 text-right font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Weight</th>
                 <th className="px-2 py-2 text-right font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Cal</th>
                 <th className="px-2 py-2 text-right font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Prot</th>
                 <th className="px-2 py-2 text-right font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">Water</th>
@@ -173,7 +203,7 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ avg, achieved, tier }, wi) => (
+              {rows.map(({ avg, achieved, tier, weightTrend }, wi) => (
                 <tr
                   key={wi}
                   className={cn(
@@ -182,6 +212,9 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
                   )}
                 >
                   <td className="px-2 py-2 font-display text-xs font-bold text-card-foreground">Wk {wi + 1}</td>
+                  <td className="px-2 py-2 text-right">
+                    <WeightCell value={avg.weight} trend={weightTrend} />
+                  </td>
                   <td className="px-2 py-2 text-right">
                     <MetricCell value={avg.calories?.toFixed(0) ?? "—"} met={avg.calories !== null && avg.calories <= goals.dailyCalories} />
                   </td>
