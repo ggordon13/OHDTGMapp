@@ -95,14 +95,14 @@ const Login = () => {
           data-in
           className="font-display text-4xl font-bold leading-[1.05] tracking-wide text-[hsl(38,60%,90%)] [text-shadow:0_4px_0_rgba(0,0,0,0.45)] sm:text-5xl"
         >
-          Level up your fitness,
+          Level up your life,
           <br />
           <span className="text-[hsl(42,88%,62%)]">one day at a time.</span>
         </h1>
 
         <p data-in className="mx-auto max-w-md font-semibold text-[hsl(35,30%,66%)]">
-          A daily tracker for weight, food and movement — turned into a game of levels, streaks and
-          trophies so you stick with it for the long haul.
+          GGLvlup turns your weight, food and movement into a game of levels, streaks and trophies —
+          so leveling up your life actually sticks.
         </p>
 
         {/* Feature chips */}

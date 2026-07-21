@@ -1,7 +1,7 @@
 import { forwardRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
-export const BRAND_NAME = "LevelUp Fitness";
+export const BRAND_NAME = "GGLvlup";
 
 interface LogoProps {
   /** Size utilities for the badge itself, e.g. "h-10 w-10". */
@@ -30,7 +30,7 @@ const Logo = forwardRef<HTMLDivElement, LogoProps>(
               className,
             )}
           >
-            LU
+            GG
           </span>
         ) : (
           <img
