@@ -6,6 +6,8 @@ import { useAuth } from "./useAuth";
 
 export interface UserProfile {
   display_name: string | null;
+  /** Public nickname shown on the dashboard and admin directory. */
+  username: string | null;
   avatar_url: string | null;
   age: number | null;
   height_cm: number | null;
