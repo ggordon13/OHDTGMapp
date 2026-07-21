@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CalendarCheck, Scale, Utensils, Beef, Droplets, Dumbbell, Footprints, Save, Check, Loader2 } from "lucide-react";
 import { DailyLog, exerciseOptions } from "@/lib/mockData";
 import { isDayComplete } from "@/lib/gamification";
@@ -14,6 +14,10 @@ interface TodayDataProps {
   entry: DailyLog | null;
   /** Persist the updated row for today. */
   onSave: (entry: DailyLog) => void | Promise<void>;
+  /** Small chip shown in the panel header (e.g. the free-plan day counter). */
+  statusBadge?: ReactNode;
+  /** Rendered below the fields (e.g. the free-plan premium notice). */
+  footer?: ReactNode;
 }
 
 const fields = [
@@ -33,7 +37,7 @@ const toFormValue = (v: string | number | null | undefined) => (v == null ? "" :
 const seedValue = (entry: DailyLog, key: FieldKey): string =>
   key === "exercise" ? entry.exercise || "None" : toFormValue(entry[key]);
 
-const TodayData = ({ entry, onSave }: TodayDataProps) => {
+const TodayData = ({ entry, onSave, statusBadge, footer }: TodayDataProps) => {
   const [form, setForm] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<FieldKey | null>(null);
   const doneRef = useRef<HTMLDivElement>(null);
@@ -105,9 +109,12 @@ const TodayData = ({ entry, onSave }: TodayDataProps) => {
       icon={<CalendarCheck className="h-4 w-4" />}
       color="leaf"
       right={
-        <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-          {savedCount}/{fields.length} saved
-        </span>
+        <div className="flex items-center gap-2">
+          {statusBadge}
+          <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+            {savedCount}/{fields.length} saved
+          </span>
+        </div>
       }
     >
       <div className="space-y-4">
@@ -199,6 +206,8 @@ const TodayData = ({ entry, onSave }: TodayDataProps) => {
             );
           })}
         </div>
+
+        {footer}
       </div>
     </GamePanel>
   );
