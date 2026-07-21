@@ -16,6 +16,8 @@ interface DailyTrackerProps {
   highlightDate?: string;
   /** Rendered below the table (e.g. a premium upsell once the free cap is hit). */
   footer?: React.ReactNode;
+  /** Small chip shown in the panel header (e.g. a free-plan day counter). */
+  statusBadge?: React.ReactNode;
 }
 
 const PAGE_SIZE = 7;
@@ -31,7 +33,7 @@ const PagerButton = ({ onClick, disabled, children }: { onClick: () => void; dis
   </button>
 );
 
-const DailyTracker = ({ logs, onUpdate, highlightDate, footer }: DailyTrackerProps) => {
+const DailyTracker = ({ logs, onUpdate, highlightDate, footer, statusBadge }: DailyTrackerProps) => {
   const [editedLogs, setEditedLogs] = useState<DailyLog[]>(logs);
   const [page, setPage] = useState(Math.max(0, Math.floor((logs.length - 1) / PAGE_SIZE)));
   const todayRowRef = useRef<HTMLTableRowElement>(null);
@@ -83,16 +85,19 @@ const DailyTracker = ({ logs, onUpdate, highlightDate, footer }: DailyTrackerPro
       icon={<ClipboardList className="h-4 w-4" />}
       color="leaf"
       right={
-        <div className="flex items-center gap-1.5">
-          <PagerButton onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
-            <ChevronLeft className="h-4 w-4" />
-          </PagerButton>
-          <span className="game-tag px-2 py-0.5 text-xs font-bold text-muted-foreground">
-            Week {page + 1} of {totalPages}
-          </span>
-          <PagerButton onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>
-            <ChevronRight className="h-4 w-4" />
-          </PagerButton>
+        <div className="flex items-center gap-2">
+          {statusBadge}
+          <div className="flex items-center gap-1.5">
+            <PagerButton onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
+              <ChevronLeft className="h-4 w-4" />
+            </PagerButton>
+            <span className="game-tag px-2 py-0.5 text-xs font-bold text-muted-foreground">
+              Week {page + 1} of {totalPages}
+            </span>
+            <PagerButton onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>
+              <ChevronRight className="h-4 w-4" />
+            </PagerButton>
+          </div>
         </div>
       }
     >
