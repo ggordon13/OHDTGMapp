@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarCheck, Scale, Utensils, Beef, Droplets, Dumbbell, Footprints, Save, Pencil } from "lucide-react";
+import { CalendarCheck, Scale, Utensils, Beef, Droplets, Dumbbell, Footprints, Save, Check, Loader2 } from "lucide-react";
 import { DailyLog, exerciseOptions } from "@/lib/mockData";
 import { isDayComplete } from "@/lib/gamification";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import GamePanel from "@/components/game/GamePanel";
-import GameButton from "@/components/game/GameButton";
 import { confettiBurst, pop } from "@/lib/fx";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface TodayDataProps {
   /** Today's row (merged with anything already saved), or null before load. */
@@ -24,31 +25,38 @@ const fields = [
   { key: "exercise", label: "Exercise", unit: "", icon: Dumbbell, type: "select" },
 ] as const;
 
+type FieldKey = (typeof fields)[number]["key"];
+
 const toFormValue = (v: string | number | null | undefined) => (v == null ? "" : String(v));
+
+/** The value that should seed the form input for a field (exercise defaults to "None"). */
+const seedValue = (entry: DailyLog, key: FieldKey): string =>
+  key === "exercise" ? entry.exercise || "None" : toFormValue(entry[key]);
 
 const TodayData = ({ entry, onSave }: TodayDataProps) => {
   const [form, setForm] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  // Re-opens the form on a day that's already complete, so today's numbers
-  // can be corrected without leaving the panel.
-  const [editing, setEditing] = useState(false);
+  const [savingKey, setSavingKey] = useState<FieldKey | null>(null);
   const doneRef = useRef<HTMLDivElement>(null);
-  const saveRef = useRef<HTMLButtonElement>(null);
+  // Previous entry, so we only adopt external changes for fields the user
+  // hasn't edited — saving one field never wipes another's unsaved input.
+  const prevEntry = useRef<DailyLog | null>(null);
   const complete = entry != null && isDayComplete(entry);
   const wasComplete = useRef(complete);
-  const showDone = complete && !editing;
 
-  // Mirror whatever is already saved for today into the form.
+  // Mirror saved values into the form: seed on first load, and afterwards only
+  // overwrite fields the user hasn't touched (kept clean vs the prior entry).
   useEffect(() => {
     if (!entry) return;
-    setForm({
-      weight: toFormValue(entry.weight),
-      calories: toFormValue(entry.calories),
-      protein: toFormValue(entry.protein),
-      water: toFormValue(entry.water),
-      steps: toFormValue(entry.steps),
-      exercise: entry.exercise || "None",
+    const prev = prevEntry.current;
+    setForm((f) => {
+      const next = { ...f };
+      for (const { key } of fields) {
+        const wasClean = prev == null || f[key] === undefined || f[key] === seedValue(prev, key);
+        if (wasClean) next[key] = seedValue(entry, key);
+      }
+      return next;
     });
+    prevEntry.current = entry;
   }, [entry]);
 
   // Celebrate the moment today's row becomes complete.
@@ -60,41 +68,36 @@ const TodayData = ({ entry, onSave }: TodayDataProps) => {
     wasComplete.current = complete;
   }, [complete]);
 
-  const handleSave = async () => {
-    if (!entry || saving) return;
-    setSaving(true);
-    const num = (k: string) => (form[k] === "" || form[k] == null ? null : Number(form[k]));
-    await onSave({
+  // What's currently persisted for a field ("" = nothing saved yet).
+  const persistedValue = (key: FieldKey): string =>
+    !entry ? "" : key === "exercise" ? entry.exercise ?? "" : toFormValue(entry[key]);
+
+  const isDirty = (key: FieldKey) => (form[key] ?? "") !== persistedValue(key);
+  const isSaved = (key: FieldKey) => persistedValue(key) !== "" && !isDirty(key);
+
+  const savedCount = fields.filter((f) => isSaved(f.key)).length;
+
+  const saveField = async (key: FieldKey) => {
+    if (!entry || savingKey) return;
+    setSavingKey(key);
+    const num = (k: FieldKey) => (form[k] === "" || form[k] == null ? null : Number(form[k]));
+    // Change only this field; every other field keeps its persisted value, so
+    // unsaved edits elsewhere are neither written nor lost.
+    const updated: DailyLog = {
       ...entry,
-      weight: num("weight"),
-      calories: num("calories"),
-      protein: num("protein"),
-      water: num("water"),
-      steps: num("steps"),
-      exercise: form.exercise || "None",
-    });
-    setSaving(false);
-    setEditing(false);
+      weight: key === "weight" ? num("weight") : entry.weight,
+      calories: key === "calories" ? num("calories") : entry.calories,
+      protein: key === "protein" ? num("protein") : entry.protein,
+      water: key === "water" ? num("water") : entry.water,
+      steps: key === "steps" ? num("steps") : entry.steps,
+      exercise: key === "exercise" ? form.exercise || "None" : entry.exercise,
+    };
+    await onSave(updated);
+    setSavingKey(null);
+    // Quiet, field-specific confirmation — the green check is the main signal.
+    const label = fields.find((f) => f.key === key)?.label ?? "Value";
+    toast.success(`${label} saved`, { duration: 1500 });
   };
-
-  const handleCancelEdit = () => {
-    // Discard edits by re-mirroring what's currently saved.
-    if (entry) {
-      setForm({
-        weight: toFormValue(entry.weight),
-        calories: toFormValue(entry.calories),
-        protein: toFormValue(entry.protein),
-        water: toFormValue(entry.water),
-        steps: toFormValue(entry.steps),
-        exercise: entry.exercise || "None",
-      });
-    }
-    setEditing(false);
-  };
-
-  const filled = fields.filter((f) =>
-    f.key === "exercise" ? !!form.exercise : form[f.key] !== "" && form[f.key] != null,
-  ).length;
 
   return (
     <GamePanel
@@ -103,50 +106,34 @@ const TodayData = ({ entry, onSave }: TodayDataProps) => {
       color="leaf"
       right={
         <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-          {filled}/{fields.length} filled
+          {savedCount}/{fields.length} saved
         </span>
       }
     >
-      {showDone ? (
-        <div ref={doneRef} className="flex flex-col items-center gap-3 py-4 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-[hsl(84,45%,24%)] bg-gradient-to-b from-[hsl(84,46%,52%)] to-[hsl(70,50%,38%)] text-3xl shadow-[0_4px_0_hsl(84,45%,24%),0_6px_12px_rgba(0,0,0,0.35),inset_0_2px_0_rgba(255,255,255,0.4)]">
-            🎉
+      <div className="space-y-4">
+        {complete ? (
+          <div ref={doneRef} className="flex items-center gap-2 rounded-lg border-2 border-[hsl(84,45%,40%)]/40 bg-[hsl(84,46%,52%)]/12 px-3 py-2">
+            <span className="text-lg">🎉</span>
+            <p className="text-sm font-bold text-[hsl(84,45%,28%)]">Today's data is complete — nice work!</p>
           </div>
-          <div>
-            <p className="font-display text-lg font-bold text-card-foreground">Good job — today's data is complete!</p>
-            <p className="text-sm font-semibold text-muted-foreground">
-              Everything for today is logged. Come back tomorrow to keep the streak alive.
-            </p>
-          </div>
-
-          <div className="mt-1 flex flex-wrap justify-center gap-2">
-            {fields.map(({ key, label, unit }) => (
-              <span key={key} className="game-tag inline-flex items-baseline gap-1 px-2.5 py-1">
-                <span className="font-display text-[9px] font-bold uppercase tracking-wide text-muted-foreground">{label}</span>
-                <span className="text-xs font-bold text-card-foreground">
-                  {form[key] || "—"}
-                  {unit ? ` ${unit}` : ""}
-                </span>
-              </span>
-            ))}
-          </div>
-
-          <GameButton color="wood" size="sm" className="mt-1" onClick={() => setEditing(true)}>
-            <Pencil className="h-3.5 w-3.5" />
-            Update Data
-          </GameButton>
-        </div>
-      ) : (
-        <div className="space-y-4">
+        ) : (
           <p className="text-xs font-semibold text-muted-foreground">
-            {editing
-              ? "Update today's numbers — changes save straight into the Daily Log."
-              : "Fill in today's numbers — they save straight into the Daily Log."}
+            Fill in each number and save it on its own — no need to submit them all at once.
           </p>
+        )}
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {fields.map(({ key, label, unit, icon: Icon, type }) => (
-              <div key={key} className="space-y-1">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {fields.map(({ key, label, unit, icon: Icon, type }) => {
+            const saved = isSaved(key);
+            const busy = savingKey === key;
+            return (
+              <div
+                key={key}
+                className={cn(
+                  "space-y-1 rounded-xl p-2 transition-colors",
+                  saved && "bg-[hsl(84,46%,52%)]/12 ring-1 ring-inset ring-[hsl(84,45%,40%)]/40",
+                )}
+              >
                 <label
                   htmlFor={`today-${key}`}
                   className="flex items-center gap-1 font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
@@ -157,53 +144,62 @@ const TodayData = ({ entry, onSave }: TodayDataProps) => {
                     {unit && <span className="ml-0.5 opacity-60">({unit})</span>}
                   </span>
                 </label>
-                {type === "select" ? (
-                  <Select
-                    value={form.exercise || "None"}
-                    onValueChange={(v) => setForm((f) => ({ ...f, exercise: v }))}
-                  >
-                    <SelectTrigger id={`today-${key}`} className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {exerciseOptions.map((o) => (
-                        <SelectItem key={o} value={o}>{o}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    id={`today-${key}`}
-                    type="number"
-                    step={key === "weight" ? "0.1" : "1"}
-                    inputMode="decimal"
-                    placeholder="0"
-                    value={form[key] ?? ""}
-                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                    className="h-9"
-                  />
-                )}
-              </div>
-            ))}
-          </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <GameButton
-              ref={saveRef}
-              color="leaf"
-              className="w-full flex-1"
-              onClick={handleSave}
-              disabled={saving || !entry}
-            >
-              <Save className="h-4 w-4" />
-              {saving ? "Saving..." : editing ? "Save Changes" : "Save Today's Data"}
-            </GameButton>
-            {editing && (
-              <GameButton color="wood" className="w-full sm:w-auto" onClick={handleCancelEdit} disabled={saving}>
-                Cancel
-              </GameButton>
-            )}
-          </div>
+                <div className="flex items-center gap-1.5">
+                  {type === "select" ? (
+                    <Select
+                      value={form.exercise || "None"}
+                      onValueChange={(v) => setForm((f) => ({ ...f, exercise: v }))}
+                    >
+                      <SelectTrigger id={`today-${key}`} className="h-9 flex-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {exerciseOptions.map((o) => (
+                          <SelectItem key={o} value={o}>{o}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id={`today-${key}`}
+                      type="number"
+                      step={key === "weight" ? "0.1" : "1"}
+                      inputMode="decimal"
+                      placeholder="0"
+                      value={form[key] ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && isDirty(key)) void saveField(key);
+                      }}
+                      className="h-9 flex-1"
+                    />
+                  )}
+
+                  {saved ? (
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-[hsl(84,45%,24%)] bg-gradient-to-b from-[hsl(84,46%,52%)] to-[hsl(70,50%,38%)] text-white shadow-[0_2px_0_hsl(84,45%,24%)]"
+                      title="Saved"
+                      aria-label={`${label} saved`}
+                    >
+                      <Check className="h-4 w-4" strokeWidth={3} />
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void saveField(key)}
+                      disabled={!isDirty(key) || savingKey != null || !entry}
+                      title={`Save ${label.toLowerCase()}`}
+                      aria-label={`Save ${label}`}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-[hsl(70,50%,22%)] bg-gradient-to-b from-[hsl(68,46%,50%)] to-[hsl(70,50%,38%)] text-white shadow-[0_2px_0_hsl(70,50%,22%)] transition hover:brightness-110 active:translate-y-[2px] active:shadow-none disabled:opacity-40 disabled:saturate-50"
+                    >
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </div>
     </GamePanel>
   );
 };

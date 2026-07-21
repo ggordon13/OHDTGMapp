@@ -280,9 +280,10 @@ const Index = () => {
   };
 
   // Save the "Today's Data" panel straight onto today's row in the Daily Log.
+  // Per-field saves show their own quiet confirmation (in TodayData), so this
+  // just persists without an extra toast.
   const handleSaveToday = async (updated: DailyLog) => {
     await updateLogs([updated]);
-    toast.success("Today's data saved 💪");
   };
 
   if (loading || profileLoading) {
