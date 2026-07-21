@@ -329,6 +329,11 @@ const Index = () => {
   const formatGoal = (min: number | null, max: number | null, fallback: number): string | number =>
     min != null && max != null ? `${min.toLocaleString()}–${max.toLocaleString()}` : fallback;
 
+  // A stored min/max band means the user opted into the recommended range (a
+  // projection); a lone target means they set their own goal.
+  const usingRecommendedRange = goals.targetWeightMin != null && goals.targetWeightMax != null;
+  const weightCaption = usingRecommendedRange ? "Projected Weight on Day 100" : "Target Weight on Day 100";
+
   // Free-plan indicators, shared by the Daily Log and Today's Data panels:
   //  - the day-counter chip (before the cap), and
   //  - a footer notice: a light premium nudge before the cap, a full wall after.
@@ -457,7 +462,7 @@ const Index = () => {
             startPoint={{ date: formattedDayOneDate, weight: startWeight, status: weightStatus }}
           />
           <div data-reveal>
-            <TodayData entry={todayEntry} onSave={handleSaveToday} statusBadge={freeChip} footer={freeFooter} />
+            <TodayData entry={todayEntry} onSave={handleSaveToday} statusBadge={freeChip} footer={freeFooter} locked={logCapped} />
           </div>
         </div>
 
@@ -506,7 +511,7 @@ const Index = () => {
                 value={formatGoal(goals.targetWeightMin, goals.targetWeightMax, goals.targetWeight)}
                 unit="kg"
                 icon={Scale}
-                caption="Goal weight"
+                caption={weightCaption}
               />
               <StatCard
                 label="Calories"

@@ -18,6 +18,8 @@ interface TodayDataProps {
   statusBadge?: ReactNode;
   /** Rendered below the fields (e.g. the free-plan premium notice). */
   footer?: ReactNode;
+  /** When true, today is beyond the free plan's cap — fields are read-only. */
+  locked?: boolean;
 }
 
 const fields = [
@@ -37,7 +39,7 @@ const toFormValue = (v: string | number | null | undefined) => (v == null ? "" :
 const seedValue = (entry: DailyLog, key: FieldKey): string =>
   key === "exercise" ? entry.exercise || "None" : toFormValue(entry[key]);
 
-const TodayData = ({ entry, onSave, statusBadge, footer }: TodayDataProps) => {
+const TodayData = ({ entry, onSave, statusBadge, footer, locked = false }: TodayDataProps) => {
   const [form, setForm] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<FieldKey | null>(null);
   const doneRef = useRef<HTMLDivElement>(null);
@@ -82,7 +84,7 @@ const TodayData = ({ entry, onSave, statusBadge, footer }: TodayDataProps) => {
   const savedCount = fields.filter((f) => isSaved(f.key)).length;
 
   const saveField = async (key: FieldKey) => {
-    if (!entry || savingKey) return;
+    if (!entry || savingKey || locked) return;
     setSavingKey(key);
     const num = (k: FieldKey) => (form[k] === "" || form[k] == null ? null : Number(form[k]));
     // Change only this field; every other field keeps its persisted value, so
@@ -123,6 +125,10 @@ const TodayData = ({ entry, onSave, statusBadge, footer }: TodayDataProps) => {
             <span className="text-lg">🎉</span>
             <p className="text-sm font-bold text-[hsl(84,45%,28%)]">Today's data is complete — nice work!</p>
           </div>
+        ) : locked ? (
+          <p className="text-xs font-semibold text-muted-foreground">
+            Logging is paused on the free plan — upgrade to keep tracking today.
+          </p>
         ) : (
           <p className="text-xs font-semibold text-muted-foreground">
             Fill in each number and save it on its own — no need to submit them all at once.
@@ -157,6 +163,7 @@ const TodayData = ({ entry, onSave, statusBadge, footer }: TodayDataProps) => {
                     <Select
                       value={form.exercise || "None"}
                       onValueChange={(v) => setForm((f) => ({ ...f, exercise: v }))}
+                      disabled={locked}
                     >
                       <SelectTrigger id={`today-${key}`} className="h-9 flex-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -177,6 +184,7 @@ const TodayData = ({ entry, onSave, statusBadge, footer }: TodayDataProps) => {
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && isDirty(key)) void saveField(key);
                       }}
+                      disabled={locked}
                       className="h-9 flex-1"
                     />
                   )}
@@ -193,7 +201,7 @@ const TodayData = ({ entry, onSave, statusBadge, footer }: TodayDataProps) => {
                     <button
                       type="button"
                       onClick={() => void saveField(key)}
-                      disabled={!isDirty(key) || savingKey != null || !entry}
+                      disabled={!isDirty(key) || savingKey != null || !entry || locked}
                       title={`Save ${label.toLowerCase()}`}
                       aria-label={`Save ${label}`}
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-[hsl(70,50%,22%)] bg-gradient-to-b from-[hsl(68,46%,50%)] to-[hsl(70,50%,38%)] text-white shadow-[0_2px_0_hsl(70,50%,22%)] transition hover:brightness-110 active:translate-y-[2px] active:shadow-none disabled:opacity-40 disabled:saturate-50"
