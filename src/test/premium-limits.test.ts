@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { canEditStartingData, historyDayLimit, FREE_HISTORY_DAYS, STARTING_DATA_LOCK_DAYS } from "@/lib/access";
+import { canEditStartingData, freeLogDayLimit, FREE_LOG_DAY_LIMIT, STARTING_DATA_LOCK_DAYS } from "@/lib/access";
 
-describe("historyDayLimit", () => {
-  it("caps free users to the trailing free window", () => {
-    expect(historyDayLimit("free", "user")).toBe(FREE_HISTORY_DAYS);
-    expect(historyDayLimit(null, null)).toBe(FREE_HISTORY_DAYS);
+describe("freeLogDayLimit", () => {
+  it("caps free users at the free-trial day limit", () => {
+    expect(freeLogDayLimit("free", "user")).toBe(FREE_LOG_DAY_LIMIT);
+    expect(freeLogDayLimit(null, null)).toBe(FREE_LOG_DAY_LIMIT);
   });
 
-  it("gives premium users and staff unlimited history", () => {
-    expect(historyDayLimit("premium", "user")).toBeNull();
-    expect(historyDayLimit("free", "admin")).toBeNull();
-    expect(historyDayLimit("free", "dev")).toBeNull();
+  it("lets premium users and staff log the whole challenge", () => {
+    expect(freeLogDayLimit("premium", "user")).toBeNull();
+    expect(freeLogDayLimit("free", "admin")).toBeNull();
+    expect(freeLogDayLimit("free", "dev")).toBeNull();
   });
 });
 

@@ -38,8 +38,16 @@ import PremiumRequests from "@/components/PremiumRequests";
 import DataAnalytics from "@/components/DataAnalytics";
 import GetPremiumButton from "@/components/GetPremiumButton";
 import Day1ChangeModal from "@/components/Day1ChangeModal";
+import FreeLimitModal from "@/components/FreeLimitModal";
 import { supabase } from "@/integrations/supabase/client";
-import { getAccessBadgeLabel, historyDayLimit, canManageAccess, normalizeAccessLevel } from "@/lib/access";
+import {
+  getAccessBadgeLabel,
+  freeLogDayLimit,
+  canManageAccess,
+  normalizeAccessLevel,
+  FREE_LOG_DAY_LIMIT,
+  CHALLENGE_DAYS,
+} from "@/lib/access";
 
 const Index = () => {
   const { user, signOut } = useAuth();
@@ -50,6 +58,7 @@ const Index = () => {
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showAdmin, setShowAdmin] = useState(true); // admin panels visible by default
   const [showDay1Modal, setShowDay1Modal] = useState(false);
+  const [showFreeLimit, setShowFreeLimit] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideIsOnboarding, setGuideIsOnboarding] = useState(false);
   const celebratingRef = useRef(false);
@@ -168,17 +177,38 @@ const Index = () => {
     const loggedWeightToday = logs.some((l) => l.date === todayDate && l.weight != null);
     const isReturningUser = logs.length > 0;
 
-    // A pending Day 1 proposal takes priority — don't stack the check-in on it.
-    if (isReturningUser && !alreadyGreetedToday && !loggedWeightToday && !profile.pending_challenge_start_date) {
+    // Don't prompt a check-in for a day the user can't log: a free user past
+    // the Day-{cap} wall, or when a pending Day 1 proposal is awaiting them.
+    const cap = freeLogDayLimit(profile.access_level, profile.role);
+    const todayDay = dayRange[dayRange.length - 1]?.day ?? 0;
+    // At/after the cap the free-limit modal takes over, so skip the check-in.
+    const freeWallHit = cap != null && todayDay >= cap;
+
+    if (isReturningUser && !alreadyGreetedToday && !loggedWeightToday && !profile.pending_challenge_start_date && !freeWallHit) {
       setShowCheckIn(true);
       localStorage.setItem(key, todayDate);
     }
-  }, [loading, profileLoading, user, profile, logs, todayDate]);
+  }, [loading, profileLoading, user, profile, logs, todayDate, dayRange]);
 
   // Surface an admin-proposed Day 1 change for the user to accept or reject.
   useEffect(() => {
     if (profile?.pending_challenge_start_date) setShowDay1Modal(true);
   }, [profile?.pending_challenge_start_date]);
+
+  // Notify a free user once, the first time they reach the Day-{cap} logging wall.
+  useEffect(() => {
+    if (loading || profileLoading || !user || !profile) return;
+    const cap = freeLogDayLimit(profile.access_level, profile.role);
+    if (cap == null) return; // premium/staff — no wall
+    const todayDay = dayRange[dayRange.length - 1]?.day ?? 0;
+    if (todayDay < cap) return;
+
+    const key = `freeLimitNotified:${user.id}`;
+    if (localStorage.getItem(key) !== "1") {
+      setShowFreeLimit(true);
+      localStorage.setItem(key, "1");
+    }
+  }, [loading, profileLoading, user, profile, dayRange]);
 
   const acceptDay1Change = async () => {
     const pending = profile?.pending_challenge_start_date;
@@ -279,12 +309,13 @@ const Index = () => {
   // free users are capped to a trailing history window and can't export.
   const isStaff = canManageAccess(profile?.role ?? undefined);
   const isPremium = normalizeAccessLevel(profile?.access_level) === "premium" || isStaff;
-  const historyLimit = historyDayLimit(profile?.access_level, profile?.role);
-  const historyTruncated = historyLimit != null && dayRange.length > historyLimit;
-  // The days a free user may see/log — the most recent N; premium sees them all.
-  const visibleDayRange = historyLimit != null ? dayRange.slice(-historyLimit) : dayRange;
-  const historyStartDate = visibleDayRange[0]?.date ?? "";
-  const visibleLogs = historyTruncated ? logs.filter((l) => l.date >= historyStartDate) : logs;
+  const freeDayCap = freeLogDayLimit(profile?.access_level, profile?.role);
+  // Free users may only log Day 1..cap; days past the cap are locked (but any
+  // data already saved there is kept). Premium/staff have no cap.
+  const logCapped = freeDayCap != null && dayRange.length > freeDayCap;
+  const visibleDayRange = freeDayCap != null ? dayRange.slice(0, freeDayCap) : dayRange;
+  const visibleDates = new Set(visibleDayRange.map((d) => d.date));
+  const visibleLogs = logCapped ? logs.filter((l) => visibleDates.has(l.date)) : logs;
   const formattedDayOneDate = parseDateInputValue(profile?.challenge_start_date ?? todayDate).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -312,6 +343,13 @@ const Index = () => {
           onReject={rejectDay1Change}
         />
       )}
+      <FreeLimitModal
+        open={showFreeLimit}
+        onOpenChange={setShowFreeLimit}
+        dayLimit={FREE_LOG_DAY_LIMIT}
+        challengeDays={CHALLENGE_DAYS}
+        getPremiumSlot={<GetPremiumButton size="md" />}
+      />
       <DailyCheckIn
         open={showCheckIn}
         onOpenChange={setShowCheckIn}
@@ -455,19 +493,25 @@ const Index = () => {
               />
             </motion.div>
 
-            {/* Free users only see/log the most recent weeks — nudge to upgrade. */}
-            {historyTruncated && (
-              <div className="flex flex-col items-center justify-between gap-3 rounded-xl border-2 border-[hsl(268,42%,60%)]/40 bg-[hsl(268,42%,60%)]/10 px-4 py-3 sm:flex-row">
-                <p className="text-sm font-bold text-[hsl(268,40%,38%)]">
-                  🔒 Free plan shows your latest 3 weeks. Go premium to see and log your full history.
-                </p>
-                <GetPremiumButton size="sm" className="shrink-0" />
-              </div>
-            )}
-
-            {/* Primary logging surface: edit rows here (today's is highlighted) and save. */}
+            {/* Primary logging surface: edit rows here (today's is highlighted) and save.
+                Free users hit a Day-{FREE_LOG_DAY_LIMIT} wall shown below the table. */}
             <div data-reveal>
-              <DailyTracker logs={visibleDayRange} onUpdate={updateLogs} highlightDate={todayDate} />
+              <DailyTracker
+                logs={visibleDayRange}
+                onUpdate={updateLogs}
+                highlightDate={todayDate}
+                footer={
+                  logCapped ? (
+                    <div className="flex flex-col items-center justify-between gap-3 rounded-xl border-2 border-[hsl(268,42%,60%)]/40 bg-[hsl(268,42%,60%)]/10 px-4 py-3 sm:flex-row">
+                      <p className="text-sm font-bold text-[hsl(268,40%,38%)]">
+                        🔒 Free plan stops at Day {FREE_LOG_DAY_LIMIT}. Your logs are saved — go premium to keep
+                        logging all the way to Day {CHALLENGE_DAYS}.
+                      </p>
+                      <GetPremiumButton size="sm" className="shrink-0" />
+                    </div>
+                  ) : undefined
+                }
+              />
             </div>
 
             <div data-reveal>
