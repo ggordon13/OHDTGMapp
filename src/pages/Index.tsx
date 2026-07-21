@@ -431,13 +431,17 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Wide two-lane layout: trophies + quests on the left, tracking lane on the right */}
+        {/* Two-column magazine layout on desktop. On mobile the lane wrappers
+            collapse (display:contents) so every panel becomes a direct grid
+            item and can be ordered independently via `order-*`. Desktop order
+            follows DOM order inside each `lg:block` lane. */}
         <div className="grid gap-6 lg:grid-cols-12">
-          <div className="order-2 min-w-0 space-y-6 lg:order-1 lg:col-span-4 xl:col-span-3">
-            <div data-reveal>
+          {/* Left column (desktop): Trophy Case → Quests → Analytics & Export */}
+          <div className="contents lg:block lg:col-span-4 lg:space-y-6 xl:col-span-3">
+            <div data-reveal className="order-2 min-w-0">
               <BadgeShelf badges={badges} />
             </div>
-            <div data-reveal>
+            <div data-reveal className="order-3 min-w-0">
               <QuestBoard
                 dailyQuests={dailyQuests}
                 weeklyQuests={weeklyQuests}
@@ -448,11 +452,21 @@ const Index = () => {
                 claimingKey={claimingKey}
               />
             </div>
+            <div data-reveal className="order-6 min-w-0">
+              <DataAnalytics
+                logs={dayRange}
+                goals={weeklyGoals}
+                userName={displayName}
+                canExport={isPremium}
+                lockedSlot={<GetPremiumButton size="sm" />}
+              />
+            </div>
           </div>
 
-          <div className="order-1 min-w-0 space-y-6 lg:order-2 lg:col-span-8 xl:col-span-9">
+          {/* Right column (desktop): stat cards → Weekly Achievements + Weight Trend → Daily Log */}
+          <div className="contents lg:block lg:col-span-8 lg:space-y-6 xl:col-span-9">
             <motion.div
-              className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
+              className="order-1 grid min-w-0 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2, staggerChildren: 0.05 }}
@@ -494,9 +508,18 @@ const Index = () => {
               />
             </motion.div>
 
+            <div className="order-4 grid min-w-0 gap-6 2xl:grid-cols-5">
+              <div data-reveal className="min-w-0 2xl:col-span-3">
+                <WeeklyAchievements logs={visibleDayRange} goals={weeklyGoals} />
+              </div>
+              <div data-reveal className="min-w-0 2xl:col-span-2">
+                <WeightChart logs={visibleLogs} targetWeight={goals.targetWeight} startWeight={startWeight} />
+              </div>
+            </div>
+
             {/* Primary logging surface: edit rows here (today's is highlighted) and save.
                 Free users hit a Day-{FREE_LOG_DAY_LIMIT} wall shown below the table. */}
-            <div data-reveal>
+            <div data-reveal className="order-5 min-w-0">
               <DailyTracker
                 logs={visibleDayRange}
                 onUpdate={updateLogs}
@@ -520,25 +543,6 @@ const Index = () => {
                   ) : undefined
                 }
               />
-            </div>
-
-            <div data-reveal>
-              <DataAnalytics
-                logs={dayRange}
-                goals={weeklyGoals}
-                userName={displayName}
-                canExport={isPremium}
-                lockedSlot={<GetPremiumButton size="sm" />}
-              />
-            </div>
-
-            <div className="grid gap-6 2xl:grid-cols-5">
-              <div data-reveal className="min-w-0 2xl:col-span-3">
-                <WeeklyAchievements logs={visibleDayRange} goals={weeklyGoals} />
-              </div>
-              <div data-reveal className="min-w-0 2xl:col-span-2">
-                <WeightChart logs={visibleLogs} targetWeight={goals.targetWeight} startWeight={startWeight} />
-              </div>
             </div>
           </div>
         </div>
