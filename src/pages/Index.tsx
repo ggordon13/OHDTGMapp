@@ -407,7 +407,7 @@ const Index = () => {
       <div className="relative z-10 mx-auto max-w-[1720px] space-y-8 px-4 py-8 lg:px-8">
         {/* Top toolbar: app title + account actions, styled to match the game theme */}
         <div className="flex items-center justify-between gap-3">
-          <Logo className="h-11 w-11" withWordmark wordmarkClassName="hidden text-lg sm:inline" />
+          <Logo className="h-12 w-auto sm:h-14" />
           <div className="flex flex-wrap items-center gap-2">
             <div className="rounded-full border border-[hsl(42,95%,62%)]/50 bg-[hsl(45,82%,88%)] px-3 py-1 text-sm font-bold text-[hsl(30,55%,32%)]">
               {accessBadgeLabel}
