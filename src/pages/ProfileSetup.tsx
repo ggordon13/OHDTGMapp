@@ -83,6 +83,7 @@ const ProfileSetup = () => {
   const location = useLocation();
   const cameFromUpdateButton = (location.state as { intentional?: boolean } | null)?.intentional === true;
   const [username, setUsername] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
   const [age, setAge] = useState("");
   const [heightCm, setHeightCm] = useState("");
   const [currentWeight, setCurrentWeight] = useState("");
@@ -162,6 +163,27 @@ const ProfileSetup = () => {
   const usernameValid = isValidUsername(usernameTrimmed);
   const showUsernameError = username !== "" && !usernameValid;
 
+  // Live uniqueness check (debounced). Runs against a SECURITY DEFINER RPC that
+  // excludes the caller, so keeping your own nickname reads as available.
+  useEffect(() => {
+    if (!usernameValid) {
+      setUsernameStatus("idle");
+      return;
+    }
+    let active = true;
+    setUsernameStatus("checking");
+    const t = setTimeout(async () => {
+      const { data, error } = await supabase.rpc("is_username_available", { candidate: usernameTrimmed });
+      if (!active) return;
+      // If the check itself fails, stay neutral — the unique index guards on save.
+      setUsernameStatus(error ? "idle" : data ? "available" : "taken");
+    }, 400);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [usernameTrimmed, usernameValid]);
+
   const w = Number(currentWeight);
   const hasWeight = currentWeight !== "" && !Number.isNaN(w) && w > 0;
   const range = hasWeight ? targetWeightRange(w, goalType) : null;
@@ -194,6 +216,11 @@ const ProfileSetup = () => {
 
     if (!usernameValid) {
       toast.error(`Please pick a valid nickname. ${USERNAME_RULE_HINT}`);
+      return;
+    }
+
+    if (usernameStatus === "taken") {
+      toast.error("That nickname is already taken — please choose another.");
       return;
     }
 
@@ -269,7 +296,14 @@ const ProfileSetup = () => {
 
     setSaving(false);
     if (error) {
-      toast.error("Failed to save profile");
+      // A unique-violation means another user claimed this nickname between the
+      // live check and save — reject it and point the user back at the field.
+      if ((error as { code?: string }).code === "23505") {
+        setUsernameStatus("taken");
+        toast.error("That nickname is already taken — please choose another.");
+      } else {
+        toast.error("Failed to save profile");
+      }
     } else {
       toast.success(isUpdate ? "Profile updated" : "Profile saved! Let's start your journey 💪");
       // First-time setup hands off to the dashboard with a flag so the quick
@@ -337,8 +371,24 @@ const ProfileSetup = () => {
               placeholder="e.g. FitFalcon"
               autoComplete="off"
             />
-            <p className={`text-xs font-bold ${showUsernameError ? "text-[hsl(6,62%,42%)]" : "text-muted-foreground"}`}>
-              {showUsernameError ? USERNAME_RULE_HINT : "Shown on your dashboard instead of your full name."}
+            <p
+              className={`text-xs font-bold ${
+                showUsernameError || usernameStatus === "taken"
+                  ? "text-[hsl(6,62%,42%)]"
+                  : usernameStatus === "available"
+                    ? "text-[hsl(84,45%,32%)]"
+                    : "text-muted-foreground"
+              }`}
+            >
+              {showUsernameError
+                ? USERNAME_RULE_HINT
+                : usernameStatus === "checking"
+                  ? "Checking availability…"
+                  : usernameStatus === "taken"
+                    ? "That nickname is already taken — please choose another."
+                    : usernameStatus === "available"
+                      ? "✓ Nickname is available"
+                      : "Shown on your dashboard instead of your full name."}
             </p>
           </div>
 
@@ -499,7 +549,7 @@ const ProfileSetup = () => {
           )}
 
           <div className="space-y-3 pt-1">
-            <GameButton type="submit" color="red" size="lg" className="w-full" disabled={saving || !usernameValid || !gender || !activityLevel || !targetValid}>
+            <GameButton type="submit" color="red" size="lg" className="w-full" disabled={saving || !usernameValid || usernameStatus === "taken" || !gender || !activityLevel || !targetValid}>
               {saving ? "Saving..." : isUpdate ? "Save Changes" : "Start My 100-Day Challenge 🚀"}
             </GameButton>
             {isUpdate && (
