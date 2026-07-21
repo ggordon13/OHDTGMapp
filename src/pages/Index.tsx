@@ -334,19 +334,9 @@ const Index = () => {
   const usingRecommendedRange = goals.targetWeightMin != null && goals.targetWeightMax != null;
   const weightCaption = usingRecommendedRange ? "Projected Weight on Day 100" : "Target Weight on Day 100";
 
-  // Free-plan indicators, shared by the Daily Log and Today's Data panels:
-  //  - the day-counter chip (before the cap), and
-  //  - a footer notice: a light premium nudge before the cap, a full wall after.
-  const freeChip =
-    freeDayCap != null && !logCapped ? (
-      <span
-        title={`Go premium to keep logging all the way to Day ${CHALLENGE_DAYS}.`}
-        className="game-tag whitespace-nowrap px-2 py-0.5 text-[10px] font-bold text-[hsl(268,40%,42%)]"
-      >
-        Free · Day {Math.min(currentDay, freeDayCap)} of {FREE_LOG_DAY_LIMIT}
-      </span>
-    ) : undefined;
-
+  // Free-plan footer notice, shared by the Daily Log and Today's Data panels:
+  // a light premium nudge (with the day counter) before the cap, a full wall
+  // after. Premium/staff (freeDayCap == null) see nothing.
   const freeFooter =
     freeDayCap == null ? undefined : logCapped ? (
       <div className="flex flex-col items-center justify-between gap-3 rounded-xl border-2 border-[hsl(268,42%,60%)]/40 bg-[hsl(268,42%,60%)]/10 px-4 py-3 sm:flex-row">
@@ -357,18 +347,26 @@ const Index = () => {
         <GetPremiumButton size="sm" className="shrink-0" />
       </div>
     ) : (
-      <div className="rounded-xl border-2 border-[hsl(268,42%,60%)]/30 bg-[hsl(268,42%,60%)]/8 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-[hsl(268,42%,60%)]/30 bg-[hsl(268,42%,60%)]/8 px-3 py-2">
+        <span className="game-tag whitespace-nowrap px-2 py-0.5 text-[10px] font-bold text-[hsl(268,40%,42%)]">
+          Free · Day {Math.min(currentDay, freeDayCap)} of {FREE_LOG_DAY_LIMIT}
+        </span>
         <p className="text-xs font-bold text-[hsl(268,40%,42%)]">
           🔒 Go premium to keep logging all the way to Day {CHALLENGE_DAYS}.
         </p>
       </div>
     );
 
+  // Radix dialogs set `pointer-events: none` on the body while open, which would
+  // make the (non-Radix) celebration's buttons unclickable if both showed at
+  // once. Hold celebrations in the queue until every blocking modal is closed.
+  const blockingModalOpen = showGuide || showCheckIn || showDay1Modal || showFreeLimit;
+
   return (
     <div className="wood-bg min-h-screen">
       <FireflyCanvas />
       <Confetti trigger={confettiTrigger} />
-      <CelebrationModal event={celebrations[0] ?? null} onDismiss={dismissCelebration} />
+      <CelebrationModal event={blockingModalOpen ? null : (celebrations[0] ?? null)} onDismiss={dismissCelebration} />
       {profile?.pending_challenge_start_date && (
         <Day1ChangeModal
           open={showDay1Modal}
@@ -462,7 +460,7 @@ const Index = () => {
             startPoint={{ date: formattedDayOneDate, weight: startWeight, status: weightStatus }}
           />
           <div data-reveal>
-            <TodayData entry={todayEntry} onSave={handleSaveToday} statusBadge={freeChip} footer={freeFooter} locked={logCapped} />
+            <TodayData entry={todayEntry} onSave={handleSaveToday} footer={freeFooter} locked={logCapped} />
           </div>
         </div>
 
@@ -559,7 +557,6 @@ const Index = () => {
                 logs={visibleDayRange}
                 onUpdate={updateLogs}
                 highlightDate={todayDate}
-                statusBadge={freeChip}
                 footer={freeFooter}
               />
             </div>
