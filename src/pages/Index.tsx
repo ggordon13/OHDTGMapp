@@ -303,7 +303,7 @@ const Index = () => {
   const dailyQuests = getDailyQuests(todayEntry, questGoals);
   const weeklyQuests = getWeeklyQuests(currentWeek, weeklyGoals);
 
-  const displayName = profile?.display_name || user?.user_metadata?.full_name || "there";
+  const displayName = profile?.username || profile?.display_name || user?.user_metadata?.full_name || "there";
   const accessBadgeLabel = getAccessBadgeLabel(profile?.role ?? undefined, profile?.access_level ?? undefined);
 
   // Access gates. Staff (admin/dev) and premium users get the full experience;

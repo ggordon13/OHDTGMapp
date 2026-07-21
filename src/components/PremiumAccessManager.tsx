@@ -13,6 +13,7 @@ import { toast } from "sonner";
 interface ProfileRow {
   user_id: string;
   email: string | null;
+  username: string | null;
   display_name: string | null;
   access_level: string | null;
   role: string | null;
@@ -24,6 +25,7 @@ interface ProfileRow {
 interface DirectoryRow {
   key: string;
   email: string;
+  username: string | null;
   displayName: string | null;
   userId: string | null;
   accessLevel: "free" | "premium";
@@ -56,8 +58,8 @@ const PremiumAccessManager = () => {
     const [{ data: profileData }, { data: allowData }] = await Promise.all([
       supabase
         .from("profiles")
-        .select("user_id, email, display_name, access_level, role, challenge_start_date, pending_challenge_start_date")
-        .order("email", { ascending: true }),
+        .select("user_id, email, username, display_name, access_level, role, challenge_start_date, pending_challenge_start_date")
+        .order("username", { ascending: true }),
       supabase.from("premium_allowlist").select("*").order("email", { ascending: true }),
     ]);
     setProfiles((profileData ?? []) as ProfileRow[]);
@@ -81,6 +83,7 @@ const PremiumAccessManager = () => {
       return {
         key,
         email: p.email ?? "(no email)",
+        username: p.username,
         displayName: p.display_name,
         userId: p.user_id,
         accessLevel: normalizeAccessLevel(p.access_level),
@@ -100,6 +103,7 @@ const PremiumAccessManager = () => {
       directory.push({
         key,
         email: entry.email,
+        username: null,
         displayName: null,
         userId: null,
         accessLevel: normalizeAccessLevel(entry.access_level),
@@ -113,8 +117,16 @@ const PremiumAccessManager = () => {
     }
 
     const q = filter.trim().toLowerCase();
-    const filtered = q ? directory.filter((r) => r.email.toLowerCase().includes(q) || (r.displayName ?? "").toLowerCase().includes(q)) : directory;
-    return filtered.sort((a, b) => a.email.localeCompare(b.email));
+    const filtered = q
+      ? directory.filter(
+          (r) =>
+            (r.username ?? "").toLowerCase().includes(q) ||
+            r.email.toLowerCase().includes(q) ||
+            (r.displayName ?? "").toLowerCase().includes(q),
+        )
+      : directory;
+    // Named users first (by nickname), invites last.
+    return filtered.sort((a, b) => (a.username ?? "~").localeCompare(b.username ?? "~"));
   }, [profiles, allowlist, filter]);
 
   // Pre-grant premium to an email (works before the user has signed up).
@@ -162,7 +174,8 @@ const PremiumAccessManager = () => {
     }
 
     setBusyKey(null);
-    toast.success(grant ? `${row.email} is now premium 👑` : `${row.email} moved to free.`);
+    const who = row.username ?? row.email;
+    toast.success(grant ? `${who} is now premium 👑` : `${who} moved to free.`);
     await load();
   };
 
@@ -193,7 +206,7 @@ const PremiumAccessManager = () => {
       toast.error("Couldn't propose the change.");
       return;
     }
-    toast.success(`Proposed Day 1 = ${draft}. ${row.email} will be asked to approve it.`);
+    toast.success(`Proposed Day 1 = ${draft}. ${row.username ?? row.email} will be asked to approve it.`);
     await load();
   };
 
@@ -248,7 +261,7 @@ const PremiumAccessManager = () => {
           <Input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Search users by email or name"
+            placeholder="Search by nickname or email"
             className="pl-9"
           />
         </div>
@@ -266,7 +279,10 @@ const PremiumAccessManager = () => {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="flex items-center gap-2 truncate font-medium">
-                        {row.email}
+                        {/* Nickname only — real name/email are kept private from staff. */}
+                        <span className={row.username ? "" : "italic text-muted-foreground"}>
+                          {row.username ?? (row.inviteOnly ? row.email : "(no nickname)")}
+                        </span>
                         {isStaff && (
                           <span className="rounded-full bg-[hsl(6,60%,55%)]/15 px-2 py-0.5 text-[10px] font-bold uppercase text-[hsl(6,55%,42%)]">
                             {row.role}
@@ -279,7 +295,6 @@ const PremiumAccessManager = () => {
                         )}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {row.displayName ? `${row.displayName} · ` : ""}
                         <span className={row.accessLevel === "premium" ? "font-semibold text-[hsl(36,70%,40%)]" : ""}>
                           {row.accessLevel}
                         </span>

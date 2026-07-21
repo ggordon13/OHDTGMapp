@@ -3,7 +3,15 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
-import { requiresProfileSetup, targetWeightRange, recommendedTargetRange, type GoalType } from "@/lib/profile";
+import {
+  requiresProfileSetup,
+  targetWeightRange,
+  recommendedTargetRange,
+  isValidUsername,
+  USERNAME_MAX_LENGTH,
+  USERNAME_RULE_HINT,
+  type GoalType,
+} from "@/lib/profile";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatDateInputValue } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -74,6 +82,7 @@ const ProfileSetup = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const cameFromUpdateButton = (location.state as { intentional?: boolean } | null)?.intentional === true;
+  const [username, setUsername] = useState("");
   const [age, setAge] = useState("");
   const [heightCm, setHeightCm] = useState("");
   const [currentWeight, setCurrentWeight] = useState("");
@@ -135,6 +144,7 @@ const ProfileSetup = () => {
   // Pre-fill the form with existing profile data when a returning user edits their profile
   useEffect(() => {
     if (prefilled || profileLoading || !profile) return;
+    if (profile.username) setUsername(profile.username);
     if (profile.age != null) setAge(String(profile.age));
     if (profile.height_cm != null) setHeightCm(String(profile.height_cm));
     if (profile.current_weight != null) setCurrentWeight(String(profile.current_weight));
@@ -147,6 +157,10 @@ const ProfileSetup = () => {
     if (profile.challenge_start_date) setDayOneDate(profile.challenge_start_date);
     setPrefilled(true);
   }, [profile, profileLoading, prefilled]);
+
+  const usernameTrimmed = username.trim();
+  const usernameValid = isValidUsername(usernameTrimmed);
+  const showUsernameError = username !== "" && !usernameValid;
 
   const w = Number(currentWeight);
   const hasWeight = currentWeight !== "" && !Number.isNaN(w) && w > 0;
@@ -178,6 +192,11 @@ const ProfileSetup = () => {
     e.preventDefault();
     if (!user || !preview) return;
 
+    if (!usernameValid) {
+      toast.error(`Please pick a valid nickname. ${USERNAME_RULE_HINT}`);
+      return;
+    }
+
     // Enforce the target-weight / Day 1 lock on the server-bound path too, not
     // just by disabling the inputs.
     if (isUpdate && startingDataChanged && !startingDataEdit.allowed) {
@@ -197,6 +216,7 @@ const ProfileSetup = () => {
 
     setSaving(true);
     const { error } = await supabase.from("profiles").update({
+      username: usernameTrimmed,
       age: Number(age),
       height_cm: Number(heightCm),
       current_weight: w,
@@ -305,6 +325,22 @@ const ProfileSetup = () => {
               ⚠️ Changing your stats, goal, target weight or Day 1 date restarts the challenge — you'll start logging again from Day 1.
             </div>
           )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="username" className={labelClass}>Nickname</Label>
+            <Input
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              maxLength={USERNAME_MAX_LENGTH}
+              required
+              placeholder="e.g. FitFalcon"
+              autoComplete="off"
+            />
+            <p className={`text-xs font-bold ${showUsernameError ? "text-[hsl(6,62%,42%)]" : "text-muted-foreground"}`}>
+              {showUsernameError ? USERNAME_RULE_HINT : "Shown on your dashboard instead of your full name."}
+            </p>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -463,7 +499,7 @@ const ProfileSetup = () => {
           )}
 
           <div className="space-y-3 pt-1">
-            <GameButton type="submit" color="red" size="lg" className="w-full" disabled={saving || !gender || !activityLevel || !targetValid}>
+            <GameButton type="submit" color="red" size="lg" className="w-full" disabled={saving || !usernameValid || !gender || !activityLevel || !targetValid}>
               {saving ? "Saving..." : isUpdate ? "Save Changes" : "Start My 100-Day Challenge 🚀"}
             </GameButton>
             {isUpdate && (

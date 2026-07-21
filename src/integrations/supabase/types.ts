@@ -148,6 +148,7 @@ export type Database = {
           total_xp: number
           updated_at: string
           user_id: string
+          username: string | null
         }
         Insert: {
           access_level?: string
@@ -183,6 +184,7 @@ export type Database = {
           total_xp?: number
           updated_at?: string
           user_id: string
+          username?: string | null
         }
         Update: {
           access_level?: string
@@ -218,6 +220,7 @@ export type Database = {
           total_xp?: number
           updated_at?: string
           user_id?: string
+          username?: string | null
         }
         Relationships: []
       }
