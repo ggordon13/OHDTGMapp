@@ -88,8 +88,8 @@ const Login = () => {
       <FireflyCanvas count={140} />
 
       <div ref={rootRef} className="relative z-10 w-full max-w-xl space-y-6 text-center">
-        {/* Floating brand badge */}
-        <Logo ref={medalRef} className="mx-auto h-36 w-36 sm:h-44 sm:w-44" />
+        {/* Floating brand badge — width-based so the wide logo fills the space. */}
+        <Logo ref={medalRef} className="mx-auto h-auto w-72 sm:w-[26rem]" />
 
         <h1
           data-in
