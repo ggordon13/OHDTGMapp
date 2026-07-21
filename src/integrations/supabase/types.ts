@@ -115,6 +115,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          access_level: string
           activity_level: string | null
           age: number | null
           avatar_url: string | null
@@ -130,12 +131,15 @@ export type Database = {
           daily_steps_target: number | null
           daily_water_target: number | null
           display_name: string | null
+          email: string | null
           gender: string | null
           goal_type: string
           height_cm: number | null
           id: string
           last_celebrated_weight: number | null
           level: number
+          pending_challenge_start_date: string | null
+          role: string
           starting_data_updated_at: string | null
           streak_shields: number
           target_weight: number | null
@@ -146,6 +150,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          access_level?: string
           activity_level?: string | null
           age?: number | null
           avatar_url?: string | null
@@ -161,12 +166,15 @@ export type Database = {
           daily_steps_target?: number | null
           daily_water_target?: number | null
           display_name?: string | null
+          email?: string | null
           gender?: string | null
           goal_type?: string
           height_cm?: number | null
           id?: string
           last_celebrated_weight?: number | null
           level?: number
+          pending_challenge_start_date?: string | null
+          role?: string
           starting_data_updated_at?: string | null
           streak_shields?: number
           target_weight?: number | null
@@ -177,6 +185,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          access_level?: string
           activity_level?: string | null
           age?: number | null
           avatar_url?: string | null
@@ -192,12 +201,15 @@ export type Database = {
           daily_steps_target?: number | null
           daily_water_target?: number | null
           display_name?: string | null
+          email?: string | null
           gender?: string | null
           goal_type?: string
           height_cm?: number | null
           id?: string
           last_celebrated_weight?: number | null
           level?: number
+          pending_challenge_start_date?: string | null
+          role?: string
           starting_data_updated_at?: string | null
           streak_shields?: number
           target_weight?: number | null

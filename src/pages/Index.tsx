@@ -37,6 +37,8 @@ import PremiumAccessManager from "@/components/PremiumAccessManager";
 import PremiumRequests from "@/components/PremiumRequests";
 import DataAnalytics from "@/components/DataAnalytics";
 import GetPremiumButton from "@/components/GetPremiumButton";
+import Day1ChangeModal from "@/components/Day1ChangeModal";
+import { supabase } from "@/integrations/supabase/client";
 import { getAccessBadgeLabel, historyDayLimit, canManageAccess, normalizeAccessLevel } from "@/lib/access";
 
 const Index = () => {
@@ -46,6 +48,8 @@ const Index = () => {
   const { logs, loading, updateLogs } = useDailyLogs();
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
   const [showCheckIn, setShowCheckIn] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(true); // admin panels visible by default
+  const [showDay1Modal, setShowDay1Modal] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideIsOnboarding, setGuideIsOnboarding] = useState(false);
   const celebratingRef = useRef(false);
@@ -164,11 +168,45 @@ const Index = () => {
     const loggedWeightToday = logs.some((l) => l.date === todayDate && l.weight != null);
     const isReturningUser = logs.length > 0;
 
-    if (isReturningUser && !alreadyGreetedToday && !loggedWeightToday) {
+    // A pending Day 1 proposal takes priority — don't stack the check-in on it.
+    if (isReturningUser && !alreadyGreetedToday && !loggedWeightToday && !profile.pending_challenge_start_date) {
       setShowCheckIn(true);
       localStorage.setItem(key, todayDate);
     }
   }, [loading, profileLoading, user, profile, logs, todayDate]);
+
+  // Surface an admin-proposed Day 1 change for the user to accept or reject.
+  useEffect(() => {
+    if (profile?.pending_challenge_start_date) setShowDay1Modal(true);
+  }, [profile?.pending_challenge_start_date]);
+
+  const acceptDay1Change = async () => {
+    const pending = profile?.pending_challenge_start_date;
+    if (!user || !pending) return;
+    const { error } = await supabase
+      .from("profiles")
+      .update({ challenge_start_date: pending, pending_challenge_start_date: null })
+      .eq("user_id", user.id);
+    if (error) {
+      toast.error("Couldn't apply the new Day 1. Please try again.");
+      return;
+    }
+    toast.success("Your Day 1 has been updated.");
+    await refetchProfile();
+  };
+
+  const rejectDay1Change = async () => {
+    if (!user) return;
+    const { error } = await supabase
+      .from("profiles")
+      .update({ pending_challenge_start_date: null })
+      .eq("user_id", user.id);
+    if (error) {
+      toast.error("Couldn't dismiss the request. Please try again.");
+      return;
+    }
+    await refetchProfile();
+  };
 
   // Show the quick guide once, right after the first profile setup, before the
   // user starts tracking. Persisted per-user so it never nags twice.
@@ -264,6 +302,16 @@ const Index = () => {
       <FireflyCanvas />
       <Confetti trigger={confettiTrigger} />
       <CelebrationModal event={celebrations[0] ?? null} onDismiss={dismissCelebration} />
+      {profile?.pending_challenge_start_date && (
+        <Day1ChangeModal
+          open={showDay1Modal}
+          onOpenChange={setShowDay1Modal}
+          currentDay1={profile.challenge_start_date}
+          proposedDay1={profile.pending_challenge_start_date}
+          onAccept={acceptDay1Change}
+          onReject={rejectDay1Change}
+        />
+      )}
       <DailyCheckIn
         open={showCheckIn}
         onOpenChange={setShowCheckIn}
@@ -303,10 +351,16 @@ const Index = () => {
               <BookOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Quick Guide</span>
             </GameButton>
-            {(profile?.role === "admin" || profile?.role === "dev") && (
-              <GameButton color="red" size="sm" onClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} title="Manage premium access">
+            {isStaff && (
+              <GameButton
+                color="red"
+                size="sm"
+                onClick={() => setShowAdmin((v) => !v)}
+                title={showAdmin ? "Hide the admin panels" : "Show the admin panels"}
+                aria-pressed={showAdmin}
+              >
                 <ShieldCheck className="h-4 w-4" />
-                <span className="hidden sm:inline">Manage Access</span>
+                <span className="hidden sm:inline">{showAdmin ? "Hide Access" : "Manage Access"}</span>
               </GameButton>
             )}
             <GameButton color="wood" size="sm" onClick={signOut} title="Sign out" aria-label="Sign out">
@@ -315,7 +369,7 @@ const Index = () => {
           </div>
         </div>
 
-        {isStaff && (
+        {isStaff && showAdmin && (
           <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
             <PremiumAccessManager />
             <PremiumRequests />

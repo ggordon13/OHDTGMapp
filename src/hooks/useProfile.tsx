@@ -28,6 +28,9 @@ export interface UserProfile {
   daily_water_target: number | null;
   daily_steps_target: number | null;
   challenge_start_date: string | null;
+  /** A Day 1 date an admin has proposed, awaiting this user's approval. */
+  pending_challenge_start_date: string | null;
+  email: string | null;
   /** When target weight / Day 1 were last changed — drives the 30-day premium lock. */
   starting_data_updated_at: string | null;
   // Gamification state (defaulted server-side; may be absent pre-migration)
@@ -54,11 +57,8 @@ export function useProfile() {
       console.error("Failed to load profile", error);
     }
 
-    // `role` and `access_level` post-date the generated Supabase types.
-    const accessRow = data as (NonNullable<typeof data> & { role: string | null; access_level: string | null }) | null;
-
-    const effectiveAccessLevel = await resolveEffectiveAccessLevel(user.email, accessRow?.access_level ?? null, accessRow?.role ?? null);
-    if (accessRow && effectiveAccessLevel !== accessRow.access_level) {
+    const effectiveAccessLevel = await resolveEffectiveAccessLevel(user.email, data?.access_level ?? null, data?.role ?? null);
+    if (data && effectiveAccessLevel !== data.access_level) {
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ access_level: effectiveAccessLevel })
@@ -67,11 +67,11 @@ export function useProfile() {
       if (updateError) {
         console.error("Failed to sync effective access level", updateError);
       } else {
-        accessRow.access_level = effectiveAccessLevel;
+        data.access_level = effectiveAccessLevel;
       }
     }
 
-    setProfile(accessRow as UserProfile | null);
+    setProfile(data as UserProfile | null);
     setLoading(false);
   }, [user]);
 
