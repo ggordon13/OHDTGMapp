@@ -31,12 +31,13 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
  * The target weight a user is allowed to pick, based on their goal:
- *  - lose:     down to 13% below their current weight (a floor)
+ *  - lose:     between 13% and 2% below their current weight (the 2% cap keeps
+ *              the deficit calc valid — a target too close to now is rejected)
  *  - maintain: within ±0.5% of their current weight (a band)
  */
 export function targetWeightRange(weight: number, goal: GoalType) {
   return goal === "lose"
-    ? { min: round1(weight * 0.87), max: round1(weight) }
+    ? { min: round1(weight * 0.87), max: round1(weight * 0.98) }
     : { min: round1(weight * 0.995), max: round1(weight * 1.005) };
 }
 

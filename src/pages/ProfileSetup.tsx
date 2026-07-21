@@ -34,6 +34,8 @@ function calculateTargets(
   gender: string,
   activity: string,
   goal: GoalType,
+  targetWeight: number,
+  useRecommended: boolean,
 ) {
   // Mifflin-St Jeor BMR
   const bmr = gender === "male"
@@ -43,13 +45,20 @@ function calculateTargets(
   const multiplier = activityMultipliers[activity] || 1.45;
   const tdee = bmr * multiplier;
 
+  // Deficit percentages (of body mass) for the losing plan. The recommended
+  // range uses fixed 0.13% / 0.09%. A manually-picked target instead scales the
+  // deficit by how far the goal is from the current weight, ±0.02.
+  const lossFraction = (weight - targetWeight) / weight;
+  const aggressivePct = useRecommended ? 0.13 : lossFraction + 0.02;
+  const moderatePct = useRecommended ? 0.09 : lossFraction - 0.02;
+
   // Losing runs a deficit sized off body mass; maintaining sits in a narrow
   // band around TDEE so weight holds steady.
   const calorieMin = goal === "lose"
-    ? Math.round(tdee - (weight * 0.13 * 7700 / 100)) // aggressive
+    ? Math.round(tdee - (weight * aggressivePct * 7700 / 100)) // aggressive
     : Math.round(tdee - (weight * 7));
   const calorieMax = goal === "lose"
-    ? Math.round(tdee - (weight * 0.09 * 7700 / 100)) // moderate
+    ? Math.round(tdee - (weight * moderatePct * 7700 / 100)) // moderate
     : Math.round(tdee - (weight * 4));
 
   // Protein targets
@@ -207,7 +216,7 @@ const ProfileSetup = () => {
     : range != null && targetWeight !== "" && !Number.isNaN(target) && target >= range.min && target <= range.max;
 
   const preview = hasWeight && age && heightCm && gender && activityLevel && targetValid
-    ? calculateTargets(Number(age), Number(heightCm), w, gender, activityLevel, goalType)
+    ? calculateTargets(Number(age), Number(heightCm), w, gender, activityLevel, goalType, target, useRecommended)
     : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
