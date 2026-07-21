@@ -136,6 +136,7 @@ export type Database = {
           id: string
           last_celebrated_weight: number | null
           level: number
+          starting_data_updated_at: string | null
           streak_shields: number
           target_weight: number | null
           target_weight_max: number | null
@@ -166,6 +167,7 @@ export type Database = {
           id?: string
           last_celebrated_weight?: number | null
           level?: number
+          starting_data_updated_at?: string | null
           streak_shields?: number
           target_weight?: number | null
           target_weight_max?: number | null
@@ -196,6 +198,7 @@ export type Database = {
           id?: string
           last_celebrated_weight?: number | null
           level?: number
+          starting_data_updated_at?: string | null
           streak_shields?: number
           target_weight?: number | null
           target_weight_max?: number | null
