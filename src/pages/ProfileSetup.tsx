@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import GameButton from "@/components/game/GameButton";
+import { canEditStartingData } from "@/lib/access";
 import { toast } from "sonner";
 
 const activityMultipliers: Record<string, number> = {
@@ -100,6 +101,23 @@ const ProfileSetup = () => {
     dayOneDate !== (profile.challenge_start_date ?? formatDateInputValue())
   );
 
+  // Target weight and Day 1 are "locked" fields: free users can't change them,
+  // premium users only once every 30 days. Staff are unrestricted. The lock only
+  // applies to existing profiles (first-time setup always sets them freely).
+  const startingDataEdit = canEditStartingData(
+    profile?.access_level,
+    profile?.role,
+    profile?.starting_data_updated_at,
+  );
+  const lockStartingFields = isUpdate && !startingDataEdit.allowed;
+
+  // Did the user actually touch target weight or Day 1 (vs the saved profile)?
+  const startingDataChanged = profile != null && (
+    targetWeight !== (profile.target_weight != null ? String(profile.target_weight) : "") ||
+    useRecommended !== (profile.target_weight_min != null && profile.target_weight_max != null) ||
+    dayOneDate !== (profile.challenge_start_date ?? formatDateInputValue())
+  );
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/login", { replace: true });
@@ -160,6 +178,13 @@ const ProfileSetup = () => {
     e.preventDefault();
     if (!user || !preview) return;
 
+    // Enforce the target-weight / Day 1 lock on the server-bound path too, not
+    // just by disabling the inputs.
+    if (isUpdate && startingDataChanged && !startingDataEdit.allowed) {
+      toast.error(startingDataEdit.reason || "You can't change your target weight or Day 1 date right now.");
+      return;
+    }
+
     if (isUpdate && hasChangedStartingData) {
       const shouldRestart = window.confirm(
         "Changing your age, height, weight, gender, activity, goal, target weight or Day 1 date restarts your challenge — you'll begin logging again from Day 1. Continue?"
@@ -194,6 +219,9 @@ const ProfileSetup = () => {
       daily_water_target: preview.water,
       daily_steps_target: preview.steps,
       challenge_start_date: challengeStartDate,
+      // Stamp the lock clock only when a locked field actually changed, so the
+      // 30-day premium window starts from the real change.
+      ...(startingDataChanged ? { starting_data_updated_at: new Date().toISOString() } : {}),
     }).eq("user_id", user.id);
 
     // Seed Day 1's weight from the profile so the challenge starts from a real
@@ -356,6 +384,11 @@ const ProfileSetup = () => {
 
           <div className="space-y-1.5">
             <Label htmlFor="tw" className={labelClass}>Target Weight (kg)</Label>
+            {lockStartingFields && (
+              <div className="rounded-lg border-2 border-[hsl(268,42%,60%)]/40 bg-[hsl(268,42%,60%)]/10 px-3 py-2 text-xs font-bold text-[hsl(268,40%,38%)]">
+                🔒 {startingDataEdit.reason}
+              </div>
+            )}
             <Input
               id="tw"
               type="number"
@@ -364,7 +397,7 @@ const ProfileSetup = () => {
               max={range?.max}
               value={useRecommended ? "" : targetWeight}
               onChange={(e) => setTargetWeight(e.target.value)}
-              disabled={!hasWeight || useRecommended}
+              disabled={!hasWeight || useRecommended || lockStartingFields}
               required={!useRecommended}
               placeholder={
                 useRecommended && recommended ? `${recommended.min} – ${recommended.max}` : range ? String(range.min) : "—"
@@ -386,7 +419,7 @@ const ProfileSetup = () => {
               <Checkbox
                 checked={useRecommended}
                 onCheckedChange={(v) => setUseRecommended(v === true)}
-                disabled={!hasWeight}
+                disabled={!hasWeight || lockStartingFields}
                 className="mt-0.5 border-[hsl(33,30%,45%)] data-[state=checked]:border-[hsl(70,50%,22%)] data-[state=checked]:bg-[hsl(70,50%,38%)]"
               />
               <span className="text-xs font-bold text-muted-foreground">
@@ -403,10 +436,13 @@ const ProfileSetup = () => {
               max={formatDateInputValue()}
               value={dayOneDate}
               onChange={(e) => setDayOneDate(e.target.value)}
+              disabled={lockStartingFields}
               required
             />
             <p className="text-xs font-bold text-muted-foreground">
-              Already started? Pick the day your challenge began.
+              {lockStartingFields
+                ? `🔒 ${startingDataEdit.reason}`
+                : "Already started? Pick the day your challenge began."}
             </p>
           </div>
 

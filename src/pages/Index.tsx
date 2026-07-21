@@ -34,7 +34,10 @@ import {
 import { formatDateInputValue, parseDateInputValue } from "@/lib/utils";
 import GameButton from "@/components/game/GameButton";
 import PremiumAccessManager from "@/components/PremiumAccessManager";
-import { getAccessBadgeLabel } from "@/lib/access";
+import PremiumRequests from "@/components/PremiumRequests";
+import DataAnalytics from "@/components/DataAnalytics";
+import GetPremiumButton from "@/components/GetPremiumButton";
+import { getAccessBadgeLabel, historyDayLimit, canManageAccess, normalizeAccessLevel } from "@/lib/access";
 
 const Index = () => {
   const { user, signOut } = useAuth();
@@ -233,6 +236,17 @@ const Index = () => {
 
   const displayName = profile?.display_name || user?.user_metadata?.full_name || "there";
   const accessBadgeLabel = getAccessBadgeLabel(profile?.role ?? undefined, profile?.access_level ?? undefined);
+
+  // Access gates. Staff (admin/dev) and premium users get the full experience;
+  // free users are capped to a trailing history window and can't export.
+  const isStaff = canManageAccess(profile?.role ?? undefined);
+  const isPremium = normalizeAccessLevel(profile?.access_level) === "premium" || isStaff;
+  const historyLimit = historyDayLimit(profile?.access_level, profile?.role);
+  const historyTruncated = historyLimit != null && dayRange.length > historyLimit;
+  // The days a free user may see/log — the most recent N; premium sees them all.
+  const visibleDayRange = historyLimit != null ? dayRange.slice(-historyLimit) : dayRange;
+  const historyStartDate = visibleDayRange[0]?.date ?? "";
+  const visibleLogs = historyTruncated ? logs.filter((l) => l.date >= historyStartDate) : logs;
   const formattedDayOneDate = parseDateInputValue(profile?.challenge_start_date ?? todayDate).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -276,6 +290,7 @@ const Index = () => {
             <div className="rounded-full border border-[hsl(42,95%,62%)]/50 bg-[hsl(45,82%,88%)] px-3 py-1 text-sm font-bold text-[hsl(30,55%,32%)]">
               {accessBadgeLabel}
             </div>
+            {!isPremium && <GetPremiumButton size="sm" />}
             <GameButton
               color="wood"
               size="sm"
@@ -300,9 +315,10 @@ const Index = () => {
           </div>
         </div>
 
-        {(profile?.role === "admin" || profile?.role === "dev") && (
-          <div className="mx-auto w-full max-w-[1720px] px-0 lg:px-0">
+        {isStaff && (
+          <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
             <PremiumAccessManager />
+            <PremiumRequests />
           </div>
         )}
 
@@ -385,17 +401,37 @@ const Index = () => {
               />
             </motion.div>
 
+            {/* Free users only see/log the most recent weeks — nudge to upgrade. */}
+            {historyTruncated && (
+              <div className="flex flex-col items-center justify-between gap-3 rounded-xl border-2 border-[hsl(268,42%,60%)]/40 bg-[hsl(268,42%,60%)]/10 px-4 py-3 sm:flex-row">
+                <p className="text-sm font-bold text-[hsl(268,40%,38%)]">
+                  🔒 Free plan shows your latest 3 weeks. Go premium to see and log your full history.
+                </p>
+                <GetPremiumButton size="sm" className="shrink-0" />
+              </div>
+            )}
+
             {/* Primary logging surface: edit rows here (today's is highlighted) and save. */}
             <div data-reveal>
-              <DailyTracker logs={dayRange} onUpdate={updateLogs} highlightDate={todayDate} />
+              <DailyTracker logs={visibleDayRange} onUpdate={updateLogs} highlightDate={todayDate} />
+            </div>
+
+            <div data-reveal>
+              <DataAnalytics
+                logs={dayRange}
+                goals={weeklyGoals}
+                userName={displayName}
+                canExport={isPremium}
+                lockedSlot={<GetPremiumButton size="sm" />}
+              />
             </div>
 
             <div className="grid gap-6 2xl:grid-cols-5">
               <div data-reveal className="min-w-0 2xl:col-span-3">
-                <WeeklyAchievements logs={dayRange} goals={weeklyGoals} />
+                <WeeklyAchievements logs={visibleDayRange} goals={weeklyGoals} />
               </div>
               <div data-reveal className="min-w-0 2xl:col-span-2">
-                <WeightChart logs={logs} targetWeight={goals.targetWeight} startWeight={startWeight} />
+                <WeightChart logs={visibleLogs} targetWeight={goals.targetWeight} startWeight={startWeight} />
               </div>
             </div>
           </div>

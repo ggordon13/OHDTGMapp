@@ -28,6 +28,8 @@ export interface UserProfile {
   daily_water_target: number | null;
   daily_steps_target: number | null;
   challenge_start_date: string | null;
+  /** When target weight / Day 1 were last changed — drives the 30-day premium lock. */
+  starting_data_updated_at: string | null;
   // Gamification state (defaulted server-side; may be absent pre-migration)
   total_xp: number | null;
   level: number | null;
@@ -69,7 +71,7 @@ export function useProfile() {
       }
     }
 
-    setProfile(data as UserProfile | null);
+    setProfile(accessRow as UserProfile | null);
     setLoading(false);
   }, [user]);
 
