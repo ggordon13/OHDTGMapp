@@ -500,6 +500,13 @@ const Index = () => {
                 logs={visibleDayRange}
                 onUpdate={updateLogs}
                 highlightDate={todayDate}
+                statusBadge={
+                  freeDayCap != null && !logCapped ? (
+                    <span className="game-tag whitespace-nowrap px-2 py-0.5 text-[10px] font-bold text-[hsl(268,40%,42%)]">
+                      Free · Day {Math.min(currentDay, freeDayCap)} of {FREE_LOG_DAY_LIMIT}
+                    </span>
+                  ) : undefined
+                }
                 footer={
                   logCapped ? (
                     <div className="flex flex-col items-center justify-between gap-3 rounded-xl border-2 border-[hsl(268,42%,60%)]/40 bg-[hsl(268,42%,60%)]/10 px-4 py-3 sm:flex-row">
