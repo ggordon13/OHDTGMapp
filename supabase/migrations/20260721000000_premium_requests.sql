@@ -30,17 +30,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS premium_requests_one_pending_per_user
 ALTER TABLE public.premium_requests ENABLE ROW LEVEL SECURITY;
 
 -- A user can raise and see their own requests.
+DROP POLICY IF EXISTS "Users manage their own premium requests" ON public.premium_requests;
 CREATE POLICY "Users manage their own premium requests"
   ON public.premium_requests
   FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can create their own premium requests" ON public.premium_requests;
 CREATE POLICY "Users can create their own premium requests"
   ON public.premium_requests
   FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
 -- Admins and devs can see and act on every request.
+DROP POLICY IF EXISTS "Admins and devs can view all premium requests" ON public.premium_requests;
 CREATE POLICY "Admins and devs can view all premium requests"
   ON public.premium_requests
   FOR SELECT
@@ -51,6 +54,7 @@ CREATE POLICY "Admins and devs can view all premium requests"
     )
   );
 
+DROP POLICY IF EXISTS "Admins and devs can update premium requests" ON public.premium_requests;
 CREATE POLICY "Admins and devs can update premium requests"
   ON public.premium_requests
   FOR UPDATE
