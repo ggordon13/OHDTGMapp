@@ -329,6 +329,36 @@ const Index = () => {
   const formatGoal = (min: number | null, max: number | null, fallback: number): string | number =>
     min != null && max != null ? `${min.toLocaleString()}–${max.toLocaleString()}` : fallback;
 
+  // Free-plan indicators, shared by the Daily Log and Today's Data panels:
+  //  - the day-counter chip (before the cap), and
+  //  - a footer notice: a light premium nudge before the cap, a full wall after.
+  const freeChip =
+    freeDayCap != null && !logCapped ? (
+      <span
+        title={`Go premium to keep logging all the way to Day ${CHALLENGE_DAYS}.`}
+        className="game-tag whitespace-nowrap px-2 py-0.5 text-[10px] font-bold text-[hsl(268,40%,42%)]"
+      >
+        Free · Day {Math.min(currentDay, freeDayCap)} of {FREE_LOG_DAY_LIMIT}
+      </span>
+    ) : undefined;
+
+  const freeFooter =
+    freeDayCap == null ? undefined : logCapped ? (
+      <div className="flex flex-col items-center justify-between gap-3 rounded-xl border-2 border-[hsl(268,42%,60%)]/40 bg-[hsl(268,42%,60%)]/10 px-4 py-3 sm:flex-row">
+        <p className="text-sm font-bold text-[hsl(268,40%,38%)]">
+          🔒 Free plan stops at Day {FREE_LOG_DAY_LIMIT}. Your logs are saved — go premium to keep logging all the
+          way to Day {CHALLENGE_DAYS}.
+        </p>
+        <GetPremiumButton size="sm" className="shrink-0" />
+      </div>
+    ) : (
+      <div className="rounded-xl border-2 border-[hsl(268,42%,60%)]/30 bg-[hsl(268,42%,60%)]/8 px-3 py-2">
+        <p className="text-xs font-bold text-[hsl(268,40%,42%)]">
+          🔒 Go premium to keep logging all the way to Day {CHALLENGE_DAYS}.
+        </p>
+      </div>
+    );
+
   return (
     <div className="wood-bg min-h-screen">
       <FireflyCanvas />
@@ -427,7 +457,7 @@ const Index = () => {
             startPoint={{ date: formattedDayOneDate, weight: startWeight, status: weightStatus }}
           />
           <div data-reveal>
-            <TodayData entry={todayEntry} onSave={handleSaveToday} />
+            <TodayData entry={todayEntry} onSave={handleSaveToday} statusBadge={freeChip} footer={freeFooter} />
           </div>
         </div>
 
@@ -524,24 +554,8 @@ const Index = () => {
                 logs={visibleDayRange}
                 onUpdate={updateLogs}
                 highlightDate={todayDate}
-                statusBadge={
-                  freeDayCap != null && !logCapped ? (
-                    <span className="game-tag whitespace-nowrap px-2 py-0.5 text-[10px] font-bold text-[hsl(268,40%,42%)]">
-                      Free · Day {Math.min(currentDay, freeDayCap)} of {FREE_LOG_DAY_LIMIT}
-                    </span>
-                  ) : undefined
-                }
-                footer={
-                  logCapped ? (
-                    <div className="flex flex-col items-center justify-between gap-3 rounded-xl border-2 border-[hsl(268,42%,60%)]/40 bg-[hsl(268,42%,60%)]/10 px-4 py-3 sm:flex-row">
-                      <p className="text-sm font-bold text-[hsl(268,40%,38%)]">
-                        🔒 Free plan stops at Day {FREE_LOG_DAY_LIMIT}. Your logs are saved — go premium to keep
-                        logging all the way to Day {CHALLENGE_DAYS}.
-                      </p>
-                      <GetPremiumButton size="sm" className="shrink-0" />
-                    </div>
-                  ) : undefined
-                }
+                statusBadge={freeChip}
+                footer={freeFooter}
               />
             </div>
           </div>
