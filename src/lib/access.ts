@@ -23,11 +23,18 @@ export interface PremiumAccessContext {
 // Premium limits
 // ---------------------------------------------------------------------------
 
-/** How many trailing weeks of history a free user can see and log. */
-export const FREE_HISTORY_WEEKS = 3;
+/** The free trial spans this many weeks of the challenge. */
+export const FREE_LOG_WEEKS = 3;
 
-/** A week is 7 days — the trailing window a free user is capped to. */
-export const FREE_HISTORY_DAYS = FREE_HISTORY_WEEKS * 7;
+/**
+ * The last challenge day a free user may log. They can log Day 1 through this
+ * day; Day (limit + 1) onward is locked until they upgrade. Their data up to
+ * the cap is always kept.
+ */
+export const FREE_LOG_DAY_LIMIT = FREE_LOG_WEEKS * 7; // 21
+
+/** The full challenge length premium unlocks. */
+export const CHALLENGE_DAYS = 100;
 
 /** Premium users may re-edit locked starting data once per this many days. */
 export const STARTING_DATA_LOCK_DAYS = 30;
@@ -75,14 +82,14 @@ export function isPremiumAccessGranted(context: PremiumAccessContext): boolean {
 }
 
 /**
- * The number of trailing days of history a user may view and log, or null for
- * unlimited. Free users are capped to the last {@link FREE_HISTORY_WEEKS} weeks;
- * premium users and staff (admin/dev) get the full history.
+ * The last challenge day a user is allowed to log (from Day 1), or null for no
+ * cap. Free users stop at {@link FREE_LOG_DAY_LIMIT}; premium users and staff
+ * (admin/dev) can log the whole challenge.
  */
-export function historyDayLimit(accessLevel?: string | null, role?: string | null): number | null {
+export function freeLogDayLimit(accessLevel?: string | null, role?: string | null): number | null {
   if (canManageAccess(role)) return null;
   if (normalizeAccessLevel(accessLevel) === "premium") return null;
-  return FREE_HISTORY_DAYS;
+  return FREE_LOG_DAY_LIMIT;
 }
 
 export interface StartingDataEditState {

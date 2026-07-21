@@ -14,6 +14,8 @@ interface DailyTrackerProps {
   onUpdate: (logs: DailyLog[]) => void;
   /** Date (YYYY-MM-DD) of the current day, highlighted as today's logging row. */
   highlightDate?: string;
+  /** Rendered below the table (e.g. a premium upsell once the free cap is hit). */
+  footer?: React.ReactNode;
 }
 
 const PAGE_SIZE = 7;
@@ -29,7 +31,7 @@ const PagerButton = ({ onClick, disabled, children }: { onClick: () => void; dis
   </button>
 );
 
-const DailyTracker = ({ logs, onUpdate, highlightDate }: DailyTrackerProps) => {
+const DailyTracker = ({ logs, onUpdate, highlightDate, footer }: DailyTrackerProps) => {
   const [editedLogs, setEditedLogs] = useState<DailyLog[]>(logs);
   const [page, setPage] = useState(Math.max(0, Math.floor((logs.length - 1) / PAGE_SIZE)));
   const todayRowRef = useRef<HTMLTableRowElement>(null);
@@ -178,6 +180,8 @@ const DailyTracker = ({ logs, onUpdate, highlightDate }: DailyTrackerProps) => {
             </tbody>
           </table>
         </div>
+
+        {footer}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {highlightDate != null && visibleLogs.some((l) => l.date === highlightDate) ? (
