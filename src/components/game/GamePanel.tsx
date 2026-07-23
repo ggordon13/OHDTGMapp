@@ -49,7 +49,9 @@ const GamePanel = ({
   titleGlow = false,
 }: GamePanelProps) => (
   <section className={cn(variant === "wood" ? "game-panel-wood" : "game-panel", title ? "mt-4" : "", className)}>
-    {title && (
+    {/* When collapsed, the corner plate is hidden — the body renders its own
+        full-width control instead (see QuestBoard). */}
+    {title && !(collapsed && onTitleClick) && (
       <div className="absolute -top-4 left-4 z-10">
         {onTitleClick ? (
           <button
@@ -78,7 +80,9 @@ const GamePanel = ({
     )}
     {right && <div className="absolute right-4 top-2.5 z-10">{right}</div>}
     {/* Extra top padding when a right slot is present so content clears it. */}
-    <div className={cn("p-5", right ? "pt-11" : title ? "pt-7" : "", collapsed && "!pb-3")}>{children}</div>
+    <div className={cn("p-5", right ? "pt-11" : title ? "pt-7" : "", collapsed && onTitleClick && "!p-3")}>
+      {children}
+    </div>
   </section>
 );
 

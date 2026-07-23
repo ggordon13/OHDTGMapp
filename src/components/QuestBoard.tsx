@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Swords, CalendarDays, Check } from "lucide-react";
+import { Swords, CalendarDays, Check, ChevronDown } from "lucide-react";
 import { Quest } from "@/lib/gamification";
 import GamePanel from "@/components/game/GamePanel";
 import GameButton from "@/components/game/GameButton";
 import GameProgress from "@/components/game/GameProgress";
 import { xpFly, confettiBurst, shine, pop } from "@/lib/fx";
+import { cn } from "@/lib/utils";
 
 interface QuestBoardProps {
   dailyQuests: Quest[];
@@ -114,12 +115,15 @@ const QuestBoard = ({
   onClaim,
   claimingKey,
 }: QuestBoardProps) => {
-  const [collapsed, setCollapsed] = useState(false);
+  // Default to collapsed on smaller screens (below the lg breakpoint).
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches,
+  );
 
   const dailyDone = dailyQuests.filter((q) => isClaimed(dailyPeriod, q.key)).length;
   const weeklyDone = weeklyQuests.filter((q) => isClaimed(weeklyPeriod, q.key)).length;
 
-  // Quests finished but not yet claimed — the reason the collapsed plate glows.
+  // Quests finished but not yet claimed — the reason the collapsed bar glows.
   const claimable =
     dailyQuests.filter((q) => q.completed && !isClaimed(dailyPeriod, q.key)).length +
     weeklyQuests.filter((q) => q.completed && !isClaimed(weeklyPeriod, q.key)).length;
@@ -130,10 +134,32 @@ const QuestBoard = ({
       title="Quests"
       icon={<Swords className="h-4 w-4" />}
       color="red"
-      onTitleClick={() => setCollapsed((c) => !c)}
+      onTitleClick={() => setCollapsed(true)}
       collapsed={collapsed}
-      titleGlow={collapsed && claimable > 0}
     >
+      {/* Collapsed: a wide, centered bar filling the panel; glows when there's
+          something to claim. It doubles as the expand control. */}
+      {collapsed && (
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          aria-expanded={false}
+          className={cn(
+            "flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[hsl(6,55%,30%)] bg-gradient-to-b from-[hsl(6,70%,62%)] to-[hsl(6,62%,50%)] px-4 py-2.5 font-display text-sm font-bold uppercase tracking-widest text-white [text-shadow:0_1.5px_0_rgba(0,0,0,0.3)] shadow-[0_3px_0_hsl(6,55%,30%)] transition hover:brightness-110 active:translate-y-[2px] active:shadow-[0_1px_0_hsl(6,55%,30%)]",
+            claimable > 0 && "animate-banner-glow",
+          )}
+        >
+          <Swords className="h-4 w-4" />
+          Quests
+          {claimable > 0 && (
+            <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-[hsl(6,62%,45%)]">
+              {claimable} to claim
+            </span>
+          )}
+          <ChevronDown className="h-4 w-4 -rotate-90" strokeWidth={3} />
+        </button>
+      )}
+
       <AnimatePresence initial={false}>
         {!collapsed && (
           <motion.div
