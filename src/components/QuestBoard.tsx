@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Swords, CalendarDays, Check } from "lucide-react";
 import { Quest } from "@/lib/gamification";
 import GamePanel from "@/components/game/GamePanel";
@@ -113,49 +114,77 @@ const QuestBoard = ({
   onClaim,
   claimingKey,
 }: QuestBoardProps) => {
+  const [collapsed, setCollapsed] = useState(false);
+
   const dailyDone = dailyQuests.filter((q) => isClaimed(dailyPeriod, q.key)).length;
   const weeklyDone = weeklyQuests.filter((q) => isClaimed(weeklyPeriod, q.key)).length;
 
-  return (
-    <GamePanel variant="wood" title="Quests" icon={<Swords className="h-4 w-4" />} color="red">
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <SectionLabel label="Daily" done={dailyDone} total={dailyQuests.length} />
-          <div className="space-y-2.5">
-            {dailyQuests.map((q) => (
-              <QuestRow
-                key={q.key}
-                quest={q}
-                period={dailyPeriod}
-                claimed={isClaimed(dailyPeriod, q.key)}
-                claiming={claimingKey === q.key}
-                onClaim={onClaim}
-              />
-            ))}
-          </div>
-        </div>
+  // Quests finished but not yet claimed — the reason the collapsed plate glows.
+  const claimable =
+    dailyQuests.filter((q) => q.completed && !isClaimed(dailyPeriod, q.key)).length +
+    weeklyQuests.filter((q) => q.completed && !isClaimed(weeklyPeriod, q.key)).length;
 
-        <div className="space-y-2">
-          <SectionLabel
-            icon={<CalendarDays className="h-3.5 w-3.5" />}
-            label="This Week"
-            done={weeklyDone}
-            total={weeklyQuests.length}
-          />
-          <div className="space-y-2.5">
-            {weeklyQuests.map((q) => (
-              <QuestRow
-                key={q.key}
-                quest={q}
-                period={weeklyPeriod}
-                claimed={isClaimed(weeklyPeriod, q.key)}
-                claiming={claimingKey === q.key}
-                onClaim={onClaim}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
+  return (
+    <GamePanel
+      variant="wood"
+      title="Quests"
+      icon={<Swords className="h-4 w-4" />}
+      color="red"
+      onTitleClick={() => setCollapsed((c) => !c)}
+      collapsed={collapsed}
+      titleGlow={collapsed && claimable > 0}
+    >
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            key="quest-body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <SectionLabel label="Daily" done={dailyDone} total={dailyQuests.length} />
+                <div className="space-y-2.5">
+                  {dailyQuests.map((q) => (
+                    <QuestRow
+                      key={q.key}
+                      quest={q}
+                      period={dailyPeriod}
+                      claimed={isClaimed(dailyPeriod, q.key)}
+                      claiming={claimingKey === q.key}
+                      onClaim={onClaim}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <SectionLabel
+                  icon={<CalendarDays className="h-3.5 w-3.5" />}
+                  label="This Week"
+                  done={weeklyDone}
+                  total={weeklyQuests.length}
+                />
+                <div className="space-y-2.5">
+                  {weeklyQuests.map((q) => (
+                    <QuestRow
+                      key={q.key}
+                      quest={q}
+                      period={weeklyPeriod}
+                      claimed={isClaimed(weeklyPeriod, q.key)}
+                      claiming={claimingKey === q.key}
+                      onClaim={onClaim}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </GamePanel>
   );
 };
