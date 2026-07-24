@@ -4,9 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import GameButton from "@/components/game/GameButton";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { RequestStatus } from "@/lib/access";
-import { getWhopPlans, startWhopCheckout } from "@/lib/whop";
 
 interface GetPremiumButtonProps {
   size?: "sm" | "md" | "lg";
@@ -14,21 +12,17 @@ interface GetPremiumButtonProps {
 }
 
 /**
- * Get Premium. When a Whop checkout is configured, clicking sends the user
- * straight to Whop's hosted checkout (a webhook grants premium after payment).
- * Otherwise it falls back to the admin-approval request flow.
+ * Lets a free user ask an admin to grant them premium. One open request at a
+ * time — the DB enforces it too (partial unique index), this just reflects it.
  */
 const GetPremiumButton = ({ size = "sm", className }: GetPremiumButtonProps) => {
   const { user } = useAuth();
-  const plans = getWhopPlans();
-  const whopMode = plans.length > 0;
-  const [status, setStatus] = useState<RequestStatus | "none" | "loading">(whopMode ? "none" : "loading");
+  const [status, setStatus] = useState<RequestStatus | "none" | "loading">("loading");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    // In Whop mode there's no admin request to look up.
-    if (whopMode || !user) return;
     let active = true;
+    if (!user) return;
     void (async () => {
       // The most recent request tells us whether one is already pending.
       const { data } = await supabase
@@ -44,39 +38,7 @@ const GetPremiumButton = ({ size = "sm", className }: GetPremiumButtonProps) => 
     return () => {
       active = false;
     };
-  }, [user, whopMode]);
-
-  const goToCheckout = (url: string) => startWhopCheckout(url, { email: user?.email, userId: user?.id });
-
-  // Whop mode: one plan → straight to checkout; multiple → a plan picker.
-  if (whopMode) {
-    if (plans.length === 1) {
-      return (
-        <GameButton color="gold" size={size} className={className} onClick={() => goToCheckout(plans[0].url)}>
-          <Crown className="h-4 w-4" />
-          <span>Get Premium</span>
-        </GameButton>
-      );
-    }
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <GameButton color="gold" size={size} className={className}>
-            <Crown className="h-4 w-4" />
-            <span>Get Premium</span>
-          </GameButton>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-52 space-y-2 p-3">
-          <p className="font-display text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Choose a plan</p>
-          {plans.map((p) => (
-            <GameButton key={p.id} color="gold" size="sm" className="w-full" onClick={() => goToCheckout(p.url)}>
-              {p.label}
-            </GameButton>
-          ))}
-        </PopoverContent>
-      </Popover>
-    );
-  }
+  }, [user]);
 
   const handleRequest = async () => {
     if (!user?.email) return;
