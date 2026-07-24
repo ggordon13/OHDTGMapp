@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useDailyLogs } from "@/hooks/useDailyLogs";
 import { useGamification } from "@/hooks/useGamification";
+import { useChallenge } from "@/hooks/useChallenge";
 import DashboardHeader from "@/components/DashboardHeader";
 import StatCard from "@/components/StatCard";
 import WeightChart from "@/components/WeightChart";
@@ -30,6 +31,7 @@ import {
   getDailyQuests,
   getWeeklyQuests,
   getNewlyCrossedMilestone,
+  isDayComplete,
 } from "@/lib/gamification";
 import { formatDateInputValue, parseDateInputValue } from "@/lib/utils";
 import GameButton from "@/components/game/GameButton";
@@ -37,6 +39,10 @@ import PremiumAccessManager from "@/components/PremiumAccessManager";
 import PremiumRequests from "@/components/PremiumRequests";
 import DataAnalytics from "@/components/DataAnalytics";
 import GetPremiumButton from "@/components/GetPremiumButton";
+import ChallengePanel from "@/components/ChallengePanel";
+import ChallengeCompleteModal from "@/components/ChallengeCompleteModal";
+import ChallengeResultsModal from "@/components/ChallengeResultsModal";
+import { type LeaderboardRow } from "@/hooks/useChallenge";
 import Day1ChangeModal from "@/components/Day1ChangeModal";
 import FreeLimitModal from "@/components/FreeLimitModal";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,11 +60,16 @@ const Index = () => {
   const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
   const { logs, loading, updateLogs } = useDailyLogs();
+  const challenge = useChallenge();
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showAdmin, setShowAdmin] = useState(true); // admin panels visible by default
   const [showDay1Modal, setShowDay1Modal] = useState(false);
   const [showFreeLimit, setShowFreeLimit] = useState(false);
+  const [showChallengeComplete, setShowChallengeComplete] = useState(false);
+  const [showChallengeResults, setShowChallengeResults] = useState(false);
+  const [challengeResultRows, setChallengeResultRows] = useState<LeaderboardRow[]>([]);
+  const challengeCompleteShownRef = useRef(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideIsOnboarding, setGuideIsOnboarding] = useState(false);
   const celebratingRef = useRef(false);
@@ -184,11 +195,28 @@ const Index = () => {
     // At/after the cap the free-limit modal takes over, so skip the check-in.
     const freeWallHit = cap != null && todayDay >= cap;
 
-    if (isReturningUser && !alreadyGreetedToday && !loggedWeightToday && !profile.pending_challenge_start_date && !freeWallHit) {
+    // A pending challenge-results reveal takes priority over the daily check-in.
+    const cur = challenge.current;
+    let challengeResultsPending = false;
+    if (cur && !cur.resultsSeenAt) {
+      const e = parseDateInputValue(cur.challenge.start_date);
+      e.setDate(e.getDate() + cur.challenge.duration_days - 1);
+      challengeResultsPending = cur.challenge.status === "completed" || todayDate > formatDateInputValue(e);
+    }
+
+    if (
+      isReturningUser &&
+      !alreadyGreetedToday &&
+      !loggedWeightToday &&
+      !profile.pending_challenge_start_date &&
+      !freeWallHit &&
+      !challengeResultsPending
+    ) {
       setShowCheckIn(true);
       localStorage.setItem(key, todayDate);
     }
-  }, [loading, profileLoading, user, profile, logs, todayDate, dayRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, profileLoading, user, profile, logs, todayDate, dayRange, challenge.current]);
 
   // Surface an admin-proposed Day 1 change for the user to accept or reject.
   useEffect(() => {
@@ -209,6 +237,59 @@ const Index = () => {
       localStorage.setItem(key, "1");
     }
   }, [loading, profileLoading, user, profile, dayRange]);
+
+  // The current challenge's last day (Day 30) — used to detect completion/results.
+  const challengeEndIso = (() => {
+    const cur = challenge.current;
+    if (!cur) return null;
+    const e = parseDateInputValue(cur.challenge.start_date);
+    e.setDate(e.getDate() + cur.challenge.duration_days - 1);
+    return formatDateInputValue(e);
+  })();
+
+  // Celebrate the moment the user finishes their Day-30 data (once).
+  useEffect(() => {
+    if (loading || profileLoading) return;
+    const cur = challenge.current;
+    if (!cur || cur.completedAt || !challengeEndIso) return;
+    if (formatDateInputValue() > challengeEndIso) return; // past Day 30 → results takes over
+    const day30 = dayRange.find((d) => d.date === challengeEndIso);
+    if (day30 && isDayComplete(day30) && !challengeCompleteShownRef.current) {
+      challengeCompleteShownRef.current = true;
+      setShowChallengeComplete(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [challenge.current, challengeEndIso, dayRange, loading, profileLoading]);
+
+  // The day after Day 30, reveal results on first open (once, until acknowledged).
+  useEffect(() => {
+    if (loading || profileLoading) return;
+    const cur = challenge.current;
+    if (!cur || cur.resultsSeenAt || !challengeEndIso) return;
+    const isResults = cur.challenge.status === "completed" || formatDateInputValue() > challengeEndIso;
+    if (!isResults) return;
+    let active = true;
+    void challenge.getLeaderboard(cur.challenge.id).then((rows) => {
+      if (!active) return;
+      setChallengeResultRows(rows);
+      setShowChallengeResults(true);
+    });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [challenge.current, challenge.getLeaderboard, challengeEndIso, loading, profileLoading]);
+
+  const dismissChallengeComplete = async () => {
+    const cur = challenge.current;
+    if (cur) await challenge.markCompleted(cur.challenge.id);
+  };
+
+  const acknowledgeChallengeResults = async () => {
+    const cur = challenge.current;
+    if (cur) await challenge.markResultsSeen(cur.challenge.id);
+    setShowChallengeResults(false);
+  };
 
   const acceptDay1Change = async () => {
     const pending = profile?.pending_challenge_start_date;
@@ -329,6 +410,16 @@ const Index = () => {
   const formatGoal = (min: number | null, max: number | null, fallback: number): string | number =>
     min != null && max != null ? `${min.toLocaleString()}–${max.toLocaleString()}` : fallback;
 
+  // Active-challenge window, used to flag Daily Log rows that count toward it.
+  const activeChallenge = challenge.current?.challenge.status === "active" ? challenge.current.challenge : null;
+  const challengeStart = activeChallenge?.start_date;
+  let challengeEnd: string | undefined;
+  if (activeChallenge) {
+    const end = parseDateInputValue(activeChallenge.start_date);
+    end.setDate(end.getDate() + activeChallenge.duration_days - 1);
+    challengeEnd = formatDateInputValue(end);
+  }
+
   // A stored min/max band means the user opted into the recommended range (a
   // projection); a lone target means they set their own goal.
   const usingRecommendedRange = goals.targetWeightMin != null && goals.targetWeightMax != null;
@@ -360,7 +451,8 @@ const Index = () => {
   // Radix dialogs set `pointer-events: none` on the body while open, which would
   // make the (non-Radix) celebration's buttons unclickable if both showed at
   // once. Hold celebrations in the queue until every blocking modal is closed.
-  const blockingModalOpen = showGuide || showCheckIn || showDay1Modal || showFreeLimit;
+  const blockingModalOpen =
+    showGuide || showCheckIn || showDay1Modal || showFreeLimit || showChallengeComplete || showChallengeResults;
 
   return (
     <div className="wood-bg min-h-screen">
@@ -384,6 +476,20 @@ const Index = () => {
         challengeDays={CHALLENGE_DAYS}
         getPremiumSlot={<GetPremiumButton size="md" />}
       />
+      <ChallengeCompleteModal
+        open={showChallengeComplete}
+        onOpenChange={setShowChallengeComplete}
+        onDismiss={dismissChallengeComplete}
+      />
+      {challenge.current && (
+        <ChallengeResultsModal
+          open={showChallengeResults}
+          mode={challenge.current.challenge.mode}
+          rows={challengeResultRows}
+          rewards={challenge.current.rewards}
+          onAcknowledge={acknowledgeChallengeResults}
+        />
+      )}
       <DailyCheckIn
         open={showCheckIn}
         onOpenChange={setShowCheckIn}
@@ -485,7 +591,7 @@ const Index = () => {
                 claimingKey={claimingKey}
               />
             </div>
-            <div data-reveal className="order-6 min-w-0">
+            <div data-reveal className="order-7 min-w-0">
               <DataAnalytics
                 logs={dayRange}
                 goals={weeklyGoals}
@@ -550,14 +656,21 @@ const Index = () => {
               </div>
             </div>
 
+            {/* Social 30-day challenge, below the Weight Trend. */}
+            <div data-reveal className="order-5 min-w-0">
+              <ChallengePanel challenge={challenge} />
+            </div>
+
             {/* Primary logging surface: edit rows here (today's is highlighted) and save.
                 Free users hit a Day-{FREE_LOG_DAY_LIMIT} wall shown below the table. */}
-            <div data-reveal className="order-5 min-w-0">
+            <div data-reveal className="order-6 min-w-0">
               <DailyTracker
                 logs={visibleDayRange}
                 onUpdate={updateLogs}
                 highlightDate={todayDate}
                 footer={freeFooter}
+                challengeStart={challengeStart}
+                challengeEnd={challengeEnd}
               />
             </div>
           </div>

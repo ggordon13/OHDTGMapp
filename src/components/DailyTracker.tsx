@@ -18,6 +18,9 @@ interface DailyTrackerProps {
   footer?: React.ReactNode;
   /** Small chip shown in the panel header (e.g. a free-plan day counter). */
   statusBadge?: React.ReactNode;
+  /** Inclusive date range (YYYY-MM-DD) of an active 30-day challenge; rows in it get a chip. */
+  challengeStart?: string;
+  challengeEnd?: string;
 }
 
 const PAGE_SIZE = 7;
@@ -33,7 +36,7 @@ const PagerButton = ({ onClick, disabled, children }: { onClick: () => void; dis
   </button>
 );
 
-const DailyTracker = ({ logs, onUpdate, highlightDate, footer, statusBadge }: DailyTrackerProps) => {
+const DailyTracker = ({ logs, onUpdate, highlightDate, footer, statusBadge, challengeStart, challengeEnd }: DailyTrackerProps) => {
   const [editedLogs, setEditedLogs] = useState<DailyLog[]>(logs);
   const [page, setPage] = useState(Math.max(0, Math.floor((logs.length - 1) / PAGE_SIZE)));
   const todayRowRef = useRef<HTMLTableRowElement>(null);
@@ -148,6 +151,14 @@ const DailyTracker = ({ logs, onUpdate, highlightDate, footer, statusBadge }: Da
                         {isToday && (
                           <span className="rounded-full border border-[hsl(84,45%,28%)] bg-gradient-to-b from-[hsl(84,46%,50%)] to-[hsl(70,50%,38%)] px-1.5 py-px font-display text-[9px] font-bold uppercase tracking-wide text-white shadow-[0_1px_0_hsl(84,45%,24%)]">
                             Today
+                          </span>
+                        )}
+                        {challengeStart != null && challengeEnd != null && log.date >= challengeStart && log.date <= challengeEnd && (
+                          <span
+                            title="Part of your 30-day challenge"
+                            className="rounded-full border border-[hsl(268,45%,32%)] bg-gradient-to-b from-[hsl(268,50%,62%)] to-[hsl(268,46%,48%)] px-1.5 py-px font-display text-[9px] font-bold uppercase tracking-wide text-white shadow-[0_1px_0_hsl(268,45%,30%)]"
+                          >
+                            ⚔ 30d
                           </span>
                         )}
                       </div>

@@ -14,6 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
+      challenges: {
+        Row: {
+          created_at: string
+          duration_days: number
+          id: string
+          leader_id: string
+          mode: string
+          start_date: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          duration_days?: number
+          id?: string
+          leader_id: string
+          mode: string
+          start_date: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          duration_days?: number
+          id?: string
+          leader_id?: string
+          mode?: string
+          start_date?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      challenge_participants: {
+        Row: {
+          challenge_id: string
+          completed_at: string | null
+          id: string
+          joined_at: string | null
+          results_seen_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          completed_at?: string | null
+          id?: string
+          joined_at?: string | null
+          results_seen_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          completed_at?: string | null
+          id?: string
+          joined_at?: string | null
+          results_seen_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      challenge_rewards: {
+        Row: {
+          award_key: string
+          challenge_id: string
+          id: string
+          reward_text: string | null
+        }
+        Insert: {
+          award_key: string
+          challenge_id: string
+          id?: string
+          reward_text?: string | null
+        }
+        Update: {
+          award_key?: string
+          challenge_id?: string
+          id?: string
+          reward_text?: string | null
+        }
+        Relationships: []
+      }
       achievements: {
         Row: {
           achievement_key: string
@@ -232,6 +313,62 @@ export type Database = {
       is_username_available: {
         Args: { candidate: string }
         Returns: boolean
+      }
+      is_challenge_member: {
+        Args: { p_challenge: string }
+        Returns: boolean
+      }
+      is_challenge_engaged: {
+        Args: { p_user: string }
+        Returns: boolean
+      }
+      resolve_challenge_user: {
+        Args: { identifier: string }
+        Returns: string
+      }
+      challenge_members: {
+        Args: { p_challenge: string }
+        Returns: {
+          user_id: string
+          username: string | null
+          status: string
+          is_leader: boolean
+          joined_at: string | null
+        }[]
+      }
+      challenge_leaderboard: {
+        Args: { p_challenge: string }
+        Returns: {
+          user_id: string
+          username: string | null
+          xp_window: number
+          weight_start: number | null
+          weight_end: number | null
+          pct_weight_loss: number | null
+          avg_steps: number
+          exercise_days: number
+        }[]
+      }
+      create_challenge: {
+        Args: {
+          p_mode: string
+          p_start_date: string
+          p_participant_ids: string[]
+          p_rewards: Json
+        }
+        Returns: string
+      }
+      respond_to_challenge: {
+        Args: { p_challenge: string; p_accept: boolean }
+        Returns: undefined
+      }
+      cancel_challenge: {
+        Args: { p_challenge: string }
+        Returns: undefined
+      }
+      finish_challenge_for_me: {
+        Args: { p_challenge: string }
+        Returns: undefined
       }
     }
     Enums: {
