@@ -72,7 +72,7 @@ const ChallengeResultsModal = ({ open, mode, rows, rewards, onAcknowledge }: Cha
                   <div key={a.key} className="flex items-center gap-2 text-xs">
                     <span className="shrink-0">{a.icon}</span>
                     <span className="shrink-0 font-bold text-card-foreground">{a.label}</span>
-                    <span className="flex-1 truncate text-right font-bold text-[hsl(268,40%,42%)]">{name(winner)}</span>
+                    <span className="flex-1 truncate text-right font-bold text-[hsl(222,40%,42%)]">{name(winner)}</span>
                     {reward && <span className="shrink-0 text-muted-foreground">· {reward}</span>}
                   </div>
                 );

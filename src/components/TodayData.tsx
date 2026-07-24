@@ -109,7 +109,7 @@ const TodayData = ({ entry, onSave, statusBadge, footer, locked = false }: Today
     <GamePanel
       title="Today's Data"
       icon={<CalendarCheck className="h-4 w-4" />}
-      color="leaf"
+      color="forest"
       right={
         <div className="flex items-center gap-2">
           {statusBadge}
@@ -121,9 +121,9 @@ const TodayData = ({ entry, onSave, statusBadge, footer, locked = false }: Today
     >
       <div className="space-y-4">
         {complete ? (
-          <div ref={doneRef} className="flex items-center gap-2 rounded-lg border-2 border-[hsl(84,45%,40%)]/40 bg-[hsl(84,46%,52%)]/12 px-3 py-2">
+          <div ref={doneRef} className="flex items-center gap-2 rounded-lg border-2 border-[hsl(146,45%,40%)]/40 bg-[hsl(146,46%,52%)]/12 px-3 py-2">
             <span className="text-lg">🎉</span>
-            <p className="text-sm font-bold text-[hsl(84,45%,28%)]">Today's data is complete — nice work!</p>
+            <p className="text-sm font-bold text-[hsl(146,45%,28%)]">Today's data is complete — nice work!</p>
           </div>
         ) : locked ? (
           <p className="text-xs font-semibold text-muted-foreground">
@@ -144,7 +144,7 @@ const TodayData = ({ entry, onSave, statusBadge, footer, locked = false }: Today
                 key={key}
                 className={cn(
                   "space-y-1 rounded-xl p-2 transition-colors",
-                  saved && "bg-[hsl(84,46%,52%)]/12 ring-1 ring-inset ring-[hsl(84,45%,40%)]/40",
+                  saved && "bg-[hsl(146,46%,52%)]/12 ring-1 ring-inset ring-[hsl(146,45%,40%)]/40",
                 )}
               >
                 <label
@@ -191,7 +191,7 @@ const TodayData = ({ entry, onSave, statusBadge, footer, locked = false }: Today
 
                   {saved ? (
                     <span
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-[hsl(84,45%,24%)] bg-gradient-to-b from-[hsl(84,46%,52%)] to-[hsl(70,50%,38%)] text-white shadow-[0_2px_0_hsl(84,45%,24%)]"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-[hsl(146,45%,24%)] bg-gradient-to-b from-[hsl(146,46%,52%)] to-[hsl(148,52%,28%)] text-white shadow-[0_2px_0_hsl(146,45%,24%)]"
                       title="Saved"
                       aria-label={`${label} saved`}
                     >
@@ -204,7 +204,7 @@ const TodayData = ({ entry, onSave, statusBadge, footer, locked = false }: Today
                       disabled={!isDirty(key) || savingKey != null || !entry || locked}
                       title={`Save ${label.toLowerCase()}`}
                       aria-label={`Save ${label}`}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-[hsl(70,50%,22%)] bg-gradient-to-b from-[hsl(68,46%,50%)] to-[hsl(70,50%,38%)] text-white shadow-[0_2px_0_hsl(70,50%,22%)] transition hover:brightness-110 active:translate-y-[2px] active:shadow-none disabled:opacity-40 disabled:saturate-50"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-[hsl(148,55%,16%)] bg-gradient-to-b from-[hsl(146,45%,42%)] to-[hsl(148,52%,28%)] text-white shadow-[0_2px_0_hsl(148,55%,16%)] transition hover:brightness-110 active:translate-y-[2px] active:shadow-none disabled:opacity-40 disabled:saturate-50"
                     >
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     </button>

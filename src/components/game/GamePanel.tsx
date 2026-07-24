@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type BannerColor = "red" | "teal" | "leaf" | "gold" | "purple" | "wood";
+export type BannerColor = "red" | "teal" | "leaf" | "gold" | "purple" | "wood" | "navy" | "forest";
 
 // Literal class names so Tailwind's content scanner keeps every variant.
 const bannerColorClass: Record<BannerColor, string> = {
@@ -12,6 +12,8 @@ const bannerColorClass: Record<BannerColor, string> = {
   gold: "game-banner-gold",
   purple: "game-banner-purple",
   wood: "game-banner-wood",
+  navy: "game-banner-navy",
+  forest: "game-banner-forest",
 };
 
 interface GamePanelProps {

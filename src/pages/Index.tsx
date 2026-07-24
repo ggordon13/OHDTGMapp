@@ -37,6 +37,7 @@ import { formatDateInputValue, parseDateInputValue } from "@/lib/utils";
 import GameButton from "@/components/game/GameButton";
 import PremiumAccessManager from "@/components/PremiumAccessManager";
 import PremiumRequests from "@/components/PremiumRequests";
+import AdminChallenges from "@/components/AdminChallenges";
 import DataAnalytics from "@/components/DataAnalytics";
 import GetPremiumButton from "@/components/GetPremiumButton";
 import ChallengePanel from "@/components/ChallengePanel";
@@ -548,9 +549,12 @@ const Index = () => {
         </div>
 
         {isStaff && showAdmin && (
-          <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
-            <PremiumAccessManager />
-            <PremiumRequests />
+          <div className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
+              <PremiumAccessManager />
+              <PremiumRequests />
+            </div>
+            <AdminChallenges />
           </div>
         )}
 
@@ -651,19 +655,20 @@ const Index = () => {
               <div data-reveal className="min-w-0 2xl:col-span-3">
                 <WeeklyAchievements logs={visibleDayRange} goals={weeklyGoals} />
               </div>
-              <div data-reveal className="min-w-0 2xl:col-span-2">
-                <WeightChart logs={visibleLogs} targetWeight={goals.targetWeight} startWeight={startWeight} />
+              {/* Challenge takes the Weight Trend column; Weight Trend sits below it. */}
+              <div className="min-w-0 space-y-6 2xl:col-span-2">
+                <div data-reveal>
+                  <ChallengePanel challenge={challenge} />
+                </div>
+                <div data-reveal>
+                  <WeightChart logs={visibleLogs} targetWeight={goals.targetWeight} startWeight={startWeight} />
+                </div>
               </div>
-            </div>
-
-            {/* Social 30-day challenge, below the Weight Trend. */}
-            <div data-reveal className="order-5 min-w-0">
-              <ChallengePanel challenge={challenge} />
             </div>
 
             {/* Primary logging surface: edit rows here (today's is highlighted) and save.
                 Free users hit a Day-{FREE_LOG_DAY_LIMIT} wall shown below the table. */}
-            <div data-reveal className="order-6 min-w-0">
+            <div data-reveal className="order-5 min-w-0">
               <DailyTracker
                 logs={visibleDayRange}
                 onUpdate={updateLogs}

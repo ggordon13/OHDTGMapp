@@ -1,11 +1,17 @@
 import type { AwardKey, LeaderboardRow } from "@/hooks/useChallenge";
 
 /** The four special awards and which leaderboard metric decides each. */
-export const AWARD_META: { key: Exclude<AwardKey, "overall">; label: string; icon: string; metric: keyof LeaderboardRow }[] = [
-  { key: "golden_shoe", label: "Golden Shoe", icon: "👟", metric: "avg_steps" },
-  { key: "energetic", label: "The Energetic", icon: "🔥", metric: "exercise_days" },
-  { key: "biggest_loser", label: "The Biggest Loser", icon: "📉", metric: "pct_weight_loss" },
-  { key: "milestone_master", label: "The Milestone Master", icon: "⭐", metric: "xp_window" },
+export const AWARD_META: {
+  key: Exclude<AwardKey, "overall">;
+  label: string;
+  icon: string;
+  desc: string;
+  metric: keyof LeaderboardRow;
+}[] = [
+  { key: "golden_shoe", label: "Golden Shoe", icon: "👟", desc: "Highest avg steps", metric: "avg_steps" },
+  { key: "energetic", label: "The Energetic", icon: "🔥", desc: "Most exercise", metric: "exercise_days" },
+  { key: "biggest_loser", label: "The Biggest Loser", icon: "📉", desc: "Most % weight lost", metric: "pct_weight_loss" },
+  { key: "milestone_master", label: "The Milestone Master", icon: "⭐", desc: "Most XP", metric: "xp_window" },
 ];
 
 /** The row with the highest positive value for a metric, or null (no winner yet). */

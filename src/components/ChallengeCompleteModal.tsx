@@ -34,7 +34,7 @@ const ChallengeCompleteModal = ({ open, onOpenChange, onDismiss }: ChallengeComp
           className="game-panel fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 p-6 focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
         >
           <div className="space-y-5 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-[hsl(268,45%,30%)] bg-gradient-to-b from-[hsl(268,50%,64%)] to-[hsl(268,46%,48%)] shadow-[0_4px_0_hsl(268,45%,30%),0_6px_12px_rgba(0,0,0,0.4),inset_0_2px_0_rgba(255,255,255,0.4)]">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-[hsl(222,45%,30%)] bg-gradient-to-b from-[hsl(222,50%,64%)] to-[hsl(222,46%,48%)] shadow-[0_4px_0_hsl(222,45%,30%),0_6px_12px_rgba(0,0,0,0.4),inset_0_2px_0_rgba(255,255,255,0.4)]">
               <PartyPopper className="h-7 w-7 text-white" />
             </div>
             <div className="space-y-1">
@@ -46,7 +46,7 @@ const ChallengeCompleteModal = ({ open, onOpenChange, onDismiss }: ChallengeComp
                 once everyone's finished their final day.
               </Dialog.Description>
             </div>
-            <GameButton color="purple" size="lg" className="w-full" disabled={busy} onClick={() => void done()}>
+            <GameButton color="navy" size="lg" className="w-full" disabled={busy} onClick={() => void done()}>
               {busy ? "Saving…" : "Awesome!"}
             </GameButton>
           </div>

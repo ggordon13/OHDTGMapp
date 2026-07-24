@@ -23,15 +23,12 @@ export interface PremiumAccessContext {
 // Premium limits
 // ---------------------------------------------------------------------------
 
-/** The free trial spans this many weeks of the challenge. */
-export const FREE_LOG_WEEKS = 3;
-
 /**
  * The last challenge day a free user may log. They can log Day 1 through this
  * day; Day (limit + 1) onward is locked until they upgrade. Their data up to
  * the cap is always kept.
  */
-export const FREE_LOG_DAY_LIMIT = FREE_LOG_WEEKS * 7; // 21
+export const FREE_LOG_DAY_LIMIT = 30;
 
 /** The full challenge length premium unlocks. */
 export const CHALLENGE_DAYS = 100;

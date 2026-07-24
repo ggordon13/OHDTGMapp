@@ -71,7 +71,7 @@ const RewardList = ({ view }: { view: ChallengeView }) => {
   const label = (k: string) => GROUP_AWARDS.find((a) => a.key === k)?.label ?? (k === "overall" ? "Winner" : k);
   return (
     <div className="space-y-1.5">
-      <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(268,40%,42%)]">Rewards</p>
+      <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(222,40%,42%)]">Rewards</p>
       {view.rewards.map((r) => (
         <div key={r.award_key} className="flex items-center justify-between gap-2 text-xs">
           <span className="font-bold text-muted-foreground">{label(r.award_key)}</span>
@@ -180,7 +180,7 @@ const CreateForm = ({ create, resolveUser, onCreated }: CreateFormProps) => {
               className={cn(
                 "flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 font-display text-sm font-bold uppercase tracking-wide transition",
                 active
-                  ? "border-2 border-[hsl(268,45%,30%)] bg-gradient-to-b from-[hsl(268,50%,62%)] to-[hsl(268,46%,48%)] text-white shadow-[0_2px_0_hsl(268,45%,30%)]"
+                  ? "border-2 border-[hsl(222,45%,30%)] bg-gradient-to-b from-[hsl(222,50%,62%)] to-[hsl(222,46%,48%)] text-white shadow-[0_2px_0_hsl(222,45%,30%)]"
                   : "border-2 border-transparent text-muted-foreground hover:bg-[hsl(40,48%,92%)]",
               )}
             >
@@ -236,7 +236,7 @@ const CreateForm = ({ create, resolveUser, onCreated }: CreateFormProps) => {
           <button
             type="button"
             onClick={() => setInvitees((l) => [...l, newInvitee()])}
-            className="flex items-center gap-1 text-xs font-bold text-[hsl(268,40%,45%)] hover:underline"
+            className="flex items-center gap-1 text-xs font-bold text-[hsl(222,40%,45%)] hover:underline"
           >
             <UserPlus className="h-3.5 w-3.5" /> Add another (up to 5)
           </button>
@@ -259,7 +259,7 @@ const CreateForm = ({ create, resolveUser, onCreated }: CreateFormProps) => {
 
       {/* Rewards */}
       <div className="space-y-2 rounded-xl border-2 border-[hsl(33,28%,60%)] bg-[hsl(37,40%,82%)] p-3">
-        <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(268,40%,38%)]">
+        <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(222,40%,38%)]">
           Rewards (optional)
         </p>
         {mode === "group" ? (
@@ -292,7 +292,7 @@ const CreateForm = ({ create, resolveUser, onCreated }: CreateFormProps) => {
         )}
       </div>
 
-      <GameButton color="purple" size="lg" className="w-full" disabled={!canSubmit} onClick={handleSubmit}>
+      <GameButton color="navy" size="lg" className="w-full" disabled={!canSubmit} onClick={handleSubmit}>
         {submitting ? "Creating…" : "Start Challenge"}
       </GameButton>
     </div>
@@ -320,8 +320,8 @@ const InviteCard = ({ view, respond }: { view: ChallengeView; respond: (id: stri
   };
 
   return (
-    <div className="space-y-3 rounded-xl border-2 border-[hsl(268,42%,60%)]/40 bg-[hsl(268,42%,60%)]/10 p-3">
-      <p className="text-sm font-bold text-[hsl(268,40%,38%)]">
+    <div className="space-y-3 rounded-xl border-2 border-[hsl(222,42%,60%)]/40 bg-[hsl(222,42%,60%)]/10 p-3">
+      <p className="text-sm font-bold text-[hsl(222,40%,38%)]">
         {leader?.username ?? "Someone"} invited you to a {view.challenge.mode} challenge
       </p>
       <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
@@ -347,12 +347,12 @@ const InviteCard = ({ view, respond }: { view: ChallengeView; respond: (id: stri
 
 const Leaderboard = ({ rows }: { rows: LeaderboardRow[] }) => (
   <div className="space-y-1.5">
-    <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(268,40%,42%)]">Leaderboard</p>
+    <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(222,40%,42%)]">Leaderboard</p>
     {rows.map((r, i) => (
       <div key={r.user_id} className="flex items-center gap-2 rounded-lg border border-[hsl(33,28%,72%)] bg-[hsl(40,48%,94%)] px-3 py-1.5">
-        <span className="w-5 shrink-0 text-center font-display text-sm font-bold text-[hsl(268,42%,50%)]">{i + 1}</span>
+        <span className="w-5 shrink-0 text-center font-display text-sm font-bold text-[hsl(222,42%,50%)]">{i + 1}</span>
         <span className="flex-1 truncate font-display text-sm font-bold text-card-foreground">{r.username ?? "(no nickname)"}</span>
-        <span className="shrink-0 text-xs font-bold text-[hsl(268,40%,42%)]">{r.xp_window} XP</span>
+        <span className="shrink-0 text-xs font-bold text-[hsl(222,40%,42%)]">{r.xp_window} XP</span>
         <span className="w-14 shrink-0 text-right text-xs font-bold text-[hsl(84,45%,32%)]">
           {r.pct_weight_loss != null ? `${r.pct_weight_loss > 0 ? "-" : "+"}${Math.abs(r.pct_weight_loss)}%` : "—"}
         </span>
@@ -361,22 +361,25 @@ const Leaderboard = ({ rows }: { rows: LeaderboardRow[] }) => (
   </div>
 );
 
-const AwardsView = ({ view, rows }: { view: ChallengeView; rows: LeaderboardRow[] }) => {
+const AwardsView = ({ view, rows, final }: { view: ChallengeView; rows: LeaderboardRow[]; final: boolean }) => {
   const rewardText = (key: AwardKey) => view.rewards.find((r) => r.award_key === key)?.reward_text || null;
-  const overall = view.challenge.mode === "partner" ? overallWinner(rows) : null;
+  const overall = final && view.challenge.mode === "partner" ? overallWinner(rows) : null;
 
   return (
     <div className="space-y-1.5">
-      <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(268,40%,42%)]">Special Awards</p>
+      <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(222,40%,42%)]">
+        Special Awards{final ? "" : " — up for grabs"}
+      </p>
       {AWARD_META.map((a) => {
-        const winner = topBy(rows, a.metric);
+        const winner = final ? topBy(rows, a.metric) : null;
         const reward = view.challenge.mode === "group" ? rewardText(a.key) : null;
         return (
           <div key={a.key} className="flex items-center gap-2 rounded-lg border border-[hsl(33,28%,72%)] bg-[hsl(40,48%,94%)] px-3 py-1.5 text-xs">
             <span className="shrink-0">{a.icon}</span>
             <span className="shrink-0 font-bold text-card-foreground">{a.label}</span>
-            <span className="flex-1 truncate text-right font-bold text-[hsl(268,40%,42%)]">
-              {winner ? (winner.username ?? "(no nickname)") : "—"}
+            {/* While ongoing, describe the award instead of revealing who's leading. */}
+            <span className="flex-1 truncate text-right font-bold text-[hsl(222,40%,42%)]">
+              {final ? (winner ? (winner.username ?? "(no nickname)") : "—") : a.desc}
             </span>
             {reward && <span className="shrink-0 text-muted-foreground">· {reward}</span>}
           </div>
@@ -387,9 +390,9 @@ const AwardsView = ({ view, rows }: { view: ChallengeView; rows: LeaderboardRow[
           <Trophy className="h-3.5 w-3.5 shrink-0 text-[hsl(42,90%,45%)]" />
           <span className="shrink-0 font-bold text-card-foreground">Overall winner</span>
           <span className="flex-1 truncate text-right font-bold text-[hsl(36,70%,38%)]">
-            {overall ? (overall.username ?? "(no nickname)") : "—"}
+            {final ? (overall ? (overall.username ?? "(no nickname)") : "—") : "most awards · ties → XP"}
           </span>
-          {rewardText("overall") && <span className="shrink-0 text-muted-foreground">· {rewardText("overall")}</span>}
+          {final && rewardText("overall") && <span className="shrink-0 text-muted-foreground">· {rewardText("overall")}</span>}
         </div>
       )}
     </div>
@@ -412,20 +415,26 @@ function challengePhase(view: ChallengeView): ChallengePhase {
 
 const CurrentView = ({
   view,
-  cancel,
+  voteCancel,
   getLeaderboard,
   onStartNew,
 }: {
   view: ChallengeView;
-  cancel: (id: string) => Promise<void>;
+  voteCancel: (id: string, agree: boolean) => Promise<void>;
   getLeaderboard: (id: string) => Promise<LeaderboardRow[]>;
   onStartNew: () => void;
 }) => {
+  const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
   const phase = challengePhase(view);
   const started = phase === "live" || phase === "results";
   const pendingCount = view.members.filter((m) => m.status === "invited").length;
+
+  const accepted = view.members.filter((m) => m.status === "accepted");
+  const wantsCancel = accepted.filter((m) => m.wants_cancel);
+  const iWantCancel = accepted.some((m) => m.user_id === user?.id && m.wants_cancel);
+  const cancelInProgress = wantsCancel.length > 0;
 
   useEffect(() => {
     if (!started) return;
@@ -438,14 +447,13 @@ const CurrentView = ({
     };
   }, [started, view.challenge.id, getLeaderboard]);
 
-  const doCancel = async () => {
-    if (!window.confirm("Cancel this challenge for everyone?")) return;
+  const vote = async (agree: boolean) => {
     setBusy(true);
     try {
-      await cancel(view.challenge.id);
-      toast.success("Challenge cancelled.");
+      await voteCancel(view.challenge.id, agree);
+      if (agree) toast.success("Cancel requested — all members must agree.");
     } catch (e) {
-      toast.error((e as Error).message || "Couldn't cancel.");
+      toast.error((e as Error).message || "Couldn't update your vote.");
     } finally {
       setBusy(false);
     }
@@ -457,7 +465,7 @@ const CurrentView = ({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 font-display text-sm font-bold text-card-foreground">
-          <Trophy className="h-4 w-4 text-[hsl(268,42%,52%)]" />
+          <Trophy className="h-4 w-4 text-[hsl(222,42%,52%)]" />
           {heading}
         </span>
         <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
@@ -472,7 +480,7 @@ const CurrentView = ({
       {started ? (
         <>
           <Leaderboard rows={board} />
-          <AwardsView view={view} rows={board} />
+          <AwardsView view={view} rows={board} final={phase === "results"} />
         </>
       ) : (
         <>
@@ -489,20 +497,47 @@ const CurrentView = ({
       )}
 
       {phase === "results" ? (
-        <GameButton color="purple" size="sm" className="w-full" onClick={onStartNew}>
+        <GameButton color="navy" size="sm" className="w-full" onClick={onStartNew}>
           Start a new challenge
         </GameButton>
       ) : (
-        view.isLeader && (
-          <button
-            type="button"
-            onClick={doCancel}
-            disabled={busy}
-            className="text-xs font-bold uppercase tracking-wide text-[hsl(6,55%,45%)] hover:underline disabled:opacity-50"
-          >
-            Cancel challenge
-          </button>
-        )
+        <div className="border-t border-[hsl(33,28%,72%)] pt-2">
+          {cancelInProgress ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold text-[hsl(6,55%,42%)]">
+                Cancel requested — {wantsCancel.length}/{accepted.length} agreed
+              </span>
+              {iWantCancel ? (
+                <button
+                  type="button"
+                  onClick={() => void vote(false)}
+                  disabled={busy}
+                  className="text-xs font-bold uppercase tracking-wide text-muted-foreground hover:underline disabled:opacity-50"
+                >
+                  Withdraw
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void vote(true)}
+                  disabled={busy}
+                  className="text-xs font-bold uppercase tracking-wide text-[hsl(6,55%,45%)] hover:underline disabled:opacity-50"
+                >
+                  Agree to cancel
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void vote(true)}
+              disabled={busy}
+              className="text-xs font-bold uppercase tracking-wide text-[hsl(6,55%,45%)] hover:underline disabled:opacity-50"
+            >
+              Request to cancel
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -511,19 +546,19 @@ const CurrentView = ({
 // ---------------------------------------------------------------------------
 
 const ChallengePanel = ({ challenge }: { challenge: ReturnType<typeof useChallenge> }) => {
-  const { current, invites, loading, create, resolveUser, respond, cancel, getLeaderboard } = challenge;
+  const { current, invites, loading, create, resolveUser, respond, voteCancel, getLeaderboard } = challenge;
   const [startingNew, setStartingNew] = useState(false);
 
   const showCreate = startingNew || (!current && invites.length === 0);
 
   return (
-    <GamePanel title="Challenge" icon={<Swords className="h-4 w-4" />} color="purple">
+    <GamePanel title="Challenge" icon={<Swords className="h-4 w-4" />} color="navy">
       {loading ? (
         <p className="py-6 text-center text-sm font-semibold text-muted-foreground">Loading…</p>
       ) : showCreate ? (
         <CreateForm create={create} resolveUser={resolveUser} onCreated={() => setStartingNew(false)} />
       ) : current ? (
-        <CurrentView view={current} cancel={cancel} getLeaderboard={getLeaderboard} onStartNew={() => setStartingNew(true)} />
+        <CurrentView view={current} voteCancel={voteCancel} getLeaderboard={getLeaderboard} onStartNew={() => setStartingNew(true)} />
       ) : (
         <div className="space-y-3">
           {invites.map((v) => (
