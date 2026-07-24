@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      payments: {
+        Row: {
+          amount: number | null
+          created_at: string
+          currency: string | null
+          email: string | null
+          id: string
+          product_id: string | null
+          raw: Json | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          whop_payment_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          currency?: string | null
+          email?: string | null
+          id?: string
+          product_id?: string | null
+          raw?: Json | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          whop_payment_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          currency?: string | null
+          email?: string | null
+          id?: string
+          product_id?: string | null
+          raw?: Json | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          whop_payment_id?: string | null
+        }
+        Relationships: []
+      }
       challenges: {
         Row: {
           created_at: string
