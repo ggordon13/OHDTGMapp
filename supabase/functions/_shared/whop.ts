@@ -55,25 +55,47 @@ export async function getPayment(apiKey: string, paymentId: string): Promise<Who
 }
 
 /**
- * Verify a webhook signature. Whop signs the raw request body with your webhook
- * secret; the exact header name + algorithm MUST be confirmed from Whop's webhook
- * docs. This implements hex HMAC-SHA256(raw body), a common scheme, with a
- * length-safe comparison.
+ * Verify a Whop webhook using the Standard Webhooks (Svix) scheme, confirmed
+ * from real Whop headers: webhook-id / webhook-timestamp / webhook-signature.
+ *
+ *   signedContent = `${id}.${timestamp}.${rawBody}`
+ *   key           = base64-decode(secret after the "whsec_" prefix)
+ *   expected      = base64( HMAC-SHA256(signedContent, key) )
+ *
+ * The signature header may hold several space-separated "v1,<sig>" entries; a
+ * match against any one passes. A 5-minute timestamp tolerance guards replays.
  */
-export async function verifyWhopSignature(rawBody: string, signature: string, secret: string): Promise<boolean> {
-  if (!secret || !signature) return false;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
-  const expected = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const provided = signature.replace(/^sha256=/, "").trim();
-  if (expected.length !== provided.length) return false;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
-  return diff === 0;
+export async function verifyStandardWebhook(opts: {
+  id: string;
+  timestamp: string;
+  body: string;
+  signatureHeader: string;
+  secret: string;
+}): Promise<boolean> {
+  const { id, timestamp, body, signatureHeader, secret } = opts;
+  if (!secret || !signatureHeader || !id || !timestamp) return false;
+
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts) || Math.abs(Math.floor(Date.now() / 1000) - ts) > 300) return false;
+
+  const rawSecret = secret.startsWith("whsec_") ? secret.slice(6) : secret;
+  let keyBytes: Uint8Array;
+  try {
+    keyBytes = Uint8Array.from(atob(rawSecret), (c) => c.charCodeAt(0));
+  } catch {
+    return false;
+  }
+  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${id}.${timestamp}.${body}`));
+  const expected = btoa(String.fromCharCode(...new Uint8Array(mac)));
+
+  for (const part of signatureHeader.split(" ")) {
+    const sig = part.split(",")[1];
+    if (sig && sig.length === expected.length) {
+      let diff = 0;
+      for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
+      if (diff === 0) return true;
+    }
+  }
+  return false;
 }

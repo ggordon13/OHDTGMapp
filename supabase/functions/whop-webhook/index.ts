@@ -1,23 +1,20 @@
 // Supabase Edge Function (Deno): Whop payment webhooks.
 //
 // On a successful payment it grants premium via the app's existing
-// premium_allowlist (which resolveEffectiveAccessLevel already reads), and
-// records the payment. On a refund/cancel it revokes access.
+// premium_allowlist (which resolveEffectiveAccessLevel reads) and records the
+// payment; on a refund/cancel it revokes.
 //
-// Deploy (webhooks are unauthenticated, so disable JWT verification):
-//   supabase functions deploy whop-webhook --no-verify-jwt
-// Set the secret:
-//   supabase secrets set WHOP_WEBHOOK_SECRET=whsec_xxx
-// (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.)
+// Deploy (webhooks are unauthenticated):
+//   npx supabase functions deploy whop-webhook --project-ref <ref> --no-verify-jwt
+// Secret (the whsec_ value Whop shows for the webhook):
+//   npx supabase secrets set WHOP_WEBHOOK_SECRET=whsec_xxx --project-ref <ref>
 //
-// Then point your Whop webhook at:
-//   https://<project-ref>.functions.supabase.co/whop-webhook
-//
-// NOTE: the event-type strings, data field names, and signature header below
-// must be confirmed against Whop's webhook reference (marked TODO).
+// Verified against real Whop traffic: Standard Webhooks headers
+// (webhook-id / webhook-timestamp / webhook-signature) and a `type` +
+// `data.{...}` payload.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { verifyWhopSignature } from "../_shared/whop.ts";
+import { verifyStandardWebhook } from "../_shared/whop.ts";
 
 const WEBHOOK_SECRET = Deno.env.get("WHOP_WEBHOOK_SECRET") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -26,21 +23,24 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 // deno-lint-ignore no-explicit-any
 type Json = Record<string, any>;
 
+// A payment that actually went through / access that became valid.
+const SUCCESS_TYPES = ["payment.succeeded", "membership.went_valid", "membership_went_valid"];
+const SUCCESS_STATUS = ["succeeded", "paid", "completed"];
+// A reversal that should revoke access.
+const REVERSAL_TYPES = ["payment.refunded", "membership.went_invalid", "membership_went_invalid", "dispute.created"];
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
   const raw = await req.text();
-
-  // TEMP DEBUG — remove once wired. Logs Whop's headers + body so we can read the
-  // real signature header name and payload field names from the function logs.
-  console.log("WHOP HEADERS:", JSON.stringify(Object.fromEntries(req.headers.entries())));
-  console.log("WHOP BODY:", raw);
-
-  // TODO: confirm the signature header Whop sends (e.g. "x-whop-signature").
-  const signature = req.headers.get("x-whop-signature") ?? "";
-  if (!(await verifyWhopSignature(raw, signature, WEBHOOK_SECRET))) {
-    return new Response("Invalid signature", { status: 401 });
-  }
+  const valid = await verifyStandardWebhook({
+    id: req.headers.get("webhook-id") ?? "",
+    timestamp: req.headers.get("webhook-timestamp") ?? "",
+    signatureHeader: req.headers.get("webhook-signature") ?? "",
+    body: raw,
+    secret: WEBHOOK_SECRET,
+  });
+  if (!valid) return new Response("Invalid signature", { status: 401 });
 
   let event: Json;
   try {
@@ -49,20 +49,23 @@ Deno.serve(async (req) => {
     return new Response("Bad payload", { status: 400 });
   }
 
-  // TODO: confirm the event-type + data field names in Whop's webhook docs.
-  const type: string = event.action ?? event.type ?? "";
-  const data: Json = event.data ?? event;
+  const type: string = event.type ?? event.action ?? "";
+  const data: Json = event.data ?? {};
+  const status: string = (data.status ?? "").toString().toLowerCase();
   const email: string = (data.user?.email ?? data.email ?? "").toString().toLowerCase();
   const whopPaymentId: string | null = data.id ?? null;
 
-  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const succeeded = SUCCESS_TYPES.includes(type) || SUCCESS_STATUS.includes(status);
+  const reversed = REVERSAL_TYPES.includes(type) || status === "refunded" || Boolean(data.refunded_at);
 
-  const succeeded = ["payment.succeeded", "payment_success", "membership.went_valid"].includes(type);
-  const reversed = ["payment.refunded", "refund.created", "membership.went_invalid"].includes(type);
+  console.log(`whop event type=${type} status=${status} email=${email} → ${succeeded ? "grant" : reversed ? "revoke" : "ignore"}`);
+
+  if (!succeeded && !reversed) return new Response("ok", { status: 200 });
+
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   if (succeeded) {
     if (email) {
-      // Grant premium the same way the admin tools do.
       await supabase
         .from("premium_allowlist")
         .upsert({ email, access_level: "premium", is_active: true }, { onConflict: "email" });
@@ -71,8 +74,8 @@ Deno.serve(async (req) => {
       {
         email: email || null,
         whop_payment_id: whopPaymentId,
-        product_id: data.product_id ?? null,
-        amount: data.final_amount ?? data.amount ?? null,
+        product_id: data.product?.id ?? data.plan?.id ?? null,
+        amount: data.total ?? data.usd_total ?? data.subtotal ?? null,
         currency: data.currency ?? null,
         status: "succeeded",
         raw: event,
@@ -88,6 +91,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Always 200 for handled events so Whop doesn't retry endlessly.
   return new Response("ok", { status: 200 });
 });
