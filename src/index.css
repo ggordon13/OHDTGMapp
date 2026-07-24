@@ -228,6 +228,8 @@
   .game-banner-gold   { background: linear-gradient(180deg, hsl(40 90% 58%), hsl(36 85% 46%)); }
   .game-banner-purple { background: linear-gradient(180deg, hsl(268 42% 60%), hsl(268 44% 46%)); }
   .game-banner-wood   { background: linear-gradient(180deg, hsl(26 36% 36%), hsl(24 40% 24%)); }
+  .game-banner-navy   { background: linear-gradient(180deg, hsl(222 55% 44%), hsl(224 62% 30%)); }
+  .game-banner-forest { background: linear-gradient(180deg, hsl(140 45% 38%), hsl(146 55% 24%)); }
 
   /* Pulsing "on fire" halo for a collapsed panel that has something to claim.
      Uses drop-shadow so it layers over the banner's own box-shadow. */

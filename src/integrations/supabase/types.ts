@@ -334,6 +334,26 @@ export type Database = {
           status: string
           is_leader: boolean
           joined_at: string | null
+          wants_cancel: boolean
+        }[]
+      }
+      vote_cancel_challenge: {
+        Args: { p_challenge: string; p_agree: boolean }
+        Returns: undefined
+      }
+      admin_set_challenge_start: {
+        Args: { p_challenge: string; p_start_date: string }
+        Returns: undefined
+      }
+      admin_list_challenges: {
+        Args: Record<string, never>
+        Returns: {
+          id: string
+          mode: string
+          status: string
+          start_date: string
+          leader_username: string | null
+          member_count: number
         }[]
       }
       challenge_leaderboard: {

@@ -14,6 +14,8 @@ const colorClasses: Record<BannerColor, string> = {
   gold: "from-[hsl(40,90%,58%)] to-[hsl(36,85%,46%)] border-[hsl(33,75%,28%)] shadow-[0_4px_0_hsl(33,75%,28%)] text-[hsl(26,50%,18%)]",
   purple: "from-[hsl(268,42%,60%)] to-[hsl(268,44%,46%)] border-[hsl(268,45%,28%)] shadow-[0_4px_0_hsl(268,45%,28%)] text-white",
   wood: "from-[hsl(26,36%,38%)] to-[hsl(24,40%,26%)] border-[hsl(22,45%,12%)] shadow-[0_4px_0_hsl(22,45%,12%)] text-[hsl(38,45%,90%)]",
+  navy: "from-[hsl(222,55%,46%)] to-[hsl(224,60%,32%)] border-[hsl(226,60%,18%)] shadow-[0_4px_0_hsl(226,60%,18%)] text-white",
+  forest: "from-[hsl(140,45%,40%)] to-[hsl(146,52%,26%)] border-[hsl(148,55%,14%)] shadow-[0_4px_0_hsl(148,55%,14%)] text-white",
 };
 
 const sizeClasses = {

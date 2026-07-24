@@ -11,6 +11,10 @@ import {
   getEarnedBadges,
   getLevelProgress,
   levelFromXp,
+  getDailyQuests,
+  getWeeklyQuests,
+  getCurrentWeek,
+  getCurrentWeekPeriod,
 } from "@/lib/gamification";
 import type { UserProfile } from "./useProfile";
 
@@ -39,6 +43,8 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
   const [earnedBadgeKeys, setEarnedBadgeKeys] = useState<Set<string>>(new Set());
   const [achievementsLoaded, setAchievementsLoaded] = useState(false);
   const grantingRef = useRef<Set<string>>(new Set());
+  const revokingRef = useRef<Set<string>>(new Set());
+  const refundingRef = useRef<Set<string>>(new Set());
   const shieldSyncRef = useRef(false);
 
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
@@ -101,6 +107,20 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
     [userId, pushCelebration],
   );
 
+  // Refund path: adjust the XP total down (or up) without a celebration, used
+  // when a trophy/quest is revoked because the data no longer meets its goal.
+  const adjustXp = useCallback(
+    async (delta: number) => {
+      if (!userId || delta === 0) return;
+      const next = Math.max(0, xpRef.current + delta);
+      xpRef.current = next;
+      setXp(next);
+      const newLevel = levelFromXp(next);
+      await supabase.from("profiles").update({ total_xp: next, level: newLevel }).eq("user_id", userId);
+    },
+    [userId],
+  );
+
   const claimQuest = useCallback(
     async (quest: Quest, period: string) => {
       if (!userId || !quest.completed) return;
@@ -134,8 +154,9 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
     [userId, claims, claimingKey, awardXp],
   );
 
-  // Auto-unlock any newly earned badges. Idempotent: the persisted set + an
-  // in-flight guard prevent a badge from being granted or XP-awarded twice.
+  // Auto-unlock newly earned badges, and REVOKE badges whose data no longer
+  // qualifies (anti-exploit: log fake data → earn trophy+XP → revert). Idempotent
+  // via the persisted set + in-flight guards.
   useEffect(() => {
     // Wait for the profile (and thus the seeded XP total) before writing XP,
     // otherwise a grant fired mid-load could overwrite the stored total with 0.
@@ -144,10 +165,13 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
       startWeight: profile.current_weight,
       targetWeight: profile.target_weight,
     });
+    const derivedKeys = new Set(derived.map((b) => b.key));
     const toGrant = derived.filter((b) => !earnedBadgeKeys.has(b.key) && !grantingRef.current.has(b.key));
-    if (toGrant.length === 0) return;
+    const toRevoke = [...earnedBadgeKeys].filter((k) => !derivedKeys.has(k) && !revokingRef.current.has(k));
+    if (toGrant.length === 0 && toRevoke.length === 0) return;
 
     toGrant.forEach((b) => grantingRef.current.add(b.key));
+    toRevoke.forEach((k) => revokingRef.current.add(k));
     (async () => {
       for (const b of toGrant) {
         const { error } = await supabase.from("achievements").insert({
@@ -162,13 +186,74 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
           await awardXp(b.xp);
         }
       }
+      for (const key of toRevoke) {
+        const badge = ALL_BADGES.find((b) => b.key === key);
+        const { error } = await supabase
+          .from("achievements")
+          .delete()
+          .eq("user_id", userId)
+          .eq("achievement_key", key);
+        if (!error) {
+          if (badge) await adjustXp(-badge.xp);
+          toast.error(`Trophy lost: ${badge?.label ?? key} — your data no longer meets it.`);
+        }
+      }
       setEarnedBadgeKeys((prev) => {
         const n = new Set(prev);
         toGrant.forEach((b) => n.add(b.key));
+        toRevoke.forEach((k) => n.delete(k));
         return n;
       });
+      toRevoke.forEach((k) => revokingRef.current.delete(k));
     })();
-  }, [userId, profile, achievementsLoaded, dayRange, weeklyGoals, earnedBadgeKeys, awardXp, pushCelebration]);
+  }, [userId, profile, achievementsLoaded, dayRange, weeklyGoals, earnedBadgeKeys, awardXp, adjustXp, pushCelebration]);
+
+  // Refund quest XP if a claimed quest's data was reverted below its goal.
+  // Only the current daily/weekly periods are re-checked (the exploit target).
+  useEffect(() => {
+    if (!userId || dayRange.length === 0) return;
+    const today = dayRange[dayRange.length - 1];
+    if (!today) return;
+    const dailyPeriod = today.date;
+    const weeklyPeriod = getCurrentWeekPeriod(dayRange);
+    const questGoals = {
+      caloriesMax: weeklyGoals.dailyCalories,
+      protein: weeklyGoals.dailyProtein,
+      water: weeklyGoals.dailyWater,
+      steps: weeklyGoals.dailySteps,
+    };
+    const scored = [
+      ...getDailyQuests(today, questGoals).map((q) => ({ q, period: dailyPeriod })),
+      ...getWeeklyQuests(getCurrentWeek(dayRange), weeklyGoals).map((q) => ({ q, period: weeklyPeriod })),
+    ];
+    const toRefund = scored.filter(
+      ({ q, period }) =>
+        claims.has(claimKey(period, q.key)) && !q.completed && !refundingRef.current.has(claimKey(period, q.key)),
+    );
+    if (toRefund.length === 0) return;
+
+    toRefund.forEach(({ q, period }) => refundingRef.current.add(claimKey(period, q.key)));
+    (async () => {
+      for (const { q, period } of toRefund) {
+        const { error } = await supabase
+          .from("quest_claims")
+          .delete()
+          .eq("user_id", userId)
+          .eq("period", period)
+          .eq("quest_key", q.key);
+        if (!error) {
+          await adjustXp(-q.xp);
+          toast.error(`Refunded ${q.xp} XP — "${q.title}" is no longer complete.`);
+        }
+      }
+      setClaims((prev) => {
+        const n = new Set(prev);
+        toRefund.forEach(({ q, period }) => n.delete(claimKey(period, q.key)));
+        return n;
+      });
+      toRefund.forEach(({ q, period }) => refundingRef.current.delete(claimKey(period, q.key)));
+    })();
+  }, [userId, dayRange, weeklyGoals, claims, adjustXp]);
 
   // Reconcile earned streak shields (deterministic from history → safe to write).
   useEffect(() => {

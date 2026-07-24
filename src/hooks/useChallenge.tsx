@@ -22,6 +22,7 @@ export interface ChallengeMember {
   status: "invited" | "accepted" | "declined";
   is_leader: boolean;
   joined_at: string | null;
+  wants_cancel: boolean;
 }
 
 export interface ChallengeReward {
@@ -180,6 +181,16 @@ export function useChallenge() {
     [fetchChallenges],
   );
 
+  /** Cast (or withdraw) a vote to cancel an active challenge; all must agree. */
+  const voteCancel = useCallback(
+    async (challengeId: string, agree: boolean) => {
+      const { error } = await supabase.rpc("vote_cancel_challenge", { p_challenge: challengeId, p_agree: agree });
+      if (error) throw error;
+      await fetchChallenges();
+    },
+    [fetchChallenges],
+  );
+
   const getLeaderboard = useCallback(async (challengeId: string): Promise<LeaderboardRow[]> => {
     const { data, error } = await supabase.rpc("challenge_leaderboard", { p_challenge: challengeId });
     if (error) return [];
@@ -219,6 +230,7 @@ export function useChallenge() {
     create,
     respond,
     cancel,
+    voteCancel,
     getLeaderboard,
     markCompleted,
     markResultsSeen,
