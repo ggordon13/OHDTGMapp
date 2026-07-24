@@ -30,6 +30,12 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
   const raw = await req.text();
+
+  // TEMP DEBUG — remove once wired. Logs Whop's headers + body so we can read the
+  // real signature header name and payload field names from the function logs.
+  console.log("WHOP HEADERS:", JSON.stringify(Object.fromEntries(req.headers.entries())));
+  console.log("WHOP BODY:", raw);
+
   // TODO: confirm the signature header Whop sends (e.g. "x-whop-signature").
   const signature = req.headers.get("x-whop-signature") ?? "";
   if (!(await verifyWhopSignature(raw, signature, WEBHOOK_SECRET))) {
