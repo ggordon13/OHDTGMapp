@@ -368,6 +368,14 @@ export type Database = {
         Args: { identifier: string }
         Returns: string
       }
+      resolve_challenge_invitee: {
+        Args: { identifier: string }
+        Returns: {
+          user_id: string
+          username: string | null
+          is_premium: boolean
+        }[]
+      }
       challenge_members: {
         Args: { p_challenge: string }
         Returns: {
@@ -377,6 +385,7 @@ export type Database = {
           is_leader: boolean
           joined_at: string | null
           wants_cancel: boolean
+          is_premium: boolean
         }[]
       }
       vote_cancel_challenge: {

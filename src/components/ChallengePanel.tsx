@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Swords, Crown, Check, X, UserPlus, Trash2, Loader2, CalendarDays, Trophy, Users } from "lucide-react";
+import { Swords, Crown, Check, X, UserPlus, Trash2, Loader2, CalendarDays, Trophy, Users, AlertTriangle, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import {
   useChallenge,
   type AwardKey,
@@ -10,6 +11,7 @@ import {
   type ChallengeMember,
   type CreateChallengeInput,
   type LeaderboardRow,
+  type ResolvedInvitee,
 } from "@/hooks/useChallenge";
 import GamePanel from "@/components/game/GamePanel";
 import GameButton from "@/components/game/GameButton";
@@ -90,19 +92,24 @@ interface Invitee {
   id: string;
   identifier: string;
   userId: string | null;
+  /** null until resolved; false = free tier (makes the challenge non-cancellable). */
+  isPremium: boolean | null;
   status: "idle" | "checking" | "found" | "notfound" | "self";
 }
 
-const newInvitee = (): Invitee => ({ id: crypto.randomUUID(), identifier: "", userId: null, status: "idle" });
+const newInvitee = (): Invitee => ({ id: crypto.randomUUID(), identifier: "", userId: null, isPremium: null, status: "idle" });
 
 interface CreateFormProps {
   create: (input: CreateChallengeInput) => Promise<void>;
-  resolveUser: (identifier: string) => Promise<string | null>;
+  resolveInvitee: (identifier: string) => Promise<ResolvedInvitee | null>;
   onCreated: () => void;
 }
 
-const CreateForm = ({ create, resolveUser, onCreated }: CreateFormProps) => {
+const CreateForm = ({ create, resolveInvitee, onCreated }: CreateFormProps) => {
   const { user } = useAuth();
+  const { profile } = useProfile();
+  const leaderIsPremium =
+    profile?.access_level === "premium" || profile?.role === "admin" || profile?.role === "dev";
   const [mode, setMode] = useState<ChallengeMode>("partner");
   const [invitees, setInvitees] = useState<Invitee[]>([newInvitee()]);
   const [startDate, setStartDate] = useState(formatDateInputValue());
@@ -118,15 +125,20 @@ const CreateForm = ({ create, resolveUser, onCreated }: CreateFormProps) => {
     const inv = invitees[index];
     const identifier = inv.identifier.trim();
     if (!identifier) {
-      setInvitees((l) => l.map((v, i) => (i === index ? { ...v, status: "idle", userId: null } : v)));
+      setInvitees((l) => l.map((v, i) => (i === index ? { ...v, status: "idle", userId: null, isPremium: null } : v)));
       return;
     }
     setInvitees((l) => l.map((v, i) => (i === index ? { ...v, status: "checking" } : v)));
-    const userId = await resolveUser(identifier);
+    const res = await resolveInvitee(identifier);
     setInvitees((l) =>
       l.map((v, i) =>
         i === index
-          ? { ...v, userId, status: !userId ? "notfound" : userId === user?.id ? "self" : "found" }
+          ? {
+              ...v,
+              userId: res?.userId ?? null,
+              isPremium: res?.isPremium ?? null,
+              status: !res ? "notfound" : res.userId === user?.id ? "self" : "found",
+            }
           : v,
       ),
     );
@@ -139,6 +151,11 @@ const CreateForm = ({ create, resolveUser, onCreated }: CreateFormProps) => {
   const countOk = mode === "partner" ? filled.length === 1 : filled.length >= 1 && filled.length <= 5;
   const dateOk = startDate >= formatDateInputValue();
   const canSubmit = allFound && noDupes && countOk && dateOk && !submitting;
+
+  // A roster with any free member is locked to the full 30 days (can't be
+  // cancelled) — warn the leader up front. True if the leader is free, or any
+  // resolved invitee is free.
+  const anyFreeMember = !leaderIsPremium || filled.some((i) => i.status === "found" && i.isPremium === false);
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -202,7 +219,7 @@ const CreateForm = ({ create, resolveUser, onCreated }: CreateFormProps) => {
               <Input
                 value={inv.identifier}
                 onChange={(e) =>
-                  setInvitees((l) => l.map((v, idx) => (idx === i ? { ...v, identifier: e.target.value, status: "idle", userId: null } : v)))
+                  setInvitees((l) => l.map((v, idx) => (idx === i ? { ...v, identifier: e.target.value, status: "idle", userId: null, isPremium: null } : v)))
                 }
                 onBlur={() => void resolve(i)}
                 placeholder="username or email"
@@ -291,6 +308,16 @@ const CreateForm = ({ create, resolveUser, onCreated }: CreateFormProps) => {
           </div>
         )}
       </div>
+
+      {anyFreeMember && (
+        <div className="flex items-start gap-2.5 rounded-xl border-2 border-[hsl(40,70%,45%)] bg-[hsl(45,82%,88%)] p-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(30,80%,42%)]" />
+          <p className="text-xs font-bold leading-relaxed text-[hsl(30,55%,30%)]">
+            Heads up: this challenge includes a free-plan member, so it <strong>can't be cancelled</strong> once it
+            starts — everyone commits to all 30 days. Upgrade all members to Premium if you want the option to cancel.
+          </p>
+        </div>
+      )}
 
       <GameButton color="navy" size="lg" className="w-full" disabled={!canSubmit} onClick={handleSubmit}>
         {submitting ? "Creating…" : "Start Challenge"}
@@ -435,6 +462,8 @@ const CurrentView = ({
   const wantsCancel = accepted.filter((m) => m.wants_cancel);
   const iWantCancel = accepted.some((m) => m.user_id === user?.id && m.wants_cancel);
   const cancelInProgress = wantsCancel.length > 0;
+  // A challenge with any free member is locked to the full 30 days (anti-cheat).
+  const nonCancellable = accepted.some((m) => !m.is_premium);
 
   useEffect(() => {
     if (!started) return;
@@ -500,6 +529,13 @@ const CurrentView = ({
         <GameButton color="navy" size="sm" className="w-full" onClick={onStartNew}>
           Start a new challenge
         </GameButton>
+      ) : nonCancellable ? (
+        <div className="flex items-start gap-2 rounded-lg border-2 border-[hsl(40,70%,45%)]/50 bg-[hsl(45,82%,88%)] px-3 py-2">
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[hsl(30,80%,42%)]" />
+          <span className="text-xs font-bold leading-relaxed text-[hsl(30,55%,30%)]">
+            Locked in — a member is on the free plan, so this challenge can't be cancelled. Finish all 30 days! 💪
+          </span>
+        </div>
       ) : (
         <div className="border-t border-[hsl(33,28%,72%)] pt-2">
           {cancelInProgress ? (
@@ -546,7 +582,7 @@ const CurrentView = ({
 // ---------------------------------------------------------------------------
 
 const ChallengePanel = ({ challenge }: { challenge: ReturnType<typeof useChallenge> }) => {
-  const { current, invites, loading, create, resolveUser, respond, voteCancel, getLeaderboard } = challenge;
+  const { current, invites, loading, create, resolveInvitee, respond, voteCancel, getLeaderboard } = challenge;
   const [startingNew, setStartingNew] = useState(false);
 
   const showCreate = startingNew || (!current && invites.length === 0);
@@ -556,7 +592,7 @@ const ChallengePanel = ({ challenge }: { challenge: ReturnType<typeof useChallen
       {loading ? (
         <p className="py-6 text-center text-sm font-semibold text-muted-foreground">Loading…</p>
       ) : showCreate ? (
-        <CreateForm create={create} resolveUser={resolveUser} onCreated={() => setStartingNew(false)} />
+        <CreateForm create={create} resolveInvitee={resolveInvitee} onCreated={() => setStartingNew(false)} />
       ) : current ? (
         <CurrentView view={current} voteCancel={voteCancel} getLeaderboard={getLeaderboard} onStartNew={() => setStartingNew(true)} />
       ) : (
