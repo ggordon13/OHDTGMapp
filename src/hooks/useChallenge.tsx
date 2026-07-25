@@ -23,6 +23,15 @@ export interface ChallengeMember {
   is_leader: boolean;
   joined_at: string | null;
   wants_cancel: boolean;
+  /** Premium tier — a roster with any free member is locked (non-cancellable). */
+  is_premium: boolean;
+}
+
+/** An invitee resolved from a username/email: their id, nickname, and tier. */
+export interface ResolvedInvitee {
+  userId: string;
+  username: string | null;
+  isPremium: boolean;
 }
 
 export interface ChallengeReward {
@@ -142,11 +151,17 @@ export function useChallenge() {
     void fetchChallenges();
   }, [fetchChallenges]);
 
-  /** Resolve an invitee identifier (username or email) to a user id, or null. */
-  const resolveUser = useCallback(async (identifier: string): Promise<string | null> => {
-    const { data, error } = await supabase.rpc("resolve_challenge_user", { identifier });
+  /**
+   * Resolve an invitee identifier (username or email) to their id, nickname, and
+   * premium tier, or null if no such user. The tier drives the create-form
+   * warning: a challenge with any free member can't be cancelled.
+   */
+  const resolveInvitee = useCallback(async (identifier: string): Promise<ResolvedInvitee | null> => {
+    const { data, error } = await supabase.rpc("resolve_challenge_invitee", { identifier });
     if (error) return null;
-    return (data as string | null) ?? null;
+    const row = (data ?? [])[0];
+    if (!row) return null;
+    return { userId: row.user_id, username: row.username, isPremium: row.is_premium };
   }, []);
 
   const create = useCallback(
@@ -226,7 +241,7 @@ export function useChallenge() {
     invites,
     loading,
     refetch: fetchChallenges,
-    resolveUser,
+    resolveInvitee,
     create,
     respond,
     cancel,
