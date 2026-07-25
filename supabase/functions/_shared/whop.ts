@@ -55,6 +55,26 @@ export async function getPayment(apiKey: string, paymentId: string): Promise<Who
 }
 
 /**
+ * Best-effort lookup of a buyer's email from a Whop user id, for payment
+ * payloads that carry only the id. Returns null if no known endpoint answers —
+ * the caller then falls back to whatever the payload had.
+ */
+export async function fetchWhopUserEmail(apiKey: string, userId: string): Promise<string | null> {
+  for (const path of [`/v5/users/${userId}`, `/v2/users/${userId}`]) {
+    try {
+      const res = await whopFetch(path, apiKey);
+      if (!res.ok) continue;
+      const body = await res.json();
+      const email = (body?.email ?? body?.data?.email ?? "").toString().trim().toLowerCase();
+      if (email.includes("@")) return email;
+    } catch (err) {
+      console.error(`Whop user lookup failed for ${path}`, err);
+    }
+  }
+  return null;
+}
+
+/**
  * Verify a Whop webhook using the Standard Webhooks (Svix) scheme, confirmed
  * from real Whop headers: webhook-id / webhook-timestamp / webhook-signature.
  *

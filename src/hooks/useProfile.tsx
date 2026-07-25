@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveEffectiveAccessLevel } from "@/lib/access";
 import { requiresProfileSetup } from "@/lib/profile";
+import { clearPendingWhopCheckout, hasPendingWhopCheckout } from "@/lib/whop";
 import { useAuth } from "./useAuth";
+
+/** How long to keep checking for premium after a user returns from Whop. */
+const CHECKOUT_POLL_INTERVAL_MS = 5000;
+const CHECKOUT_POLL_ATTEMPTS = 24;
 
 export interface UserProfile {
   display_name: string | null;
@@ -103,6 +109,38 @@ export function useProfile() {
         void fetchProfile();
       });
   }, [fetchProfile, user?.email, user?.id]);
+
+  // Coming back from a Whop checkout, premium arrives via the webhook a moment
+  // later. Poll (and re-check on tab focus) so the upgrade lands without a reload.
+  useEffect(() => {
+    if (!user?.id || !hasPendingWhopCheckout()) return;
+
+    if (profile?.access_level === "premium") {
+      if (clearPendingWhopCheckout()) toast.success("Premium unlocked. Welcome in! 👑");
+      return;
+    }
+
+    let attempts = 0;
+    const interval = window.setInterval(() => {
+      attempts += 1;
+      if (attempts > CHECKOUT_POLL_ATTEMPTS) {
+        clearPendingWhopCheckout();
+        window.clearInterval(interval);
+        return;
+      }
+      void fetchProfile();
+    }, CHECKOUT_POLL_INTERVAL_MS);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void fetchProfile();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [fetchProfile, profile?.access_level, user?.id]);
 
   const isProfileComplete = !requiresProfileSetup(profile);
 
