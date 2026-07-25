@@ -28,7 +28,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 // Printed on every cold start: proves which build is live and what env it sees.
 console.log(
-  `whop-webhook boot: build=2026-07-25-draftguard secret=${WEBHOOK_SECRET ? `set(len ${WEBHOOK_SECRET.length}, prefix ${WEBHOOK_SECRET.slice(0, 3)})` : "MISSING"} allowUnverified=${ALLOW_UNVERIFIED}`,
+  `whop-webhook boot: build=2026-07-25-buyerlog secret=${WEBHOOK_SECRET ? `set(len ${WEBHOOK_SECRET.length}, prefix ${WEBHOOK_SECRET.slice(0, 3)})` : "MISSING"} allowUnverified=${ALLOW_UNVERIFIED}`,
 );
 
 // deno-lint-ignore no-explicit-any
@@ -306,6 +306,14 @@ Deno.serve(async (req) => {
   }
   // A tagged account's own email is what the allowlist should key on.
   if (!email && profile?.email) email = profile.email.trim().toLowerCase();
+
+  // Whether the buyer resolved to an app account is the thing you actually want
+  // to know from the logs when someone says "I paid but I'm still free".
+  console.log(
+    profile
+      ? `whop buyer matched app user ${profile.user_id}`
+      : `whop buyer has no app account yet — allowlisting ${email || "(no email!)"} so signup grants it`,
+  );
 
   if (succeeded) {
     if (email) {

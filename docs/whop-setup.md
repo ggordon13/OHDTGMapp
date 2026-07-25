@@ -143,12 +143,14 @@ update public.profiles set access_level = 'free' where email = 'test@example.com
 
 ## Notes and limits
 
-**Buying with a different email than the app account** leaves the webhook with
-nothing to match on. It logs `whop payment succeeded with no email or app user`
-and an admin has to add the address in the Premium Access Manager. The checkout
-URL is tagged with `email` and `metadata[app_user_id]`, but a Whop *product page*
-(as opposed to a plan checkout link) may drop those params — the logs will show
-whether they survive.
+**Email is the only link between a buyer and an app account.** Confirmed on a
+real purchase (2026-07-25): the checkout URL is tagged with `email` and
+`metadata[app_user_id]`, but Whop's *product page* drops them — the webhook
+logged `appUserId=-`. So a buyer who pays with a different address than their app
+login won't be matched. The webhook still allowlists whatever email Whop reports,
+so premium activates if they later sign up with it; otherwise an admin adds the
+address in the Premium Access Manager. The log line `whop buyer matched app user
+…` / `whop buyer has no app account yet …` tells you which happened.
 
 **`WHOP_WEBHOOK_ALLOW_UNVERIFIED=true`** processes events even when the signature
 fails, so you can test the grant path before signatures work. While it's on,
