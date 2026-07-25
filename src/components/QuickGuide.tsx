@@ -85,22 +85,27 @@ const Callout = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-/** Small chapter ribbon shown atop each topic slide for context. */
-const Eyebrow = ({ icon: Icon, label, color }: { icon: LucideIcon; label: string; color: Tone }) => (
-  <span className={`game-banner ${bannerColor[color]} !rotate-0 mx-auto text-xs`}>
-    <Icon className="h-3.5 w-3.5" />
-    {label}
-  </span>
-);
+/** Which chapter a slide belongs to — rendered as a small ribbon in the header. */
+interface Chapter {
+  icon: LucideIcon;
+  label: string;
+  color: Tone;
+}
 
-/** One topic: a big medallion, title, and its points. Fronts each slide. */
+/**
+ * One topic: chapter ribbon, a big medallion, title, and its points — all in a
+ * single tight centered header so the ribbon reads as part of the card (not a
+ * disconnected pill floating above it). Fronts each slide.
+ */
 const Topic = ({
+  eyebrow,
   icon: Icon,
   title,
   hint,
   tone,
   children,
 }: {
+  eyebrow: Chapter;
   icon: LucideIcon;
   title: string;
   hint?: ReactNode;
@@ -108,11 +113,15 @@ const Topic = ({
   children: ReactNode;
 }) => (
   <div className="space-y-4">
-    <div className="flex flex-col items-center gap-2 text-center">
+    <div className="flex flex-col items-center gap-2.5 text-center">
+      <span className={`game-banner ${bannerColor[eyebrow.color]} !rotate-0 text-xs`}>
+        <eyebrow.icon className="h-3.5 w-3.5" />
+        {eyebrow.label}
+      </span>
       <span
-        className={`flex h-16 w-16 items-center justify-center rounded-2xl border-2 bg-gradient-to-b ${toneFace[tone]}`}
+        className={`-mt-0.5 flex h-14 w-14 items-center justify-center rounded-2xl border-2 bg-gradient-to-b ${toneFace[tone]}`}
       >
-        <Icon className="h-7 w-7" />
+        <Icon className="h-6 w-6" />
       </span>
       <p className="font-display text-2xl font-bold leading-tight text-card-foreground">{title}</p>
       {hint && <p className="text-xs font-semibold text-muted-foreground">{hint}</p>}
@@ -120,6 +129,11 @@ const Topic = ({
     <div className="space-y-3">{children}</div>
   </div>
 );
+
+/** The three chapters the topic slides are grouped under. */
+const CH_SYSTEM: Chapter = { icon: Wrench, label: "Develop the System", color: "red" };
+const CH_PROGRESS: Chapter = { icon: Trophy, label: "Celebrating Progress", color: "gold" };
+const CH_NOTES: Chapter = { icon: NotebookPen, label: "Additional Notes", color: "teal" };
 
 /** A single carousel slide: chapter ribbon + topic, on a tone-washed page. */
 interface Slide {
@@ -168,14 +182,13 @@ const slides: Slide[] = [
   {
     tone: "purple",
     content: (
-      <>
-        <Eyebrow icon={Wrench} label="Develop the System" color="red" />
-        <Topic
-          icon={Scale}
-          title="Track Weight Daily"
-          tone="purple"
-          hint="Recommended: a bathroom scale and a food weighing scale"
-        >
+      <Topic
+        eyebrow={CH_SYSTEM}
+        icon={Scale}
+        title="Track Weight Daily"
+        tone="purple"
+        hint="Recommended: a bathroom scale and a food weighing scale"
+      >
           <ul className="space-y-2.5">
             <Bullet>
               <Em>For accurate tracking:</Em> weigh yourself every morning <Em>before</Em> your first food intake and{" "}
@@ -186,20 +199,18 @@ const slides: Slide[] = [
               up to you — <Em>for example</Em>, first intake <Chip>12:00 PM</Chip>, last intake <Chip>8:00 PM</Chip>.
             </Bullet>
           </ul>
-        </Topic>
-      </>
+      </Topic>
     ),
   },
   {
     tone: "leaf",
     content: (
-      <>
-        <Eyebrow icon={Wrench} label="Develop the System" color="red" />
-        <Topic
-          icon={Utensils}
-          title="Food & Drink Tracking"
-          tone="leaf"
-          hint={
+      <Topic
+        eyebrow={CH_SYSTEM}
+        icon={Utensils}
+        title="Food & Drink Tracking"
+        tone="leaf"
+        hint={
             <a
               href="https://www.myfitnesspal.com/"
               target="_blank"
@@ -225,16 +236,13 @@ const slides: Slide[] = [
             If your calorie average gives you <strong>headaches, don't push through it.</strong> Adjust your target right
             away — this usually hits people aiming at the minimum, so move nearer the <strong>maximum</strong>.
           </Callout>
-        </Topic>
-      </>
+      </Topic>
     ),
   },
   {
     tone: "teal",
     content: (
-      <>
-        <Eyebrow icon={Wrench} label="Develop the System" color="red" />
-        <Topic icon={Footprints} title="Activity Tracking" tone="teal" hint="Strava or Hevy work well for this">
+      <Topic eyebrow={CH_SYSTEM} icon={Footprints} title="Activity Tracking" tone="teal" hint="Strava or Hevy work well for this">
           <ul className="space-y-2.5">
             <Bullet>
               Your daily step goal comes from your activity level. Hit it especially on days you go over your maximum
@@ -244,21 +252,19 @@ const slides: Slide[] = [
               Strength training or sports <Em>at least once a week</Em> — it builds muscle and prevents muscle loss.
             </Bullet>
           </ul>
-        </Topic>
-      </>
+      </Topic>
     ),
   },
   {
     tone: "red",
     content: (
-      <>
-        <Eyebrow icon={Wrench} label="Develop the System" color="red" />
-        <Topic
-          icon={TrendingDown}
-          title="Scale not going down?"
-          tone="red"
-          hint="Common causes besides eating over your calories"
-        >
+      <Topic
+        eyebrow={CH_SYSTEM}
+        icon={TrendingDown}
+        title="Scale not going down?"
+        tone="red"
+        hint="Common causes besides eating over your calories"
+      >
           <div className="flex flex-wrap justify-center gap-1.5">
             {["Sodium / carbs / alcohol", "No restroom before weigh-in", "Water retention", "Stress (cortisol)", "Menstrual cycle", "Low thyroid", "Lack of sleep"].map((r) => (
               <span
@@ -275,8 +281,7 @@ const slides: Slide[] = [
               <Em>Weekly averages</Em> matter far more than any single day.
             </Bullet>
           </ul>
-        </Topic>
-      </>
+      </Topic>
     ),
   },
 
@@ -284,9 +289,7 @@ const slides: Slide[] = [
   {
     tone: "gold",
     content: (
-      <>
-        <Eyebrow icon={Trophy} label="Celebrating Progress" color="gold" />
-        <Topic icon={Star} title="What counts as a successful week" tone="gold">
+      <Topic eyebrow={CH_PROGRESS} icon={Star} title="What counts as a successful week" tone="gold">
           <div className="space-y-2.5">
             <div className="rounded-xl border-2 border-[hsl(70,45%,45%)] bg-[hsl(70,40%,88%)] p-3">
               <p className="font-display text-xs font-bold uppercase tracking-wide text-[hsl(70,45%,30%)]">Option 1</p>
@@ -302,22 +305,18 @@ const slides: Slide[] = [
               </p>
             </div>
           </div>
-        </Topic>
-      </>
+      </Topic>
     ),
   },
   {
     tone: "purple",
     content: (
-      <>
-        <Eyebrow icon={Trophy} label="Celebrating Progress" color="gold" />
-        <Topic icon={Gift} title="Reward System" tone="purple" hint="Coming soon">
+      <Topic eyebrow={CH_PROGRESS} icon={Gift} title="Reward System" tone="purple" hint="Coming soon">
           <ul className="space-y-2.5">
             <Bullet>Set a custom reward for every badge you earn.</Bullet>
             <Bullet>You decide what you get or buy yourself for each milestone you hit.</Bullet>
           </ul>
-        </Topic>
-      </>
+      </Topic>
     ),
   },
 
@@ -325,9 +324,7 @@ const slides: Slide[] = [
   {
     tone: "leaf",
     content: (
-      <>
-        <Eyebrow icon={NotebookPen} label="Additional Notes" color="teal" />
-        <Topic icon={Salad} title="Eating smart" tone="leaf">
+      <Topic eyebrow={CH_NOTES} icon={Salad} title="Eating smart" tone="leaf">
           <ul className="space-y-2.5">
             <Bullet>
               <Em>Avoid liquid calories.</Em> Zero-calorie sodas (Coke Zero, Pepsi Max, Rite'n Lite) or plain water are
@@ -343,16 +340,13 @@ const slides: Slide[] = [
             </Bullet>
             <Bullet>Carbs and fats aren't logged here, but understanding your macros still helps.</Bullet>
           </ul>
-        </Topic>
-      </>
+      </Topic>
     ),
   },
   {
     tone: "red",
     content: (
-      <>
-        <Eyebrow icon={NotebookPen} label="Additional Notes" color="teal" />
-        <Topic icon={HeartHandshake} title="Mindset & motivation" tone="red">
+      <Topic eyebrow={CH_NOTES} icon={HeartHandshake} title="Mindset & motivation" tone="red">
           <ul className="space-y-2.5">
             <Bullet>Use the charts to see your progress and stay motivated.</Bullet>
             <Bullet>
@@ -363,8 +357,7 @@ const slides: Slide[] = [
               This tracker works best with an <Em>accountability partner or group</Em> — reach out and team up!
             </Bullet>
           </ul>
-        </Topic>
-      </>
+      </Topic>
     ),
   },
 
