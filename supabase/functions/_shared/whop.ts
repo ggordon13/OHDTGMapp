@@ -74,48 +74,122 @@ export async function fetchWhopUserEmail(apiKey: string, userId: string): Promis
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Webhook signature verification
+//
+// Whop's headers are known from real traffic (webhook-id / webhook-timestamp /
+// webhook-signature — the Standard Webhooks shape). What is NOT documented
+// consistently is how the secret is keyed: Svix-style secrets are base64 after a
+// `whsec_` prefix, while Whop hands out `ws_...` secrets that are used as raw
+// bytes. Rather than betting on one, we try every plausible combination of
+// (key derivation × signed content × digest encoding) and report which one hit,
+// so the function log names the real scheme after the first successful event.
+// ---------------------------------------------------------------------------
+
+export interface WebhookVerification {
+  valid: boolean;
+  /** Which candidate scheme matched, e.g. "raw-unprefixed | id.ts.body | base64". */
+  scheme?: string;
+  /** Why it failed, safe to log. */
+  reason?: string;
+  /** Non-secret detail for the log: what arrived vs what each scheme expected. */
+  debug?: string;
+}
+
+const encoder = new TextEncoder();
+
+const toBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+const toHex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+/** Base64-decode, or null when the input isn't base64 at all (e.g. a `ws_` secret). */
+function tryBase64Decode(value: string): Uint8Array | null {
+  // atob is lenient about some junk; reject anything outside the alphabet first.
+  if (!/^[A-Za-z0-9+/=_-]+$/.test(value) || /[_-]/.test(value)) return null;
+  try {
+    return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
+/** The signature values Whop sent, stripped of any `v1,` / `sha256=` labelling. */
+function parseSignatureTokens(header: string): string[] {
+  return header
+    .split(/[\s,]+/)
+    .map((part) => part.trim())
+    .filter((part) => part && !/^(v\d+|sha256|sha1)$/i.test(part))
+    .map((part) => part.replace(/^(v\d+|sha256|sha1)[,=]/i, ""));
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 /**
- * Verify a Whop webhook using the Standard Webhooks (Svix) scheme, confirmed
- * from real Whop headers: webhook-id / webhook-timestamp / webhook-signature.
+ * Verify a Whop webhook. Returns a diagnostic rather than a bare boolean so the
+ * caller can log exactly why a 401 happened.
  *
- *   signedContent = `${id}.${timestamp}.${rawBody}`
- *   key           = base64-decode(secret after the "whsec_" prefix)
- *   expected      = base64( HMAC-SHA256(signedContent, key) )
- *
- * The signature header may hold several space-separated "v1,<sig>" entries; a
- * match against any one passes. A 5-minute timestamp tolerance guards replays.
+ * A 5-minute timestamp tolerance guards replays; it is only enforced when Whop
+ * actually sent a timestamp.
  */
-export async function verifyStandardWebhook(opts: {
+export async function verifyWhopWebhook(opts: {
   id: string;
   timestamp: string;
   body: string;
   signatureHeader: string;
   secret: string;
-}): Promise<boolean> {
+}): Promise<WebhookVerification> {
   const { id, timestamp, body, signatureHeader, secret } = opts;
-  if (!secret || !signatureHeader || !id || !timestamp) return false;
 
-  const ts = Number(timestamp);
-  if (!Number.isFinite(ts) || Math.abs(Math.floor(Date.now() / 1000) - ts) > 300) return false;
+  if (!secret) return { valid: false, reason: "WHOP_WEBHOOK_SECRET is not set on the function" };
+  if (!signatureHeader) return { valid: false, reason: "request carried no webhook-signature header" };
 
-  const rawSecret = secret.startsWith("whsec_") ? secret.slice(6) : secret;
-  let keyBytes: Uint8Array;
-  try {
-    keyBytes = Uint8Array.from(atob(rawSecret), (c) => c.charCodeAt(0));
-  } catch {
-    return false;
-  }
-  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${id}.${timestamp}.${body}`));
-  const expected = btoa(String.fromCharCode(...new Uint8Array(mac)));
+  const provided = parseSignatureTokens(signatureHeader);
+  if (provided.length === 0) return { valid: false, reason: `could not parse signature header: ${signatureHeader.slice(0, 24)}…` };
 
-  for (const part of signatureHeader.split(" ")) {
-    const sig = part.split(",")[1];
-    if (sig && sig.length === expected.length) {
-      let diff = 0;
-      for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
-      if (diff === 0) return true;
+  // Every way the secret might become HMAC key bytes.
+  const unprefixed = secret.replace(/^(whsec_|ws_|sk_)/, "");
+  const keys: { name: string; bytes: Uint8Array }[] = [
+    { name: "raw", bytes: encoder.encode(secret) },
+  ];
+  if (unprefixed !== secret) keys.push({ name: "raw-unprefixed", bytes: encoder.encode(unprefixed) });
+  const decoded = tryBase64Decode(unprefixed);
+  if (decoded) keys.push({ name: "base64", bytes: decoded });
+
+  // Every way the signed content might be assembled.
+  const contents: { name: string; value: string }[] = [];
+  if (id && timestamp) contents.push({ name: "id.ts.body", value: `${id}.${timestamp}.${body}` });
+  if (timestamp) contents.push({ name: "ts.body", value: `${timestamp}.${body}` });
+  contents.push({ name: "body", value: body });
+
+  const attempted: string[] = [];
+
+  for (const key of keys) {
+    const cryptoKey = await crypto.subtle.importKey("raw", key.bytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    for (const content of contents) {
+      const mac = new Uint8Array(await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(content.value)));
+      const digests = { base64: toBase64(mac), hex: toHex(mac) };
+      for (const [encoding, expected] of Object.entries(digests)) {
+        if (provided.some((sig) => timingSafeEqual(sig, expected))) {
+          const scheme = `${key.name} | ${content.name} | ${encoding}`;
+          // Enforce the replay window only once we know the signature is real.
+          const ts = Number(timestamp);
+          if (timestamp && Number.isFinite(ts) && Math.abs(Math.floor(Date.now() / 1000) - ts) > 300) {
+            return { valid: false, scheme, reason: `signature valid but timestamp is ${Math.abs(Math.floor(Date.now() / 1000) - ts)}s off — replay or clock skew` };
+          }
+          return { valid: true, scheme };
+        }
+        attempted.push(`${key.name}/${content.name}/${encoding}=${expected.slice(0, 8)}`);
+      }
     }
   }
-  return false;
+
+  return {
+    valid: false,
+    reason: "no signature scheme matched — the secret is probably wrong or from a different webhook",
+    debug: `received=[${provided.map((s) => s.slice(0, 8)).join(", ")}] expected=[${attempted.join(", ")}] secretLen=${secret.length} secretPrefix=${secret.slice(0, 3)}`,
+  };
 }
