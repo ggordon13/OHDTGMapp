@@ -1,0 +1,45 @@
+name: Deploy whop-webhook function
+
+# Pushing to GitHub deploys the frontend (Vercel) but NOT Supabase Edge
+# Functions — those only ship via the CLI or the Supabase dashboard editor.
+# This closes that gap so supabase/functions/** can't silently go stale.
+#
+# One-time setup: add a repo secret SUPABASE_ACCESS_TOKEN
+# (GitHub → Settings → Secrets and variables → Actions → New repository secret).
+# Generate the token at https://supabase.com/dashboard/account/tokens.
+# Until that secret exists every step skips and the run stays green.
+
+on:
+  push:
+    branches: [main, test]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/deploy-whop-webhook.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Job-level `if` can't read the secrets context, so promote it to env and
+    # gate each step on that instead.
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: fmvzcourofsnhhufurdt
+    steps:
+      - name: Warn when the deploy token is missing
+        if: env.SUPABASE_ACCESS_TOKEN == ''
+        run: echo "::warning::SUPABASE_ACCESS_TOKEN is not set — skipping the function deploy. See docs/whop-setup.md."
+
+      - uses: actions/checkout@v4
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+
+      - uses: supabase/setup-cli@v1
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        with:
+          version: latest
+
+      # JWT verification is off via supabase/config.toml (Whop calls this
+      # without a Supabase token), so no --no-verify-jwt flag is needed here.
+      - name: Deploy whop-webhook
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        run: supabase functions deploy whop-webhook --project-ref "$PROJECT_REF"

@@ -6,34 +6,30 @@
 // events revoke, if you subscribe to them (the dashboard is currently set to
 // payment_succeeded only, which is all the grant path needs).
 //
-// Deploy (webhooks are unauthenticated):
-//   npx supabase functions deploy whop-webhook --project-ref <ref> --no-verify-jwt
-// Secret (the whsec_ value Whop shows for the webhook):
-//   npx supabase secrets set WHOP_WEBHOOK_SECRET=whsec_xxx --project-ref <ref>
-//   npx supabase secrets set WHOP_API_KEY=...   # optional, used to look up a
-//                                               # buyer email when the payload
-//                                               # only carries a Whop user id.
+// Setup and troubleshooting: docs/whop-setup.md
 //
-// Debugging a 401 "Invalid signature": the log line "whop signature rejected"
-// says whether the secret is missing, unparseable, or simply doesn't match, and
-// prints the received vs expected signature prefixes. Setting
-// WHOP_WEBHOOK_ALLOW_UNVERIFIED=true processes events anyway — testing only.
-//
-// Verified against real Whop traffic: Standard Webhooks headers
-// (webhook-id / webhook-timestamp / webhook-signature) and a `type` +
-// `data.{...}` payload.
+// Deliberately ONE self-contained file with no local imports, so it can be
+// deployed either with the CLI or by pasting into the Supabase dashboard's
+// function editor. Keep it that way.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { fetchWhopUserEmail, verifyWhopWebhook } from "../_shared/whop.ts";
 
-const WEBHOOK_SECRET = Deno.env.get("WHOP_WEBHOOK_SECRET") ?? "";
+const WEBHOOK_SECRET = (Deno.env.get("WHOP_WEBHOOK_SECRET") ?? "").trim().replace(/^["']|["']$/g, "");
 // Escape hatch for wiring up: processes events even when the signature doesn't
 // verify. Anyone who finds the URL can then grant themselves premium — set it
 // only while testing, and unset it the moment signatures work.
-const ALLOW_UNVERIFIED = (Deno.env.get("WHOP_WEBHOOK_ALLOW_UNVERIFIED") ?? "").toLowerCase() === "true";
+// Quotes get included when the value is pasted into the dashboard, so strip them.
+const ALLOW_UNVERIFIED = ["true", "1", "yes"].includes(
+  (Deno.env.get("WHOP_WEBHOOK_ALLOW_UNVERIFIED") ?? "").trim().replace(/^["']|["']$/g, "").toLowerCase(),
+);
 const WHOP_API_KEY = Deno.env.get("WHOP_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+// Printed on every cold start: proves which build is live and what env it sees.
+console.log(
+  `whop-webhook boot: build=2026-07-25-draftguard secret=${WEBHOOK_SECRET ? `set(len ${WEBHOOK_SECRET.length}, prefix ${WEBHOOK_SECRET.slice(0, 3)})` : "MISSING"} allowUnverified=${ALLOW_UNVERIFIED}`,
+);
 
 // deno-lint-ignore no-explicit-any
 type Json = Record<string, any>;
@@ -45,6 +41,9 @@ const normalizeType = (value: string) => value.toLowerCase().replace(/[._\s]+/g,
 // A payment that actually went through / access that became valid.
 const SUCCESS_TYPES = ["payment.succeeded", "membership.went.valid"];
 const SUCCESS_STATUS = ["succeeded", "paid", "completed"];
+// Money hasn't actually moved. Whop's dashboard test event is a `payment.succeeded`
+// carrying status "draft", so the type alone is not enough to grant on.
+const UNPAID_STATUS = ["draft", "open", "pending", "failed", "void", "canceled", "cancelled", "expired"];
 // A reversal that should revoke access.
 const REVERSAL_TYPES = ["payment.refunded", "membership.went.invalid", "dispute.created"];
 
@@ -84,6 +83,157 @@ function extractAppUserId(data: Json): string | null {
   return null;
 }
 
+/** Best-effort buyer email from a Whop user id, for payloads that omit the email. */
+async function fetchWhopUserEmail(apiKey: string, userId: string): Promise<string> {
+  for (const path of [`/v5/users/${userId}`, `/v2/users/${userId}`]) {
+    try {
+      const res = await fetch(`https://api.whop.com${path}`, {
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      });
+      if (!res.ok) continue;
+      const body = await res.json();
+      const email = (body?.email ?? body?.data?.email ?? "").toString().trim().toLowerCase();
+      if (email.includes("@")) return email;
+    } catch (err) {
+      console.error(`whop user lookup failed for ${path}`, err);
+    }
+  }
+  return "";
+}
+
+// ---------------------------------------------------------------------------
+// Webhook signature verification
+//
+// CONFIRMED against real Whop traffic (2026-07-25): "raw | id.ts.body | base64"
+//
+//   key      = the WHOLE `ws_...` secret as raw UTF-8 bytes (prefix included)
+//   content  = `${webhook-id}.${webhook-timestamp}.${rawBody}`
+//   expected = base64( HMAC-SHA256(content, key) )
+//
+// Note the key is NOT base64-decoded — assuming the Svix `whsec_` convention
+// here is what made every earlier attempt 401.
+//
+// The other candidates below are kept as fallbacks in case Whop changes
+// convention; the confirmed one is tried first, so the common path is one HMAC.
+// The matching scheme is always logged, so a silent change stays visible.
+// ---------------------------------------------------------------------------
+
+interface WebhookVerification {
+  valid: boolean;
+  /** Which candidate matched, e.g. "raw-unprefixed | id.ts.body | base64". */
+  scheme?: string;
+  /** Why it failed, safe to log. */
+  reason?: string;
+  /** Non-secret detail: what arrived vs what each scheme expected. */
+  debug?: string;
+}
+
+const encoder = new TextEncoder();
+const toBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+const toHex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+/** Base64-decode, or null when the input isn't base64 at all (e.g. a `ws_` secret). */
+function tryBase64Decode(value: string): Uint8Array | null {
+  // atob tolerates some junk, so reject anything outside the alphabet first.
+  if (!/^[A-Za-z0-9+/=]+$/.test(value)) return null;
+  try {
+    return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
+/** Hex-decode, or null when the input isn't hex. Whop's `ws_` secrets are 64 hex chars. */
+function tryHexDecode(value: string): Uint8Array | null {
+  if (value.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(value)) return null;
+  const bytes = new Uint8Array(value.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16);
+  return bytes;
+}
+
+/** The signature values Whop sent, stripped of any `v1,` / `sha256=` labelling. */
+function parseSignatureTokens(header: string): string[] {
+  return header
+    .split(/[\s,]+/)
+    .map((part) => part.trim())
+    .filter((part) => part && !/^(v\d+|sha256|sha1)$/i.test(part))
+    .map((part) => part.replace(/^(v\d+|sha256|sha1)[,=]/i, ""));
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * Verify a Whop webhook. Returns a diagnostic rather than a bare boolean so a
+ * 401 can say why. The 5-minute replay window is only enforced once a signature
+ * actually matches, so clock skew doesn't look like a bad secret.
+ */
+async function verifyWhopWebhook(opts: {
+  id: string;
+  timestamp: string;
+  body: string;
+  signatureHeader: string;
+  secret: string;
+}): Promise<WebhookVerification> {
+  const { id, timestamp, body, signatureHeader, secret } = opts;
+
+  if (!secret) return { valid: false, reason: "WHOP_WEBHOOK_SECRET is not set on the function" };
+  if (!signatureHeader) return { valid: false, reason: "request carried no webhook-signature header" };
+
+  const provided = parseSignatureTokens(signatureHeader);
+  if (provided.length === 0) return { valid: false, reason: `could not parse signature header: ${signatureHeader.slice(0, 24)}…` };
+
+  // Every way the secret might become HMAC key bytes.
+  const unprefixed = secret.replace(/^(whsec_|ws_|sk_)/, "");
+  const keys: { name: string; bytes: Uint8Array }[] = [{ name: "raw", bytes: encoder.encode(secret) }];
+  if (unprefixed !== secret) keys.push({ name: "raw-unprefixed", bytes: encoder.encode(unprefixed) });
+  const base64Key = tryBase64Decode(unprefixed);
+  if (base64Key) keys.push({ name: "base64", bytes: base64Key });
+  const hexKey = tryHexDecode(unprefixed);
+  if (hexKey) keys.push({ name: "hex", bytes: hexKey });
+
+  // Every way the signed content might be assembled.
+  const contents: { name: string; value: string }[] = [];
+  if (id && timestamp) contents.push({ name: "id.ts.body", value: `${id}.${timestamp}.${body}` });
+  if (timestamp) contents.push({ name: "ts.body", value: `${timestamp}.${body}` });
+  contents.push({ name: "body", value: body });
+
+  const attempted: string[] = [];
+
+  for (const key of keys) {
+    // The copy pins the buffer type — importKey rejects a plain Uint8Array under
+    // TS 5.7's typed-array generics.
+    const cryptoKey = await crypto.subtle.importKey("raw", new Uint8Array(key.bytes), { name: "HMAC", hash: "SHA-256" }, false, [
+      "sign",
+    ]);
+    for (const content of contents) {
+      const mac = new Uint8Array(await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(content.value)));
+      for (const [encoding, expected] of Object.entries({ base64: toBase64(mac), hex: toHex(mac) })) {
+        if (provided.some((sig) => timingSafeEqual(sig, expected))) {
+          const scheme = `${key.name} | ${content.name} | ${encoding}`;
+          const ts = Number(timestamp);
+          const skew = Math.abs(Math.floor(Date.now() / 1000) - ts);
+          if (timestamp && Number.isFinite(ts) && skew > 300) {
+            return { valid: false, scheme, reason: `signature valid but timestamp is ${skew}s off — replay or clock skew` };
+          }
+          return { valid: true, scheme };
+        }
+        attempted.push(`${key.name}/${content.name}/${encoding}=${expected.slice(0, 8)}`);
+      }
+    }
+  }
+
+  return {
+    valid: false,
+    reason: "no signature scheme matched — the secret is probably wrong or from a different webhook",
+    debug: `received=[${provided.map((s) => s.slice(0, 8)).join(", ")}] expected=[${attempted.join(", ")}] secretLen=${secret.length} secretPrefix=${secret.slice(0, 3)}`,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
@@ -100,7 +250,10 @@ Deno.serve(async (req) => {
   if (verification.valid) {
     console.log(`whop signature ok (scheme: ${verification.scheme})`);
   } else {
-    console.error(`whop signature rejected: ${verification.reason}${verification.debug ? ` — ${verification.debug}` : ""}`);
+    console.error(
+      `whop signature rejected (allowUnverified=${ALLOW_UNVERIFIED}): ${verification.reason}` +
+        `${verification.debug ? ` — ${verification.debug}` : ""}`,
+    );
     console.error("whop headers:", JSON.stringify(Object.fromEntries(req.headers.entries())));
     if (!ALLOW_UNVERIFIED) return new Response("Invalid signature", { status: 401 });
     console.warn("WHOP_WEBHOOK_ALLOW_UNVERIFIED is on — processing an UNVERIFIED event. Unset this once signatures work.");
@@ -119,18 +272,21 @@ Deno.serve(async (req) => {
   const whopPaymentId: string | null = data.id ?? null;
   const appUserId = extractAppUserId(data);
 
-  const succeeded = SUCCESS_TYPES.includes(type) || SUCCESS_STATUS.includes(status);
+  // An unpaid status vetoes the type: a `payment.succeeded` carrying "draft" is
+  // Whop's test fixture, not money. A missing status still grants on type alone.
+  const unpaid = UNPAID_STATUS.includes(status);
+  const succeeded = (SUCCESS_TYPES.includes(type) || SUCCESS_STATUS.includes(status)) && !unpaid;
   const reversed = REVERSAL_TYPES.includes(type) || status === "refunded" || Boolean(data.refunded_at);
 
   let email = extractEmail(data);
   // Some payment payloads carry only a Whop user id; the API can resolve it.
   if (!email && succeeded && WHOP_API_KEY && data.user_id) {
-    email = (await fetchWhopUserEmail(WHOP_API_KEY, String(data.user_id))) ?? "";
+    email = await fetchWhopUserEmail(WHOP_API_KEY, String(data.user_id));
   }
 
+  const action = succeeded ? "grant" : reversed ? "revoke" : unpaid ? "ignore (unpaid status)" : "ignore";
   console.log(
-    `whop event type=${type} status=${status} email=${email || "-"} appUserId=${appUserId ?? "-"} → ` +
-      `${succeeded ? "grant" : reversed ? "revoke" : "ignore"}`,
+    `whop event type=${type} status=${status} email=${email || "-"} appUserId=${appUserId ?? "-"} → ${action}`,
   );
 
   if (!succeeded && !reversed) return new Response("ok", { status: 200 });
