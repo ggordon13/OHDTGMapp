@@ -16,42 +16,76 @@ export interface Payment {
   created_at: string;
 }
 
-export interface WhopPlan {
-  id: string;
-  label: string;
-  url: string;
+/** The single Whop product page "Get Premium" opens. Public, safe to expose. */
+const DEFAULT_CHECKOUT_URL = "https://whop.com/gglvlup/gglvlup-premium/";
+
+/** The configured checkout URL, or the default product page. */
+export function getWhopCheckoutUrl(): string {
+  const configured = (import.meta.env.VITE_WHOP_CHECKOUT_URL as string | undefined)?.trim();
+  return configured || DEFAULT_CHECKOUT_URL;
 }
 
 /**
- * The configured Whop checkout plans (public URLs, safe to expose). Supports a
- * Monthly + Yearly pair, and falls back to a single VITE_WHOP_CHECKOUT_URL.
- */
-export function getWhopPlans(): WhopPlan[] {
-  const monthly = import.meta.env.VITE_WHOP_CHECKOUT_URL_MONTHLY as string | undefined;
-  const yearly = import.meta.env.VITE_WHOP_CHECKOUT_URL_YEARLY as string | undefined;
-  const single = import.meta.env.VITE_WHOP_CHECKOUT_URL as string | undefined;
-
-  const plans: WhopPlan[] = [];
-  if (monthly) plans.push({ id: "monthly", label: "Monthly", url: monthly });
-  if (yearly) plans.push({ id: "yearly", label: "Yearly", url: yearly });
-  if (plans.length === 0 && single) plans.push({ id: "premium", label: "Premium", url: single });
-  return plans;
-}
-
-export function isWhopCheckoutConfigured(): boolean {
-  return getWhopPlans().length > 0;
-}
-
-/**
- * Send the user to a Whop hosted checkout, tagging it with their app email + id
+ * Send the user to Whop's hosted checkout, tagging it with their app email + id
  * so the webhook can link the resulting payment back to this account.
  *
- * NOTE: confirm the exact query params your Whop checkout link accepts for
- * email prefill and metadata — the names below are a starting point.
+ * The email tag is the reliable link: Whop's webhook carries the buyer's email,
+ * and the webhook grants premium to that address. Buying with a different email
+ * than the app account still needs an admin grant.
  */
-export function startWhopCheckout(checkoutUrl: string, opts: { email?: string | null; userId?: string | null }): void {
-  const url = new URL(checkoutUrl);
+export function startWhopCheckout(opts: { email?: string | null; userId?: string | null } = {}): void {
+  const url = new URL(getWhopCheckoutUrl());
   if (opts.email) url.searchParams.set("email", opts.email);
   if (opts.userId) url.searchParams.set("metadata[app_user_id]", opts.userId);
+  markWhopCheckoutStarted();
   window.location.href = url.toString();
+}
+
+// ---------------------------------------------------------------------------
+// "Came back from checkout" flag
+//
+// Payment is granted server-side by the webhook, which lands a moment after the
+// user returns. This flag tells the app to poll for the new access level rather
+// than make them reload.
+// ---------------------------------------------------------------------------
+
+const PENDING_KEY = "whop:checkout_started_at";
+/** How long a started checkout stays interesting. Beyond this, they didn't buy. */
+const PENDING_TTL_MS = 6 * 60 * 60 * 1000;
+
+export function markWhopCheckoutStarted(): void {
+  try {
+    localStorage.setItem(PENDING_KEY, String(Date.now()));
+  } catch {
+    // Storage can be unavailable (private mode); the flag is only an optimisation.
+  }
+}
+
+export function hasPendingWhopCheckout(): boolean {
+  try {
+    const startedAt = Number(localStorage.getItem(PENDING_KEY));
+    if (!Number.isFinite(startedAt) || startedAt <= 0) return false;
+    if (Date.now() - startedAt > PENDING_TTL_MS) {
+      clearPendingWhopCheckout();
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Clear the flag. Returns whether this call is the one that cleared it — several
+ * useProfile instances race to announce the upgrade, and only one should.
+ */
+export function clearPendingWhopCheckout(): boolean {
+  try {
+    const existed = localStorage.getItem(PENDING_KEY) !== null;
+    localStorage.removeItem(PENDING_KEY);
+    return existed;
+  } catch {
+    // See markWhopCheckoutStarted.
+    return false;
+  }
 }
