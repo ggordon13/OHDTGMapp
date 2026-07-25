@@ -14,14 +14,23 @@
 //                                               # buyer email when the payload
 //                                               # only carries a Whop user id.
 //
+// Debugging a 401 "Invalid signature": the log line "whop signature rejected"
+// says whether the secret is missing, unparseable, or simply doesn't match, and
+// prints the received vs expected signature prefixes. Setting
+// WHOP_WEBHOOK_ALLOW_UNVERIFIED=true processes events anyway — testing only.
+//
 // Verified against real Whop traffic: Standard Webhooks headers
 // (webhook-id / webhook-timestamp / webhook-signature) and a `type` +
 // `data.{...}` payload.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { fetchWhopUserEmail, verifyStandardWebhook } from "../_shared/whop.ts";
+import { fetchWhopUserEmail, verifyWhopWebhook } from "../_shared/whop.ts";
 
 const WEBHOOK_SECRET = Deno.env.get("WHOP_WEBHOOK_SECRET") ?? "";
+// Escape hatch for wiring up: processes events even when the signature doesn't
+// verify. Anyone who finds the URL can then grant themselves premium — set it
+// only while testing, and unset it the moment signatures work.
+const ALLOW_UNVERIFIED = (Deno.env.get("WHOP_WEBHOOK_ALLOW_UNVERIFIED") ?? "").toLowerCase() === "true";
 const WHOP_API_KEY = Deno.env.get("WHOP_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -79,14 +88,23 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
   const raw = await req.text();
-  const valid = await verifyStandardWebhook({
-    id: req.headers.get("webhook-id") ?? "",
-    timestamp: req.headers.get("webhook-timestamp") ?? "",
-    signatureHeader: req.headers.get("webhook-signature") ?? "",
+  const verification = await verifyWhopWebhook({
+    // Standard Webhooks names, with the x-whop-* aliases Whop also uses.
+    id: req.headers.get("webhook-id") ?? req.headers.get("x-whop-id") ?? "",
+    timestamp: req.headers.get("webhook-timestamp") ?? req.headers.get("x-whop-timestamp") ?? "",
+    signatureHeader: req.headers.get("webhook-signature") ?? req.headers.get("x-whop-signature") ?? "",
     body: raw,
     secret: WEBHOOK_SECRET,
   });
-  if (!valid) return new Response("Invalid signature", { status: 401 });
+
+  if (verification.valid) {
+    console.log(`whop signature ok (scheme: ${verification.scheme})`);
+  } else {
+    console.error(`whop signature rejected: ${verification.reason}${verification.debug ? ` — ${verification.debug}` : ""}`);
+    console.error("whop headers:", JSON.stringify(Object.fromEntries(req.headers.entries())));
+    if (!ALLOW_UNVERIFIED) return new Response("Invalid signature", { status: 401 });
+    console.warn("WHOP_WEBHOOK_ALLOW_UNVERIFIED is on — processing an UNVERIFIED event. Unset this once signatures work.");
+  }
 
   let event: Json;
   try {
