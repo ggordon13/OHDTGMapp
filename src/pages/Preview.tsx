@@ -125,6 +125,13 @@ const Preview = () => {
                 weeklyPeriod="week"
                 isClaimed={(p, k) => claims.has(`${p}::${k}`)}
                 onClaim={(q, p) => setClaims((prev) => new Set(prev).add(`${p}::${q.key}`))}
+                onClaimAll={(items) =>
+                  setClaims((prev) => {
+                    const n = new Set(prev);
+                    items.forEach(({ quest, period }) => n.add(`${period}::${quest.key}`));
+                    return n;
+                  })
+                }
                 claimingKey={claiming}
               />
             </div>

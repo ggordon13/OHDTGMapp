@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Swords, CalendarDays, Check, ChevronDown } from "lucide-react";
+import { Swords, CalendarDays, Check, ChevronDown, Sparkles } from "lucide-react";
 import { Quest } from "@/lib/gamification";
 import GamePanel from "@/components/game/GamePanel";
 import GameButton from "@/components/game/GameButton";
 import GameProgress from "@/components/game/GameProgress";
 import { xpFly, confettiBurst, shine, pop } from "@/lib/fx";
 import { cn } from "@/lib/utils";
+
+/** A completed, still-unclaimed quest paired with the period it belongs to. */
+export interface ClaimableItem {
+  quest: Quest;
+  period: string;
+}
 
 interface QuestBoardProps {
   dailyQuests: Quest[];
@@ -15,8 +21,41 @@ interface QuestBoardProps {
   weeklyPeriod: string;
   isClaimed: (period: string, questKey: string) => boolean;
   onClaim: (quest: Quest, period: string) => void;
+  onClaimAll: (items: ClaimableItem[]) => void;
   claimingKey: string | null;
 }
+
+/** Green "Claim all" button — claims every ready quest and rains confetti. */
+const ClaimAllButton = ({
+  items,
+  busy,
+  onClaimAll,
+  className,
+}: {
+  items: ClaimableItem[];
+  busy: boolean;
+  onClaimAll: (items: ClaimableItem[]) => void;
+  className?: string;
+}) => {
+  const ref = useRef<HTMLButtonElement>(null);
+  const totalXp = items.reduce((s, { quest }) => s + quest.xp, 0);
+
+  const handle = () => {
+    if (ref.current) {
+      const xpTarget = document.querySelector('[data-fx="xp-target"]');
+      confettiBurst(ref.current, 26);
+      xpFly(ref.current, xpTarget, totalXp);
+    }
+    onClaimAll(items);
+  };
+
+  return (
+    <GameButton ref={ref} color="leaf" size="sm" disabled={busy} onClick={handle} className={className}>
+      <Sparkles className="h-4 w-4" />
+      {busy ? "Claiming…" : `Claim all · +${totalXp}`}
+    </GameButton>
+  );
+};
 
 const QuestRow = ({
   quest,
@@ -113,6 +152,7 @@ const QuestBoard = ({
   weeklyPeriod,
   isClaimed,
   onClaim,
+  onClaimAll,
   claimingKey,
 }: QuestBoardProps) => {
   // Default to collapsed on smaller screens (below the lg breakpoint).
@@ -123,10 +163,14 @@ const QuestBoard = ({
   const dailyDone = dailyQuests.filter((q) => isClaimed(dailyPeriod, q.key)).length;
   const weeklyDone = weeklyQuests.filter((q) => isClaimed(weeklyPeriod, q.key)).length;
 
-  // Quests finished but not yet claimed — the reason the collapsed bar glows.
-  const claimable =
-    dailyQuests.filter((q) => q.completed && !isClaimed(dailyPeriod, q.key)).length +
-    weeklyQuests.filter((q) => q.completed && !isClaimed(weeklyPeriod, q.key)).length;
+  // Quests finished but not yet claimed — the reason the collapsed bar glows,
+  // and exactly what "Claim all" will bank.
+  const claimableItems: ClaimableItem[] = [
+    ...dailyQuests.filter((q) => q.completed && !isClaimed(dailyPeriod, q.key)).map((q) => ({ quest: q, period: dailyPeriod })),
+    ...weeklyQuests.filter((q) => q.completed && !isClaimed(weeklyPeriod, q.key)).map((q) => ({ quest: q, period: weeklyPeriod })),
+  ];
+  const claimable = claimableItems.length;
+  const claimingAll = claimingKey === "__all__";
 
   return (
     <GamePanel
@@ -138,26 +182,32 @@ const QuestBoard = ({
       collapsed={collapsed}
     >
       {/* Collapsed: a wide, centered bar filling the panel; glows when there's
-          something to claim. It doubles as the expand control. */}
+          something to claim. It doubles as the expand control. When there's
+          something ready, a "Claim all" button sits beside it. */}
       {collapsed && (
-        <button
-          type="button"
-          onClick={() => setCollapsed(false)}
-          aria-expanded={false}
-          className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[hsl(6,55%,30%)] bg-gradient-to-b from-[hsl(6,70%,62%)] to-[hsl(6,62%,50%)] px-4 py-2.5 font-display text-sm font-bold uppercase tracking-widest text-white [text-shadow:0_1.5px_0_rgba(0,0,0,0.3)] shadow-[0_3px_0_hsl(6,55%,30%)] transition hover:brightness-110 active:translate-y-[2px] active:shadow-[0_1px_0_hsl(6,55%,30%)]",
-            claimable > 0 && "animate-banner-glow",
-          )}
-        >
-          <Swords className="h-4 w-4" />
-          Quests
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            aria-expanded={false}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[hsl(6,55%,30%)] bg-gradient-to-b from-[hsl(6,70%,62%)] to-[hsl(6,62%,50%)] px-4 py-2.5 font-display text-sm font-bold uppercase tracking-widest text-white [text-shadow:0_1.5px_0_rgba(0,0,0,0.3)] shadow-[0_3px_0_hsl(6,55%,30%)] transition hover:brightness-110 active:translate-y-[2px] active:shadow-[0_1px_0_hsl(6,55%,30%)]",
+              claimable > 0 && "animate-banner-glow",
+            )}
+          >
+            <Swords className="h-4 w-4" />
+            Quests
+            {claimable > 0 && (
+              <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-[hsl(6,62%,45%)]">
+                {claimable} to claim
+              </span>
+            )}
+            <ChevronDown className="h-4 w-4 -rotate-90" strokeWidth={3} />
+          </button>
           {claimable > 0 && (
-            <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-[hsl(6,62%,45%)]">
-              {claimable} to claim
-            </span>
+            <ClaimAllButton items={claimableItems} busy={claimingAll} onClaimAll={onClaimAll} className="shrink-0" />
           )}
-          <ChevronDown className="h-4 w-4 -rotate-90" strokeWidth={3} />
-        </button>
+        </div>
       )}
 
       <AnimatePresence initial={false}>
@@ -171,6 +221,15 @@ const QuestBoard = ({
             className="overflow-hidden"
           >
             <div className="space-y-5">
+              {claimable > 0 && (
+                <div className="flex items-center justify-between gap-2 rounded-xl border-2 border-[hsl(84,45%,32%)]/45 bg-[hsl(84,40%,90%)]/60 px-3 py-2">
+                  <span className="font-display text-xs font-bold text-[hsl(84,45%,26%)]">
+                    {claimable} quest{claimable === 1 ? "" : "s"} ready
+                  </span>
+                  <ClaimAllButton items={claimableItems} busy={claimingAll} onClaimAll={onClaimAll} />
+                </div>
+              )}
+
               <div className="space-y-2">
                 <SectionLabel label="Daily" done={dailyDone} total={dailyQuests.length} />
                 <div className="space-y-2.5">
