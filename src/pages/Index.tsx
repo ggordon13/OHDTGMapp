@@ -119,6 +119,7 @@ const Index = () => {
     shields,
     isClaimed,
     claimQuest,
+    claimAll,
     claimingKey,
     badges,
     celebrateMilestone,
@@ -592,6 +593,7 @@ const Index = () => {
                 weeklyPeriod={weeklyPeriod}
                 isClaimed={isClaimed}
                 onClaim={claimQuest}
+                onClaimAll={claimAll}
                 claimingKey={claimingKey}
               />
             </div>

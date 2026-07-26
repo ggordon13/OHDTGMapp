@@ -372,21 +372,70 @@ const InviteCard = ({ view, respond }: { view: ChallengeView; respond: (id: stri
   );
 };
 
-const Leaderboard = ({ rows }: { rows: LeaderboardRow[] }) => (
+/** Rank badge: medals for the top three, plain numbers after. */
+const rankBadge = (i: number) => ["🥇", "🥈", "🥉"][i] ?? `${i + 1}`;
+
+/** One ranked list, headed by its title + a one-line explanation of the metric. */
+const RankBlock = ({
+  title,
+  caption,
+  rows,
+  value,
+  valueClass,
+}: {
+  title: string;
+  caption: string;
+  rows: LeaderboardRow[];
+  value: (r: LeaderboardRow) => string;
+  valueClass?: string;
+}) => (
   <div className="space-y-1.5">
-    <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(222,40%,42%)]">Leaderboard</p>
+    <div>
+      <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(222,40%,42%)]">{title}</p>
+      <p className="text-[10px] font-semibold leading-tight text-muted-foreground">{caption}</p>
+    </div>
     {rows.map((r, i) => (
       <div key={r.user_id} className="flex items-center gap-2 rounded-lg border border-[hsl(33,28%,72%)] bg-[hsl(40,48%,94%)] px-3 py-1.5">
-        <span className="w-5 shrink-0 text-center font-display text-sm font-bold text-[hsl(222,42%,50%)]">{i + 1}</span>
+        <span className="w-5 shrink-0 text-center font-display text-sm font-bold text-[hsl(222,42%,50%)]">{rankBadge(i)}</span>
         <span className="flex-1 truncate font-display text-sm font-bold text-card-foreground">{r.username ?? "(no nickname)"}</span>
-        <span className="shrink-0 text-xs font-bold text-[hsl(222,40%,42%)]">{r.xp_window} XP</span>
-        <span className="w-14 shrink-0 text-right text-xs font-bold text-[hsl(84,45%,32%)]">
-          {r.pct_weight_loss != null ? `${r.pct_weight_loss > 0 ? "-" : "+"}${Math.abs(r.pct_weight_loss)}%` : "—"}
-        </span>
+        <span className={cn("shrink-0 text-xs font-bold", valueClass ?? "text-[hsl(222,40%,42%)]")}>{value(r)}</span>
       </div>
     ))}
   </div>
 );
+
+/** Two independent rankings: one by challenge XP, one by % weight lost. */
+const Leaderboard = ({ rows }: { rows: LeaderboardRow[] }) => {
+  // The RPC already returns rows sorted by xp_window desc.
+  const byXp = rows;
+  // Re-rank by weight loss: higher % lost first, players without a % to the end.
+  const byLoss = [...rows].sort((a, b) => {
+    if (a.pct_weight_loss == null && b.pct_weight_loss == null) return 0;
+    if (a.pct_weight_loss == null) return 1;
+    if (b.pct_weight_loss == null) return -1;
+    return b.pct_weight_loss - a.pct_weight_loss;
+  });
+
+  return (
+    <div className="space-y-3">
+      <RankBlock
+        title="XP Leaderboard"
+        caption="Quest XP earned during the challenge"
+        rows={byXp}
+        value={(r) => `${r.xp_window} XP`}
+      />
+      <RankBlock
+        title="Weight-Loss Leaderboard"
+        caption="% weight change since Day 1"
+        rows={byLoss}
+        valueClass="text-[hsl(84,45%,32%)]"
+        value={(r) =>
+          r.pct_weight_loss != null ? `${r.pct_weight_loss > 0 ? "-" : "+"}${Math.abs(r.pct_weight_loss)}%` : "—"
+        }
+      />
+    </div>
+  );
+};
 
 const AwardsView = ({ view, rows, final }: { view: ChallengeView; rows: LeaderboardRow[]; final: boolean }) => {
   const rewardText = (key: AwardKey) => view.rewards.find((r) => r.award_key === key)?.reward_text || null;

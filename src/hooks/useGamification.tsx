@@ -134,6 +134,52 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
     [userId, claims, claimingKey, awardXp],
   );
 
+  // Claim every completed-but-unclaimed quest in one shot (daily + weekly). One
+  // batch insert + one XP award, so the level-up celebration fires once for the
+  // combined total. Guarded by claimingKey like single claims.
+  const claimAll = useCallback(
+    async (items: { quest: Quest; period: string }[]) => {
+      if (!userId || claimingKey) return;
+      const pending = items.filter(
+        ({ quest, period }) => quest.completed && !claims.has(claimKey(period, quest.key)),
+      );
+      if (pending.length === 0) return;
+
+      const keys = pending.map(({ quest, period }) => claimKey(period, quest.key));
+      setClaimingKey("__all__");
+      setClaims((prev) => {
+        const n = new Set(prev);
+        keys.forEach((k) => n.add(k)); // optimistic
+        return n;
+      });
+      try {
+        const { error } = await supabase.from("quest_claims").insert(
+          pending.map(({ quest, period }) => ({
+            user_id: userId,
+            quest_key: quest.key,
+            period,
+            xp_awarded: quest.xp,
+          })),
+        );
+        if (error) throw error;
+        const total = pending.reduce((s, { quest }) => s + quest.xp, 0);
+        await awardXp(total);
+        toast.success(`+${total} XP · ${pending.length} quest${pending.length === 1 ? "" : "s"} claimed`);
+      } catch (error) {
+        console.error("claimAll failed", error);
+        setClaims((prev) => {
+          const n = new Set(prev);
+          keys.forEach((k) => n.delete(k));
+          return n;
+        });
+        toast.error("Couldn't claim all quests — try again.");
+      } finally {
+        setClaimingKey(null);
+      }
+    },
+    [userId, claims, claimingKey, awardXp],
+  );
+
   // Auto-unlock any newly earned badges. Idempotent: the persisted set + an
   // in-flight guard prevent a badge from being granted or XP-awarded twice.
   // NOTE: badges/XP are grant-only here — they are never revoked or refunded
@@ -242,6 +288,7 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
     shields: profile?.streak_shields ?? 0,
     isClaimed,
     claimQuest,
+    claimAll,
     claimingKey,
     badges: allBadges,
     celebrateMilestone,
