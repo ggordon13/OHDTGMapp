@@ -21,15 +21,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    // Only propagate a session when the signed-in USER actually changes. Supabase
+    // refreshes its token on tab focus/visibility and fires onAuthStateChange with
+    // a brand-new session object for the same user; blindly setting it would change
+    // `user`'s identity and cascade into refetches/re-renders that wipe unsaved form
+    // input. The client keeps the refreshed token internally, so RPCs stay authed.
+    let currentUserId: string | null | undefined;
+    const apply = (session: Session | null) => {
+      const nextUserId = session?.user?.id ?? null;
+      if (nextUserId !== currentUserId) {
+        currentUserId = nextUserId;
+        setSession(session);
+      }
       setLoading(false);
-    });
+    };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => apply(session));
+    supabase.auth.getSession().then(({ data: { session } }) => apply(session));
 
     return () => subscription.unsubscribe();
   }, []);
