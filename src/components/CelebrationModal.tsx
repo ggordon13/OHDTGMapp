@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
-import { Star } from "lucide-react";
+import { Star, Medal } from "lucide-react";
 import type { Celebration } from "@/hooks/useGamification";
 import type { BadgeTier } from "@/lib/gamification";
 import GameButton from "@/components/game/GameButton";
 import { confettiBurst, sparkle, shine } from "@/lib/fx";
+import { cn } from "@/lib/utils";
 
 interface CelebrationModalProps {
   /** The celebration currently on screen (front of the queue), or null. */
@@ -70,13 +71,22 @@ const CelebrationModal = ({ event, onDismiss }: CelebrationModalProps) => {
   if (!event) return null;
 
   const isBadge = event.type === "badge";
+  const isRank = event.type === "rank";
+  const label = isBadge ? "Trophy Unlocked!" : isRank ? "Rank Up!" : "Level Up!";
+  const title = isBadge ? event.badge.label : isRank ? event.rank.name : `Level ${event.level}`;
+  const description = isBadge
+    ? event.badge.description
+    : isRank
+      ? `You've been promoted — you're now a ${event.rank.name}. Keep climbing!`
+      : "Your dedication is paying off — keep the momentum going!";
+  const ariaLabel = isBadge ? "Trophy unlocked" : isRank ? "Rank up" : "Level up";
 
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
-      aria-label={isBadge ? "Trophy unlocked" : "Level up"}
+      aria-label={ariaLabel}
       onClick={onDismiss}
     >
       <div
@@ -110,6 +120,17 @@ const CelebrationModal = ({ event, onDismiss }: CelebrationModalProps) => {
                 </span>
               </div>
             </div>
+          ) : isRank ? (
+            <div
+              ref={iconRef}
+              className={cn(
+                "mx-auto flex h-28 w-28 items-center justify-center rounded-full border-4 shadow-[0_6px_0_rgba(0,0,0,0.28),0_10px_18px_rgba(0,0,0,0.45)]",
+                event.rank.className,
+                event.rank.glowClassName,
+              )}
+            >
+              <Medal className="h-14 w-14 drop-shadow-[0_3px_2px_rgba(0,0,0,0.35)]" />
+            </div>
           ) : (
             <div
               ref={iconRef}
@@ -124,17 +145,13 @@ const CelebrationModal = ({ event, onDismiss }: CelebrationModalProps) => {
 
           <div data-cheer>
             <p className="font-display text-xs font-bold uppercase tracking-[0.25em] text-[hsl(36,80%,40%)]">
-              {isBadge ? "Trophy Unlocked!" : "Level Up!"}
+              {label}
             </p>
-            <h2 className="mt-1 font-display text-3xl font-bold text-card-foreground">
-              {isBadge ? event.badge.label : `Level ${event.level}`}
-            </h2>
+            <h2 className="mt-1 font-display text-3xl font-bold text-card-foreground">{title}</h2>
           </div>
 
           <p data-cheer className="text-sm font-semibold text-muted-foreground">
-            {isBadge
-              ? event.badge.description
-              : "Your dedication is paying off — keep the momentum going!"}
+            {description}
           </p>
 
           {isBadge && (

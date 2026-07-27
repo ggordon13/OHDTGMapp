@@ -684,12 +684,15 @@ const Index = () => {
       />
       <div className="relative z-10 mx-auto max-w-[1720px] space-y-8 px-4 py-8 lg:px-8">
         {/* Top toolbar: app title + account actions, styled to match the game theme */}
-        <div className="flex items-center justify-between gap-3">
-          <Logo className="h-20 w-auto sm:h-16" />
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="rounded-full border border-[hsl(42,95%,62%)]/50 bg-[hsl(45,82%,88%)] px-3 py-1 text-sm font-bold text-[hsl(30,55%,32%)]">
+        <div className="flex items-start justify-between gap-3 sm:items-center">
+          <Logo className="h-24 w-auto sm:h-16" />
+          {/* Right cluster: on mobile the access badge drops to its own line
+              below the right-aligned buttons; on desktop it sits inline first. */}
+          <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+            <div className="order-2 rounded-full border border-[hsl(42,95%,62%)]/50 bg-[hsl(45,82%,88%)] px-3 py-1 text-sm font-bold text-[hsl(30,55%,32%)] sm:order-1">
               {accessBadgeLabel}
             </div>
+            <div className="order-1 flex flex-wrap items-center justify-end gap-2 sm:order-2">
             {!isPremium && <StartTrialButton size="sm" />}
             {!isPremium && <GetPremiumButton size="sm" />}
             <GameButton
@@ -723,6 +726,7 @@ const Index = () => {
             <GameButton color="wood" size="sm" onClick={signOut} title="Sign out" aria-label="Sign out">
               <LogOut className="h-4 w-4" />
             </GameButton>
+            </div>
           </div>
         </div>
 

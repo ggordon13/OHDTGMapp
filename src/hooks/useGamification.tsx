@@ -12,6 +12,7 @@ import {
   getLevelProgress,
   levelFromXp,
 } from "@/lib/gamification";
+import { getRank, type Rank } from "@/lib/ranks";
 import type { UserProfile } from "./useProfile";
 
 interface UseGamificationArgs {
@@ -29,10 +30,11 @@ interface UseGamificationArgs {
 
 const claimKey = (period: string, questKey: string) => `${period}::${questKey}`;
 
-/** A queued full-screen celebration: a freshly unlocked trophy or a level-up. */
+/** A queued full-screen celebration: a trophy unlock, a level-up, or a rank-up. */
 export type Celebration =
   | { id: string; type: "badge"; badge: Badge }
-  | { id: string; type: "level"; level: number };
+  | { id: string; type: "level"; level: number }
+  | { id: string; type: "rank"; rank: Rank };
 
 export function useGamification({
   userId,
@@ -107,10 +109,16 @@ export function useGamification({
       const next = prev + amount;
       xpRef.current = next;
       setXp(next);
-      // Crossing a level threshold earns a full-screen celebration.
+      // Crossing a level threshold earns a full-screen celebration — and if that
+      // level also crosses a rank threshold, a rank-up takeover follows it.
+      const prevLevel = levelFromXp(prev);
       const newLevel = levelFromXp(next);
-      if (newLevel > levelFromXp(prev)) {
+      if (newLevel > prevLevel) {
         pushCelebration({ type: "level", level: newLevel });
+        const newRank = getRank(newLevel);
+        if (newRank.key !== getRank(prevLevel).key) {
+          pushCelebration({ type: "rank", rank: newRank });
+        }
       }
       await supabase
         .from("profiles")
