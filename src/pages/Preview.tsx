@@ -21,6 +21,7 @@ import {
   getDailyQuests,
   getWeeklyQuests,
   getEarnedBadges,
+  getLastSettledWeek,
   getLevelProgress,
 } from "@/lib/gamification";
 
@@ -66,8 +67,13 @@ const Preview = () => {
   }, []);
 
   const dailyQuests = getDailyQuests(today, goals);
-  const weeklyQuests = getWeeklyQuests(dayRange.slice(-7), weeklyGoals);
-  const badges = getEarnedBadges(dayRange, weeklyGoals).map((b, i) => ({ ...b, unlocked: i % 2 === 0 }));
+  // The fixture's "today" is fixed, so pass it through rather than letting week
+  // settlement fall back to the real clock.
+  const weeklyQuests = getWeeklyQuests(dayRange.slice(-7), weeklyGoals, getLastSettledWeek(dayRange, TODAY));
+  const badges = getEarnedBadges(dayRange, weeklyGoals, undefined, TODAY).map((b, i) => ({
+    ...b,
+    unlocked: i % 2 === 0,
+  }));
 
   const demoBadge = () => {
     const b = ALL_BADGES.find((x) => x.key === "built-different") ?? ALL_BADGES[0];

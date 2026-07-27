@@ -301,6 +301,7 @@ export type Database = {
           level: number
           pending_challenge_start_date: string | null
           role: string
+          run_locked_at: string | null
           starting_data_updated_at: string | null
           streak_shields: number
           target_weight: number | null
@@ -339,6 +340,7 @@ export type Database = {
           level?: number
           pending_challenge_start_date?: string | null
           role?: string
+          run_locked_at?: string | null
           starting_data_updated_at?: string | null
           streak_shields?: number
           target_weight?: number | null
@@ -377,6 +379,7 @@ export type Database = {
           level?: number
           pending_challenge_start_date?: string | null
           role?: string
+          run_locked_at?: string | null
           starting_data_updated_at?: string | null
           streak_shields?: number
           target_weight?: number | null

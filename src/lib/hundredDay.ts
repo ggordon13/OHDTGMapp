@@ -2,6 +2,7 @@ import { DailyLog } from "@/lib/mockData";
 import { Badge, WeeklyGoals, getLongestStreak, isDayComplete, isDayLogged } from "@/lib/gamification";
 import { computeAnalytics } from "@/lib/analytics";
 import { CHALLENGE_DAYS } from "@/lib/access";
+import { formatDateInputValue, parseDateInputValue } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // The 100-day run: finishing it, and the report card that gets archived.
@@ -39,6 +40,7 @@ export interface RunSummary {
   totalDays: number;
   longestStreak: number;
   starWeeks: number;
+  /** Weeks that ran their full 7 days — the ones a star could be called on. */
   totalWeeks: number;
   averages: {
     weight: number | null;
@@ -77,6 +79,12 @@ export interface RunSummaryInput {
   badges: Badge[];
   xp: number;
   level: number;
+  /**
+   * Date the run is scored as of — normally {@link runSealDate}, so a run being
+   * closed out has every week (Week 15 included) judged. Defaults to the real
+   * calendar date.
+   */
+  asOf?: string;
 }
 
 /**
@@ -92,9 +100,10 @@ export function buildRunSummary({
   badges,
   xp,
   level,
+  asOf,
 }: RunSummaryInput): RunSummary {
   const days = dayRange.slice(0, CHALLENGE_DAYS);
-  const analytics = computeAnalytics(days, goals);
+  const analytics = computeAnalytics(days, goals, asOf);
 
   const weighed = days.filter((d) => d.weight != null).map((d) => d.weight as number);
   // Day 1 weight: prefer the profile baseline, fall back to the first weigh-in.
@@ -128,7 +137,7 @@ export function buildRunSummary({
     totalDays: days.length,
     longestStreak: getLongestStreak(days),
     starWeeks: analytics.starWeeks,
-    totalWeeks: analytics.weeks,
+    totalWeeks: analytics.settledWeeks,
     averages: {
       weight: mean(days.map((d) => d.weight)),
       calories: analytics.averages.calories,
@@ -158,11 +167,26 @@ export function toArchivedBadge(badge: Badge): ArchivedBadge {
 }
 
 /**
- * Whether the run can be closed out. The finish line is Day 100 — anything past
- * it counts too, for users who kept logging before claiming their star.
+ * Whether the run has reached its finish line. Day 100 counts — the user locks
+ * the run in from here, which is what settles Week 15 (see {@link runSealDate}).
+ * Anything past Day 100 counts too, for users who kept logging before claiming.
  */
 export function canFinishRun(currentDay: number): boolean {
   return currentDay >= CHALLENGE_DAYS;
+}
+
+/**
+ * The date a locked-in run is scored "as of": the day after Day 100.
+ *
+ * Weeks are normally only judged once their last day is over. Locking in is the
+ * user declaring Day 100 done — Days 1–100 go read-only, so nothing can change
+ * afterwards — which is exactly the condition that lets every week, Week 15
+ * included, be settled on the spot rather than waiting for midnight.
+ */
+export function runSealDate(runEndDate: string): string {
+  const d = parseDateInputValue(runEndDate);
+  d.setDate(d.getDate() + 1);
+  return formatDateInputValue(d);
 }
 
 /** How the weight change reads on the report card. */

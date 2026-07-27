@@ -30,6 +30,7 @@ import {
   getCurrentWeekPeriod,
   getDailyQuests,
   getWeeklyQuests,
+  getLastSettledWeek,
   getNewlyCrossedMilestone,
   isDayComplete,
 } from "@/lib/gamification";
@@ -49,7 +50,7 @@ import FreeLimitModal from "@/components/FreeLimitModal";
 import HundredDayFinishModal from "@/components/HundredDayFinishModal";
 import FinisherArchiveModal from "@/components/FinisherArchiveModal";
 import { useHundredDay, type RestartPlan } from "@/hooks/useHundredDay";
-import { buildRunSummary, canFinishRun, toArchivedBadge } from "@/lib/hundredDay";
+import { buildRunSummary, canFinishRun, runSealDate, toArchivedBadge } from "@/lib/hundredDay";
 import type { GoalType } from "@/lib/profile";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -128,6 +129,20 @@ const Index = () => {
   const runStartIso = profile?.challenge_start_date ?? todayDate;
   const challengeNotStarted = runStartIso > todayDate;
 
+  // The current run's window. Day 100 is 99 days after Day 1.
+  const runEndIso = useMemo(() => {
+    const end = parseDateInputValue(runStartIso);
+    end.setDate(end.getDate() + CHALLENGE_DAYS - 1);
+    return formatDateInputValue(end);
+  }, [runStartIso]);
+
+  // Locking in Day 100 declares the run over: its log goes read-only and every
+  // week — Week 15 included — is scored as of the day after Day 100 rather than
+  // waiting for the calendar.
+  const runLocked = profile?.run_locked_at != null;
+  const sealDate = useMemo(() => runSealDate(runEndIso), [runEndIso]);
+  const scoringDate = runLocked ? sealDate : undefined;
+
   const {
     levelProgress,
     shields,
@@ -136,6 +151,7 @@ const Index = () => {
     claimAll,
     claimingKey,
     badges,
+    sealBadges,
     celebrateMilestone,
     celebrations,
     dismissCelebration,
@@ -145,6 +161,7 @@ const Index = () => {
     refetchProfile,
     dayRange,
     weeklyGoals,
+    scoringDate,
   });
 
   const hundredDay = useHundredDay(user?.id);
@@ -229,7 +246,8 @@ const Index = () => {
       !profile.pending_challenge_start_date &&
       !freeWallHit &&
       !challengeResultsPending &&
-      !challengeNotStarted
+      !challengeNotStarted &&
+      !profile.run_locked_at
     ) {
       setShowCheckIn(true);
       localStorage.setItem(key, todayDate);
@@ -303,13 +321,6 @@ const Index = () => {
   // 100-day finish line
   // ---------------------------------------------------------------------------
 
-  // The current run's window. Day 100 is 99 days after Day 1.
-  const runEndIso = useMemo(() => {
-    const end = parseDateInputValue(runStartIso);
-    end.setDate(end.getDate() + CHALLENGE_DAYS - 1);
-    return formatDateInputValue(end);
-  }, [runStartIso]);
-
   const unlockedBadges = useMemo(() => badges.filter((b) => b.unlocked), [badges]);
 
   // The report card that gets archived with the run — also what the finish
@@ -324,8 +335,10 @@ const Index = () => {
         badges: unlockedBadges,
         xp: levelProgress.xp,
         level: levelProgress.level,
+        // Sealing the run judges every week in it, Week 15 included.
+        asOf: sealDate,
       }),
-    [dayRange, weeklyGoals, profile?.current_weight, profile?.target_weight, unlockedBadges, levelProgress],
+    [dayRange, weeklyGoals, profile?.current_weight, profile?.target_weight, unlockedBadges, levelProgress, sealDate],
   );
 
   const archivedBadges = useMemo(() => unlockedBadges.map(toArchivedBadge), [unlockedBadges]);
@@ -344,6 +357,18 @@ const Index = () => {
     localStorage.setItem(key, todayDate);
     setShowRunFinish(true);
   }, [loading, profileLoading, user, profile, runFinishable, todayDate]);
+
+  // Locking in seals Days 1–100. Trophies are settled first — Week 15 counts
+  // from this moment, so anything it unlocks must be paid out before the trophy
+  // case is archived and reset.
+  const handleLockInRun = async (): Promise<boolean> => {
+    const ok = await hundredDay.lockRun();
+    if (!ok) return false;
+    await sealBadges(sealDate);
+    await refetchProfile();
+    toast.success(`Day ${CHALLENGE_DAYS} locked in — your challenge is final 🔒`);
+    return true;
+  };
 
   const handleFinishRun = async (plan: RestartPlan): Promise<boolean> => {
     const ok = await hundredDay.finishRun({
@@ -466,7 +491,9 @@ const Index = () => {
   const currentWeek = getCurrentWeek(dayRange);
   const weeklyPeriod = getCurrentWeekPeriod(dayRange);
   const dailyQuests = getDailyQuests(todayEntry, questGoals);
-  const weeklyQuests = getWeeklyQuests(currentWeek, weeklyGoals);
+  // The ⭐ quest is scored on the last week that actually finished, so it can
+  // never be banked off a strong half-week.
+  const weeklyQuests = getWeeklyQuests(currentWeek, weeklyGoals, getLastSettledWeek(dayRange));
 
   const displayName = profile?.username || profile?.display_name || user?.user_metadata?.full_name || "there";
   const accessBadgeLabel = getAccessBadgeLabel(profile?.role ?? undefined, profile?.access_level ?? undefined);
@@ -614,7 +641,14 @@ const Index = () => {
         }}
         suggestedStartWeight={latestWeight}
         currentGoalType={(profile?.goal_type === "maintain" ? "maintain" : "lose") as GoalType}
-        busy={hundredDay.finishing}
+        busy={hundredDay.finishing || hundredDay.locking}
+        locked={runLocked}
+        readiness={{
+          daysLogged: runSummary.daysLogged,
+          totalDays: CHALLENGE_DAYS,
+          finalDayLogged: dayRange.some((d) => d.day === CHALLENGE_DAYS && d.weight != null),
+        }}
+        onLockIn={handleLockInRun}
         onConfirm={handleFinishRun}
       />
       <FinisherArchiveModal
@@ -686,10 +720,16 @@ const Index = () => {
             onOpenArchive={() => setShowFinisherArchive(true)}
             canFinishRun={runFinishable}
             onFinishRun={() => setShowRunFinish(true)}
+            runLocked={runLocked}
             upcomingStartDate={challengeNotStarted ? formattedDayOneDate : null}
           />
           <div data-reveal>
-            <TodayData entry={todayEntry} onSave={handleSaveToday} footer={freeFooter} locked={logCapped} />
+            <TodayData
+              entry={todayEntry}
+              onSave={handleSaveToday}
+              footer={freeFooter}
+              locked={logCapped || runLocked}
+            />
           </div>
         </div>
 
@@ -719,6 +759,7 @@ const Index = () => {
               <DataAnalytics
                 logs={dayRange}
                 goals={weeklyGoals}
+                scoringDate={scoringDate}
                 userName={displayName}
                 canExport={isPremium}
                 lockedSlot={<GetPremiumButton size="sm" />}
@@ -773,7 +814,7 @@ const Index = () => {
 
             <div className="order-4 grid min-w-0 gap-6 2xl:grid-cols-5">
               <div data-reveal className="min-w-0 2xl:col-span-3">
-                <WeeklyAchievements logs={visibleDayRange} goals={weeklyGoals} />
+                <WeeklyAchievements logs={visibleDayRange} goals={weeklyGoals} scoringDate={scoringDate} />
               </div>
               {/* Challenge takes the Weight Trend column; Weight Trend sits below it. */}
               <div className="min-w-0 space-y-6 2xl:col-span-2">
@@ -796,6 +837,7 @@ const Index = () => {
                 footer={freeFooter}
                 challengeStart={challengeStart}
                 challengeEnd={challengeEnd}
+                locked={runLocked}
               />
             </div>
           </div>

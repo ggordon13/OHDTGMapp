@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Flame, Target, Shield, Star, Flag, Scale, TrendingDown, TrendingUp, Minus, Trophy } from "lucide-react";
+import { Flame, Target, Shield, Star, Flag, Scale, TrendingDown, TrendingUp, Minus, Trophy, Lock } from "lucide-react";
 import { LevelProgress } from "@/lib/gamification";
 import GameProgress from "@/components/game/GameProgress";
 import GameButton from "@/components/game/GameButton";
@@ -33,6 +33,8 @@ interface DashboardHeaderProps {
   /** Day 100 is behind them — offer to close the run out. */
   canFinishRun?: boolean;
   onFinishRun?: () => void;
+  /** Days 1–100 have been locked in — the run is scored and read-only. */
+  runLocked?: boolean;
   /** Set when Day 1 of the next run hasn't arrived yet, e.g. "August 3, 2026". */
   upcomingStartDate?: string | null;
 }
@@ -49,6 +51,7 @@ const DashboardHeader = ({
   onOpenArchive,
   canFinishRun = false,
   onFinishRun,
+  runLocked = false,
   upcomingStartDate = null,
 }: DashboardHeaderProps) => {
   const progress = Math.min(100, (currentDay / CHALLENGE_DAYS) * 100);
@@ -182,15 +185,35 @@ const DashboardHeader = ({
         <GameProgress value={progress} color="teal" size="h-4" />
       </div>
 
-      {/* Day 100 cleared: claim the star and line up the next run. */}
+      {/* Day 100 reached. Before the lock it's a commitment ("this makes Days
+          1–100 permanent"); after it, it's simply the way back to the results. */}
       {canFinishRun && onFinishRun && (
-        <div className="flex flex-col items-center justify-between gap-3 rounded-xl border-2 border-[hsl(42,95%,62%)]/60 bg-[hsl(42,95%,62%)]/12 px-4 py-3 shadow-[0_0_18px_hsl(42,95%,60%,0.18)] sm:flex-row">
-          <p className="font-display text-sm font-bold text-[hsl(42,85%,72%)] [text-shadow:0_2px_0_rgba(0,0,0,0.35)]">
-            🏆 You've cleared Day {CHALLENGE_DAYS}! Claim your golden star and set up your next 100 days.
+        <div
+          className={cn(
+            "flex flex-col items-center justify-between gap-3 rounded-xl border-2 px-4 py-3 sm:flex-row",
+            runLocked
+              ? "border-[hsl(42,95%,62%)]/60 bg-[hsl(42,95%,62%)]/12 shadow-[0_0_18px_hsl(42,95%,60%,0.18)]"
+              : "border-[hsl(6,70%,58%)]/60 bg-[hsl(6,70%,58%)]/12",
+          )}
+        >
+          <p
+            className={cn(
+              "font-display text-sm font-bold [text-shadow:0_2px_0_rgba(0,0,0,0.35)]",
+              runLocked ? "text-[hsl(42,85%,72%)]" : "text-[hsl(6,75%,74%)]",
+            )}
+          >
+            {runLocked ? (
+              <>🏆 Days 1–{CHALLENGE_DAYS} are locked in. Claim your golden star and set up your next 100 days.</>
+            ) : (
+              <>
+                🏁 You've reached Day {CHALLENGE_DAYS}! Lock in your data to score the challenge — after that, Days 1–
+                {CHALLENGE_DAYS} can't be changed.
+              </>
+            )}
           </p>
-          <GameButton color="gold" size="md" className="shrink-0" onClick={onFinishRun}>
-            <Trophy className="h-4 w-4" />
-            Finish Challenge
+          <GameButton color={runLocked ? "gold" : "red"} size="md" className="shrink-0" onClick={onFinishRun}>
+            {runLocked ? <Trophy className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+            {runLocked ? "Finish Challenge" : `Lock In Day ${CHALLENGE_DAYS}`}
           </GameButton>
         </div>
       )}

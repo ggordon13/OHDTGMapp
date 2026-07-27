@@ -5,6 +5,7 @@ import {
   getWeeklyAvg,
   isAchieved,
   isDayLogged,
+  isWeekSettled,
 } from "@/lib/gamification";
 
 // ---------------------------------------------------------------------------
@@ -24,6 +25,8 @@ export interface WeeklyBreakdownRow {
   steps: number | null;
   exerciseDays: number;
   totalDays: number;
+  /** False while the week is still running — its star hasn't been called yet. */
+  settled: boolean;
   star: boolean;
 }
 
@@ -39,6 +42,8 @@ export interface AnalyticsSummary {
   daysLogged: number;
   totalDays: number;
   weeks: number;
+  /** Weeks whose 7 days are done — the ones a star could have been called on. */
+  settledWeeks: number;
   starWeeks: number;
   /** Null until at least one weight has been logged. */
   weight: WeightAnalytics | null;
@@ -59,7 +64,7 @@ function mean(values: (number | null)[]): number | null {
   return Math.round((valid.reduce((a, b) => a + b, 0) / valid.length) * 10) / 10;
 }
 
-export function computeAnalytics(logs: DailyLog[], goals: WeeklyGoals): AnalyticsSummary {
+export function computeAnalytics(logs: DailyLog[], goals: WeeklyGoals, today?: string): AnalyticsSummary {
   const weeks = chunkIntoWeeks(logs);
 
   let prevWeight: number | null = null;
@@ -68,6 +73,8 @@ export function computeAnalytics(logs: DailyLog[], goals: WeeklyGoals): Analytic
     const weightTrend: "up" | "down" | null =
       avg.weight === null || prevWeight === null ? null : avg.weight > prevWeight ? "up" : "down";
     if (avg.weight !== null) prevWeight = avg.weight;
+    // A star is only called on a week that has run its full seven days.
+    const settled = isWeekSettled(week, today);
     return {
       week: i + 1,
       weight: avg.weight,
@@ -78,7 +85,8 @@ export function computeAnalytics(logs: DailyLog[], goals: WeeklyGoals): Analytic
       steps: avg.steps,
       exerciseDays: avg.exerciseDays,
       totalDays: avg.totalDays,
-      star: isAchieved(avg, goals),
+      settled,
+      star: settled && isAchieved(avg, goals),
     };
   });
 
@@ -97,6 +105,7 @@ export function computeAnalytics(logs: DailyLog[], goals: WeeklyGoals): Analytic
     daysLogged: logs.filter(isDayLogged).length,
     totalDays: logs.length,
     weeks: weeks.length,
+    settledWeeks: weekly.filter((w) => w.settled).length,
     starWeeks: weekly.filter((w) => w.star).length,
     weight,
     averages: {

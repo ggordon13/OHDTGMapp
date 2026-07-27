@@ -1,13 +1,18 @@
 import { useState } from "react";
-import { Trophy, Check, Flame, Star, ChevronDown, Utensils, Beef, Droplets, Footprints, Dumbbell, type LucideIcon } from "lucide-react";
+import { Trophy, Check, Flame, Star, ChevronDown, Utensils, Beef, Droplets, Footprints, Dumbbell, Hourglass, type LucideIcon } from "lucide-react";
 import { DailyLog } from "@/lib/mockData";
-import { WeeklyGoals, getWeeklyAvg, isAchieved, chunkIntoWeeks } from "@/lib/gamification";
+import { WeeklyGoals, getWeeklyAvg, isAchieved, chunkIntoWeeks, isWeekSettled, weekLength } from "@/lib/gamification";
 import GamePanel from "@/components/game/GamePanel";
 import { cn } from "@/lib/utils";
 
 interface WeeklyAchievementsProps {
   logs: DailyLog[];
   goals: WeeklyGoals;
+  /**
+   * Date week settlement is judged against. Defaults to today; set to the day
+   * after Day 100 once a run is locked in, so its final week counts.
+   */
+  scoringDate?: string;
 }
 
 /** A metric reading: met targets get a green check-pill, misses stay muted. */
@@ -53,7 +58,7 @@ const Cond = ({ icon: Icon, label, value }: { icon: LucideIcon; label: string; v
   </span>
 );
 
-const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
+const WeeklyAchievements = ({ logs, goals, scoringDate }: WeeklyAchievementsProps) => {
   const [showRules, setShowRules] = useState(true);
   const weeks = chunkIntoWeeks(logs);
 
@@ -66,18 +71,27 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
   let prevWeight: number | null = null;
   const rows = weeks.map((week) => {
     const avg = getWeeklyAvg(week);
-    const achieved = isAchieved(avg, goals);
-    starRun = achieved ? starRun + 1 : 0;
-    bestRun = Math.max(bestRun, starRun);
+    // The verdict waits for the week to run its full seven days, so the week
+    // in progress shows its running averages but no star either way — and it
+    // can't break the streak before it's even over.
+    const settled = isWeekSettled(week, scoringDate);
+    const achieved = settled && isAchieved(avg, goals);
+    if (settled) {
+      starRun = achieved ? starRun + 1 : 0;
+      bestRun = Math.max(bestRun, starRun);
+    }
     const tier = !achieved ? null : starRun >= 6 ? "gold" : starRun >= 3 ? "silver" : "bronze";
 
     const weightTrend: "down" | "up" | null =
       avg.weight === null || prevWeight === null ? null : avg.weight > prevWeight ? "up" : "down";
     if (avg.weight !== null) prevWeight = avg.weight;
 
-    return { avg, achieved, tier, weightTrend };
+    // Week 15 is only 2 days long, so the "x/y days" chip counts against its
+    // own length rather than a flat 7.
+    return { avg, settled, achieved, tier, weightTrend, length: weekLength(week) };
   });
 
+  const settledCount = rows.filter((r) => r.settled).length;
   const starWeeks = rows.filter((r) => r.achieved).length;
   const currentStreak = starRun; // trailing run after the loop
   const topTier = bestRun >= 6 ? "gold" : bestRun >= 3 ? "silver" : bestRun >= 1 ? "bronze" : null;
@@ -88,8 +102,11 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
       icon={<Trophy className="h-4 w-4" />}
       color="teal"
       right={
-        <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-          {starWeeks}/{rows.length} ⭐
+        <span
+          className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground"
+          title="Counted over finished weeks only — the week in progress is judged once its 7th day is over."
+        >
+          {starWeeks}/{settledCount} ⭐
         </span>
       }
     >
@@ -138,6 +155,12 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
 
           {showRules && (
             <div className="space-y-3 border-t-2 border-[hsl(33,28%,68%)] px-3 py-3">
+              <p className="flex items-start gap-1.5 rounded-lg bg-[hsl(178,45%,45%)]/12 px-2 py-1.5 text-[11px] font-bold text-[hsl(178,50%,26%)]">
+                <Hourglass className="mt-0.5 h-3 w-3 shrink-0" />
+                A week is judged on its 7-day averages once its last day is over — nothing is decided mid-week.
+                Week 15 is the 2-day tail of the challenge (Days 99–100) and only needs those 2 days.
+              </p>
+
               {/* Route 1 */}
               <div className="space-y-1.5">
                 <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(70,45%,32%)]">
@@ -203,12 +226,13 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ avg, achieved, tier, weightTrend }, wi) => (
+              {rows.map(({ avg, settled, achieved, tier, weightTrend, length }, wi) => (
                 <tr
                   key={wi}
                   className={cn(
                     "border-b border-[hsl(33,28%,72%)] transition-colors last:border-0 hover:bg-[hsl(36,38%,80%)]/40",
                     achieved && "bg-[hsl(84,44%,52%)]/12",
+                    !settled && "bg-[hsl(178,45%,45%)]/8",
                   )}
                 >
                   <td className="px-2 py-2 font-display text-xs font-bold text-card-foreground">Wk {wi + 1}</td>
@@ -231,7 +255,15 @@ const WeeklyAchievements = ({ logs, goals }: WeeklyAchievementsProps) => {
                     <MetricCell value={`${avg.exerciseDays}/${avg.totalDays}d`} met={avg.exerciseDays >= 1} />
                   </td>
                   <td className="px-2 py-2 text-center">
-                    {achieved && tier ? (
+                    {!settled ? (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full border-2 border-[hsl(178,40%,40%)]/50 bg-[hsl(178,45%,45%)]/15 px-1.5 py-0.5 font-display text-[10px] font-bold text-[hsl(178,50%,28%)]"
+                        title={`Day ${avg.totalDays} of ${length} — the star is called once the week is over.`}
+                      >
+                        <Hourglass className="h-3 w-3" />
+                        {avg.totalDays}/{length}
+                      </span>
+                    ) : achieved && tier ? (
                       <span className="inline-flex items-center gap-0.5 rounded-full border-2 border-[hsl(40,65%,32%)] bg-gradient-to-b from-[hsl(44,92%,62%)] to-[hsl(38,85%,48%)] px-1.5 py-0.5 text-xs shadow-[0_2px_0_hsl(38,65%,32%)]">
                         ⭐{tierMedal[tier]}
                       </span>

@@ -50,6 +50,11 @@ export interface UserProfile {
   finisher_count: number | null;
   /** Which run the live trophy case belongs to (1-based). */
   current_run: number | null;
+  /**
+   * When the current run was locked in. Non-null means Days 1–100 are final:
+   * the log is read-only and every week (including the 2-day Week 15) is scored.
+   */
+  run_locked_at: string | null;
 }
 
 export function useProfile() {

@@ -48,6 +48,7 @@ export function useHundredDay(userId: string | undefined) {
   const [runs, setRuns] = useState<FinishedRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
+  const [locking, setLocking] = useState(false);
 
   const fetchRuns = useCallback(async () => {
     if (!userId) {
@@ -81,6 +82,31 @@ export function useHundredDay(userId: string | undefined) {
     setLoading(true);
     void fetchRuns();
   }, [fetchRuns]);
+
+  /**
+   * Lock in Day 100: the user declares the run finished. Days 1–100 go
+   * read-only from here, which is what lets Week 15 be scored without waiting
+   * for Day 100 to run out. Idempotent — re-locking keeps the original stamp.
+   */
+  const lockRun = useCallback(async (): Promise<boolean> => {
+    if (!userId || locking) return false;
+    setLocking(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ run_locked_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .is("run_locked_at", null);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error("lockRun failed", error);
+      toast.error("Couldn't lock in Day 100 — please try again.");
+      return false;
+    } finally {
+      setLocking(false);
+    }
+  }, [userId, locking]);
 
   const finishRun = useCallback(
     async ({ startDate, endDate, summary, badges, restart }: FinishRunInput): Promise<boolean> => {
@@ -121,5 +147,5 @@ export function useHundredDay(userId: string | undefined) {
     [userId, finishing, fetchRuns],
   );
 
-  return { runs, loading, finishing, finishRun, refetch: fetchRuns };
+  return { runs, loading, finishing, locking, lockRun, finishRun, refetch: fetchRuns };
 }

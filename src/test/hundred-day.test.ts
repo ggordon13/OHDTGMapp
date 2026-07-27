@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DailyLog } from "@/lib/mockData";
 import { Badge, WeeklyGoals } from "@/lib/gamification";
-import { buildRunSummary, canFinishRun, toArchivedBadge, weightVerdict } from "@/lib/hundredDay";
+import { buildRunSummary, canFinishRun, runSealDate, toArchivedBadge, weightVerdict } from "@/lib/hundredDay";
 import { formatDateInputValue } from "@/lib/utils";
 
 const goals: WeeklyGoals = {
@@ -30,7 +30,7 @@ const buildRun = (days: number, over: (i: number) => Partial<DailyLog> = () => (
   });
 
 describe("canFinishRun", () => {
-  it("opens the finish line at Day 100 and stays open past it", () => {
+  it("opens on Day 100 and stays open past it", () => {
     expect(canFinishRun(99)).toBe(false);
     expect(canFinishRun(100)).toBe(true);
     expect(canFinishRun(137)).toBe(true);
@@ -38,6 +38,34 @@ describe("canFinishRun", () => {
 
   it("is closed before the run has started", () => {
     expect(canFinishRun(0)).toBe(false);
+  });
+});
+
+describe("runSealDate", () => {
+  it("is the day after Day 100, so locking in settles every week", () => {
+    expect(runSealDate("2026-05-11")).toBe("2026-05-12");
+  });
+
+  it("rolls over month and year boundaries", () => {
+    expect(runSealDate("2026-01-31")).toBe("2026-02-01");
+    expect(runSealDate("2026-12-31")).toBe("2027-01-01");
+  });
+
+  it("settles the run's 2-day final week", () => {
+    // Day 1 = 2026-02-01 → Day 100 = 2026-05-11.
+    const dayRange = buildRun(100);
+    const sealed = buildRunSummary({
+      dayRange,
+      goals,
+      startWeight: 80,
+      targetWeight: 74,
+      badges: [],
+      xp: 0,
+      level: 1,
+      asOf: runSealDate(dayRange[99].date),
+    });
+    // 14 full weeks + the 2-day Week 15, all judged.
+    expect(sealed.totalWeeks).toBe(15);
   });
 });
 
