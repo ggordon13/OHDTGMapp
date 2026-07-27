@@ -189,7 +189,7 @@ const QuestBoard = ({
           something to claim. It doubles as the expand control. When there's
           something ready, a "Claim all" button sits beside it. */}
       {collapsed && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <button
             type="button"
             onClick={() => setCollapsed(false)}
@@ -209,7 +209,7 @@ const QuestBoard = ({
             <ChevronDown className="h-4 w-4 -rotate-90" strokeWidth={3} />
           </button>
           {claimable > 0 && (
-            <ClaimAllButton items={claimableItems} busy={claimingAll} onClaimAll={onClaimAll} className="shrink-0" />
+            <ClaimAllButton items={claimableItems} busy={claimingAll} onClaimAll={onClaimAll} className="w-full justify-center sm:w-auto sm:shrink-0" />
           )}
         </div>
       )}

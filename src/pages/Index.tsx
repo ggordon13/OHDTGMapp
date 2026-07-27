@@ -43,6 +43,7 @@ import PremiumRequests from "@/components/PremiumRequests";
 import AdminChallenges from "@/components/AdminChallenges";
 import DataAnalytics from "@/components/DataAnalytics";
 import GetPremiumButton from "@/components/GetPremiumButton";
+import StartTrialButton from "@/components/StartTrialButton";
 import ChallengePanel from "@/components/ChallengePanel";
 import ChallengeCompleteModal from "@/components/ChallengeCompleteModal";
 import ChallengeResultsModal from "@/components/ChallengeResultsModal";
@@ -554,7 +555,10 @@ const Index = () => {
           🔒 Free plan shows your latest {FREE_LOG_DAY_LIMIT} days — keep logging today for free. Go premium for your
           full history & export, all the way to Day {CHALLENGE_DAYS}.
         </p>
-        <GetPremiumButton size="sm" className="shrink-0" />
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <StartTrialButton size="sm" />
+          <GetPremiumButton size="sm" />
+        </div>
       </div>
     ) : (
       <div className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-[hsl(268,42%,60%)]/30 bg-[hsl(268,42%,60%)]/8 px-3 py-2">
@@ -681,11 +685,12 @@ const Index = () => {
       <div className="relative z-10 mx-auto max-w-[1720px] space-y-8 px-4 py-8 lg:px-8">
         {/* Top toolbar: app title + account actions, styled to match the game theme */}
         <div className="flex items-center justify-between gap-3">
-          <Logo className="h-12 w-auto sm:h-14" />
+          <Logo className="h-20 w-auto sm:h-16" />
           <div className="flex flex-wrap items-center gap-2">
             <div className="rounded-full border border-[hsl(42,95%,62%)]/50 bg-[hsl(45,82%,88%)] px-3 py-1 text-sm font-bold text-[hsl(30,55%,32%)]">
               {accessBadgeLabel}
             </div>
+            {!isPremium && <StartTrialButton size="sm" />}
             {!isPremium && <GetPremiumButton size="sm" />}
             <GameButton
               color="wood"
@@ -787,7 +792,12 @@ const Index = () => {
                 scoringDate={scoringDate}
                 userName={displayName}
                 canExport={isPremium}
-                lockedSlot={<GetPremiumButton size="sm" />}
+                lockedSlot={
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StartTrialButton size="sm" />
+                    <GetPremiumButton size="sm" />
+                  </div>
+                }
               />
             </div>
           </div>
