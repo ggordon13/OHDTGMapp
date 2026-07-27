@@ -1,23 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Award, Lock, X } from "lucide-react";
-import { Badge, BadgeTier } from "@/lib/gamification";
+import { Badge } from "@/lib/gamification";
 import GamePanel from "@/components/game/GamePanel";
 import GameButton from "@/components/game/GameButton";
+import TrophyHex from "@/components/game/TrophyHex";
 import { pop, sparkle } from "@/lib/fx";
 
 type BadgeWithState = Badge & { unlocked: boolean };
 
 interface BadgeShelfProps {
   badges: BadgeWithState[];
+  /** Which 100-day run this shelf belongs to; shown once the user has restarted. */
+  runNumber?: number;
 }
-
-const tierStyle: Record<BadgeTier, string> = {
-  bronze: "bg-gradient-to-b from-[hsl(24,60%,55%)] to-[hsl(22,55%,38%)]",
-  silver: "bg-gradient-to-b from-[hsl(210,15%,78%)] to-[hsl(210,12%,55%)]",
-  gold: "bg-gradient-to-b from-[hsl(44,95%,62%)] to-[hsl(36,85%,45%)]",
-  special: "bg-gradient-to-b from-[hsl(268,45%,62%)] to-[hsl(268,44%,44%)]",
-};
 
 /** Hexagonal badge. `size` scales the face for the modal's list rows. */
 const BadgeHex = ({ badge, size = "h-14 w-14 text-2xl" }: { badge: BadgeWithState; size?: string }) => {
@@ -34,25 +30,18 @@ const BadgeHex = ({ badge, size = "h-14 w-14 text-2xl" }: { badge: BadgeWithStat
   }, [badge.unlocked]);
 
   return (
-    <div className={`hex-clip p-[3px] ${badge.unlocked ? "bg-[hsl(24,50%,16%)]" : "bg-[hsl(33,25%,52%)]"}`}>
-      <div
-        ref={hexRef}
-        className={`hex-clip flex items-center justify-center ${size} ${
-          badge.unlocked ? tierStyle[badge.tier] : "game-slot grayscale opacity-50"
-        }`}
-      >
-        <span
-          className={badge.unlocked ? "drop-shadow-[0_2px_1px_rgba(0,0,0,0.4)]" : ""}
-          style={badge.iconColor ? { color: badge.iconColor } : undefined}
-        >
-          {badge.icon}
-        </span>
-      </div>
-    </div>
+    <TrophyHex
+      ref={hexRef}
+      tier={badge.tier}
+      icon={badge.icon}
+      iconColor={badge.iconColor}
+      locked={!badge.unlocked}
+      size={size}
+    />
   );
 };
 
-const BadgeShelf = ({ badges }: BadgeShelfProps) => {
+const BadgeShelf = ({ badges, runNumber }: BadgeShelfProps) => {
   const [showLocked, setShowLocked] = useState(false);
   const unlocked = badges.filter((b) => b.unlocked);
   const locked = badges.filter((b) => !b.unlocked);
@@ -63,9 +52,19 @@ const BadgeShelf = ({ badges }: BadgeShelfProps) => {
       icon={<Award className="h-4 w-4" />}
       color="gold"
       right={
-        <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-          {unlocked.length}/{badges.length} unlocked
-        </span>
+        <div className="flex items-center gap-1.5">
+          {runNumber != null && runNumber > 1 && (
+            <span
+              className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground"
+              title="Your trophy case resets each 100-day run — earlier runs live in your finisher archive."
+            >
+              Run {runNumber}
+            </span>
+          )}
+          <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+            {unlocked.length}/{badges.length} unlocked
+          </span>
+        </div>
       }
     >
       <div className="space-y-4">

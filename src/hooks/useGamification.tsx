@@ -32,6 +32,9 @@ export type Celebration =
 export function useGamification({ userId, profile, refetchProfile, dayRange, weeklyGoals }: UseGamificationArgs) {
   const [xp, setXp] = useState(profile?.total_xp ?? 0);
   const xpRef = useRef(profile?.total_xp ?? 0);
+  // The trophy "season". Every 100-day finish starts a new one, so the same
+  // badge can be earned again — and pay out again — in the next run.
+  const runIndex = profile?.current_run ?? 1;
 
   const [claims, setClaims] = useState<Set<string>>(new Set());
   const [claimingKey, setClaimingKey] = useState<string | null>(null);
@@ -55,29 +58,33 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
   }, [profile?.total_xp]);
 
   // Load persisted quest claims and unlocked achievements once we have a user.
+  // Trophies are scoped to the current run: finishing 100 days rolls the run
+  // over, which empties the shelf for the next one (XP is untouched).
   useEffect(() => {
     if (!userId) return;
     let active = true;
+    // Gate the grant effect until the new run's shelf has actually loaded, so
+    // it can never act on the previous run's set of earned keys.
+    setAchievementsLoaded(false);
 
     (async () => {
       const [claimRes, achRes] = await Promise.all([
         supabase.from("quest_claims").select("period, quest_key").eq("user_id", userId),
-        supabase.from("achievements").select("achievement_key").eq("user_id", userId),
+        supabase.from("achievements").select("achievement_key").eq("user_id", userId).eq("run_index", runIndex),
       ]);
       if (!active) return;
       if (claimRes.data) {
         setClaims(new Set(claimRes.data.map((c) => claimKey(c.period, c.quest_key))));
       }
-      if (achRes.data) {
-        setEarnedBadgeKeys(new Set(achRes.data.map((a) => a.achievement_key)));
-      }
+      setEarnedBadgeKeys(new Set((achRes.data ?? []).map((a) => a.achievement_key)));
+      grantingRef.current = new Set();
       setAchievementsLoaded(true);
     })();
 
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [userId, runIndex]);
 
   // Single funnel for all XP awards; writes the absolute new total so sequential
   // awaited awards accumulate correctly without racing on a stale DB read.
@@ -201,6 +208,7 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
         const { error } = await supabase.from("achievements").insert({
           user_id: userId,
           achievement_key: b.key,
+          run_index: runIndex,
           tier: b.tier,
           xp_awarded: b.xp,
         });
@@ -216,7 +224,7 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
         return n;
       });
     })();
-  }, [userId, profile, achievementsLoaded, dayRange, weeklyGoals, earnedBadgeKeys, awardXp, pushCelebration]);
+  }, [userId, profile, achievementsLoaded, dayRange, weeklyGoals, earnedBadgeKeys, runIndex, awardXp, pushCelebration]);
 
   // Recovery floor: total_xp should never sit below the XP actually recorded in
   // quest_claims + achievements. If it does (e.g. an earlier bug reset it), raise

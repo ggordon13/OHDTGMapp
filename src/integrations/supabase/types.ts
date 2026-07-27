@@ -142,6 +142,7 @@ export type Database = {
           achievement_key: string
           created_at: string
           id: string
+          run_index: number
           tier: string | null
           user_id: string
           xp_awarded: number
@@ -150,6 +151,7 @@ export type Database = {
           achievement_key: string
           created_at?: string
           id?: string
+          run_index?: number
           tier?: string | null
           user_id: string
           xp_awarded?: number
@@ -158,9 +160,43 @@ export type Database = {
           achievement_key?: string
           created_at?: string
           id?: string
+          run_index?: number
           tier?: string | null
           user_id?: string
           xp_awarded?: number
+        }
+        Relationships: []
+      }
+      hundred_day_runs: {
+        Row: {
+          badges: Json
+          completed_at: string
+          end_date: string
+          id: string
+          run_number: number
+          start_date: string
+          summary: Json
+          user_id: string
+        }
+        Insert: {
+          badges?: Json
+          completed_at?: string
+          end_date: string
+          id?: string
+          run_number: number
+          start_date: string
+          summary?: Json
+          user_id: string
+        }
+        Update: {
+          badges?: Json
+          completed_at?: string
+          end_date?: string
+          id?: string
+          run_number?: number
+          start_date?: string
+          summary?: Json
+          user_id?: string
         }
         Relationships: []
       }
@@ -244,6 +280,7 @@ export type Database = {
           avatar_url: string | null
           challenge_start_date: string | null
           created_at: string
+          current_run: number
           current_weight: number | null
           daily_calorie_target: number | null
           daily_calorie_target_max: number | null
@@ -255,6 +292,7 @@ export type Database = {
           daily_water_target: number | null
           display_name: string | null
           email: string | null
+          finisher_count: number
           gender: string | null
           goal_type: string
           height_cm: number | null
@@ -280,6 +318,7 @@ export type Database = {
           avatar_url?: string | null
           challenge_start_date?: string | null
           created_at?: string
+          current_run?: number
           current_weight?: number | null
           daily_calorie_target?: number | null
           daily_calorie_target_max?: number | null
@@ -291,6 +330,7 @@ export type Database = {
           daily_water_target?: number | null
           display_name?: string | null
           email?: string | null
+          finisher_count?: number
           gender?: string | null
           goal_type?: string
           height_cm?: number | null
@@ -316,6 +356,7 @@ export type Database = {
           avatar_url?: string | null
           challenge_start_date?: string | null
           created_at?: string
+          current_run?: number
           current_weight?: number | null
           daily_calorie_target?: number | null
           daily_calorie_target_max?: number | null
@@ -327,6 +368,7 @@ export type Database = {
           daily_water_target?: number | null
           display_name?: string | null
           email?: string | null
+          finisher_count?: number
           gender?: string | null
           goal_type?: string
           height_cm?: number | null
@@ -355,6 +397,29 @@ export type Database = {
       is_username_available: {
         Args: { candidate: string }
         Returns: boolean
+      }
+      finish_hundred_day_run: {
+        Args: {
+          p_start_date: string
+          p_end_date: string
+          p_summary: Json
+          p_badges: Json
+          p_new_start: string
+          p_current_weight: number
+          p_goal_type: string
+          p_target_weight: number
+          p_target_weight_min: number | null
+          p_target_weight_max: number | null
+          p_calorie_target: number
+          p_calorie_min: number
+          p_calorie_max: number
+          p_protein_target: number
+          p_protein_min: number
+          p_protein_max: number
+          p_water_target: number
+          p_steps_target: number
+        }
+        Returns: number
       }
       is_challenge_member: {
         Args: { p_challenge: string }

@@ -7,6 +7,7 @@ import {
   requiresProfileSetup,
   targetWeightRange,
   recommendedTargetRange,
+  calculateTargets,
   isValidUsername,
   USERNAME_MAX_LENGTH,
   USERNAME_RULE_HINT,
@@ -20,70 +21,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import GameButton from "@/components/game/GameButton";
 import { canEditStartingData } from "@/lib/access";
 import { toast } from "sonner";
-
-const activityMultipliers: Record<string, number> = {
-  sedentary: 1.3,
-  lightly_active: 1.45,
-  very_active: 1.7,
-};
-
-function calculateTargets(
-  age: number,
-  heightCm: number,
-  weight: number,
-  gender: string,
-  activity: string,
-  goal: GoalType,
-  targetWeight: number,
-  useRecommended: boolean,
-) {
-  // Mifflin-St Jeor BMR
-  const bmr = gender === "male"
-    ? (10 * weight + 6.25 * heightCm - 5 * age + 5)
-    : (10 * weight + 6.25 * heightCm - 5 * age - 161);
-
-  const multiplier = activityMultipliers[activity] || 1.45;
-  const tdee = bmr * multiplier;
-
-  // Deficit percentages (of body mass) for the losing plan. The recommended
-  // range uses fixed 0.13% / 0.09%. A manually-picked target instead scales the
-  // deficit by how far the goal is from the current weight, ±0.02.
-  const lossFraction = (weight - targetWeight) / weight;
-  const aggressivePct = useRecommended ? 0.13 : lossFraction + 0.02;
-  const moderatePct = useRecommended ? 0.09 : lossFraction - 0.02;
-
-  // Losing runs a deficit sized off body mass; maintaining sits in a narrow
-  // band around TDEE so weight holds steady.
-  const calorieMin = goal === "lose"
-    ? Math.round(tdee - (weight * aggressivePct * 7700 / 100)) // aggressive
-    : Math.round(tdee - (weight * 7));
-  const calorieMax = goal === "lose"
-    ? Math.round(tdee - (weight * moderatePct * 7700 / 100)) // moderate
-    : Math.round(tdee - (weight * 4));
-
-  // Protein targets
-  const proteinMin = Math.round(weight * 1.3);
-  const proteinMax = Math.round(weight * 1.8);
-
-  // Fixed daily hydration goal (glasses) — matches the dashboard water target.
-  const water = 7;
-
-  // Steps based on activity
-  const stepsMap: Record<string, number> = {
-    sedentary: 4000,
-    lightly_active: 6000,
-    very_active: 8000,
-  };
-
-  return {
-    calorieMin,
-    calorieMax,
-    proteinMin,
-    proteinMax,
-    water,
-    steps: stepsMap[activity] || 6000,
-  };
-}
 
 const ProfileSetup = () => {
   const { user, loading: authLoading } = useAuth();
