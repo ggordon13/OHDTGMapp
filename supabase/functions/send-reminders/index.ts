@@ -42,11 +42,32 @@ interface SubRow {
   auth: string;
 }
 
+// Each reminder targets one metric: it goes to subscribers who haven't filled
+// that field for today. Pick which via the POST body {"metric":"calories"};
+// defaults to "weight" (the morning weigh-in). Schedule one cron per metric.
+const REMINDERS: Record<string, { column: string; body: string }> = {
+  weight: { column: "weight", body: "Time to weigh in — log your weight to keep your streak! ⚖️🔥" },
+  calories: { column: "calories", body: "Don't forget to log today's calories! 🍽️" },
+  protein: { column: "protein", body: "Hit your protein — log it for today! 💪" },
+  water: { column: "water", body: "Hydration check — log your water! 💧" },
+  steps: { column: "steps", body: "Log your steps for today! 👟" },
+};
+
 Deno.serve(async (req) => {
   // Only the scheduler (holding the shared secret) may trigger a send.
   if (CRON_SECRET && req.headers.get("x-cron-secret") !== CRON_SECRET) {
     return new Response("Unauthorized", { status: 401 });
   }
+
+  // Which reminder to send (body {"metric":"calories"}); default = weight.
+  let metric = "weight";
+  try {
+    const body = await req.json();
+    if (body && typeof body.metric === "string" && REMINDERS[body.metric]) metric = body.metric;
+  } catch {
+    // No/invalid body → keep the default weight reminder.
+  }
+  const reminder = REMINDERS[metric];
 
   // "today" must match how the app stores daily_logs.date — the user's LOCAL
   // date. daily_logs are saved with the browser's local date, so we shift by the
@@ -61,19 +82,18 @@ Deno.serve(async (req) => {
     .select("id, user_id, endpoint, p256dh, auth");
   if (error) return new Response(error.message, { status: 500 });
 
-  // Users who already logged today are skipped. "Logged" matches the app's own
-  // rule (isDayLogged): a day counts only once a WEIGHT is recorded — a row that
-  // merely exists (e.g. a partial save, or a default "None" exercise) does not.
+  // Skip users who already filled this metric today — an actual value, not just
+  // a row that exists (e.g. a partial save, or a default "None" exercise).
   const { data: logged } = await admin
     .from("daily_logs")
     .select("user_id")
     .eq("date", today)
-    .not("weight", "is", null);
+    .not(reminder.column, "is", null);
   const loggedSet = new Set((logged ?? []).map((r) => r.user_id as string));
 
   const payload = JSON.stringify({
     title: "GGLvlup",
-    body: "Time to log today — keep your streak alive! 🔥",
+    body: reminder.body,
     url: "/",
   });
 
@@ -99,7 +119,7 @@ Deno.serve(async (req) => {
   }
 
   console.log(
-    `send-reminders: subscriptions=${(subs ?? []).length} loggedToday=${loggedSet.size} sent=${sent} removed=${removed}`,
+    `send-reminders[${metric}]: subscriptions=${(subs ?? []).length} loggedToday=${loggedSet.size} sent=${sent} removed=${removed}`,
   );
 
   return new Response(JSON.stringify({ sent, removed }), {
