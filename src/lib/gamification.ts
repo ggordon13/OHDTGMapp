@@ -1,4 +1,5 @@
 import { DailyLog } from "@/lib/mockData";
+import { formatDateInputValue } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Shared goal shapes
@@ -98,6 +99,12 @@ export interface Quest {
   current: number;
   target: number;
   completed: boolean;
+  /**
+   * Claim-period key for this quest specifically, overriding its category
+   * default. The ⭐ week quest uses it to sit on the last *settled* week rather
+   * than the one still in progress.
+   */
+  period?: string;
 }
 
 /** Quests scored against today's entry. `today` is null before anything is logged. */
@@ -171,43 +178,61 @@ export function getDailyQuests(today: DailyLog | null, goals: QuestGoals): Quest
   ];
 }
 
-/** Quests scored against the current (in-progress) week's days. */
-export function getWeeklyQuests(weekLogs: DailyLog[], goals: WeeklyGoals): Quest[] {
+/**
+ * Quests scored against the current (in-progress) week's days.
+ *
+ * The ⭐ quest is the exception: a star week can only be called once its seven
+ * days are done, so it is scored against `settledWeek` — the last completed
+ * week — and carries that week's date as its own claim period.
+ */
+export function getWeeklyQuests(
+  weekLogs: DailyLog[],
+  goals: WeeklyGoals,
+  settledWeek?: DailyLog[] | null,
+): Quest[] {
   const daysLogged = weekLogs.filter(isDayLogged).length;
   const hydrationDays = weekLogs.filter((d) => d.water != null && d.water >= goals.dailyWater).length;
-  const avg = getWeeklyAvg(weekLogs);
-  const starEarned = isAchieved(avg, goals);
+  const settled = settledWeek ?? null;
+  const starEarned = settled != null && isAchieved(getWeeklyAvg(settled), goals);
+  // Normally 5 of 7 days — but Week 15 only has 2, so the bar drops to its
+  // length rather than leaving both quests permanently out of reach.
+  const daysTarget = Math.min(5, weekLength(weekLogs));
 
   return [
     {
       key: "weekly-consistency",
       title: "Consistency streak",
-      description: "Log at least 5 days this week",
+      description: `Log at least ${daysTarget} days this week`,
       xp: 50,
       category: "weekly",
       current: daysLogged,
-      target: 5,
-      completed: daysLogged >= 5,
+      target: daysTarget,
+      completed: daysLogged >= daysTarget,
     },
     {
       key: "weekly-hydration",
       title: "Hydration challenge",
-      description: `Hit your water goal on 5 days`,
+      description: `Hit your water goal on ${daysTarget} days`,
       xp: 40,
       category: "weekly",
       current: hydrationDays,
-      target: 5,
-      completed: hydrationDays >= 5,
+      target: daysTarget,
+      completed: hydrationDays >= daysTarget,
     },
     {
       key: "weekly-star",
       title: "Earn a ⭐ week",
-      description: "Meet the weekly achievement targets",
+      description: settled
+        ? "Your last full week met the achievement targets"
+        : "Meet the weekly targets — scored once all 7 days are done",
       xp: 75,
       category: "weekly",
       current: starEarned ? 1 : 0,
       target: 1,
       completed: starEarned,
+      // Sits on the week it actually judged, so finishing a star week always
+      // leaves exactly one claim behind.
+      ...(settled?.[0]?.date ? { period: settled[0].date } : {}),
     },
   ];
 }
@@ -259,10 +284,31 @@ export function isAchieved(avg: WeeklyAvg, goals: WeeklyGoals): boolean {
   return stepsMet && exerciseMet;
 }
 
+/** Days in a normal week. */
+export const DAYS_PER_WEEK = 7;
+
+/**
+ * The full challenge length. Lives here (rather than in the access module) so
+ * the pure scoring logic owns it; `@/lib/access` re-exports it as CHALLENGE_DAYS.
+ */
+export const CHALLENGE_DAYS = 100;
+
+/**
+ * Split a run into weeks. 100 days is 14 full weeks plus a 2-day remainder, so
+ * the chunking breaks on Day 100: Week 15 is exactly Days 99–100, a short week
+ * by design rather than one that spills into overtime. Days logged past Day 100
+ * (before the star is claimed) chunk normally after that.
+ *
+ * Positional, so `logs` is expected to start at Day 1 — as every caller's
+ * dayRange does.
+ */
 export function chunkIntoWeeks(logs: DailyLog[]): DailyLog[][] {
   const weeks: DailyLog[][] = [];
-  for (let i = 0; i < logs.length; i += 7) {
-    weeks.push(logs.slice(i, i + 7));
+  let i = 0;
+  while (i < logs.length) {
+    const end = i < CHALLENGE_DAYS ? Math.min(i + DAYS_PER_WEEK, CHALLENGE_DAYS) : i + DAYS_PER_WEEK;
+    weeks.push(logs.slice(i, end));
+    i = end;
   }
   return weeks;
 }
@@ -278,6 +324,56 @@ export function getCurrentWeek(dayRange: DailyLog[]): DailyLog[] {
 export function getCurrentWeekPeriod(dayRange: DailyLog[]): string {
   const week = getCurrentWeek(dayRange);
   return week[0]?.date ?? "";
+}
+
+// ---------------------------------------------------------------------------
+// Week settlement
+//
+// A ⭐ week is judged once — and only once every one of its days is behind us.
+// The verdict lands after 11:59pm on the week's last day, i.e. the moment the
+// calendar rolls past it. Until then the week is still in play: no star, no
+// trophy, no claim. This keeps a good first half of a week from banking a
+// permanent reward that the second half would have undone.
+//
+// Week 15 is the exception on length, not on timing: it is only 2 days long
+// (Days 99–100), so those 2 days are all it needs to be complete — but it still
+// waits until Day 100 is over before it is scored.
+// ---------------------------------------------------------------------------
+
+/**
+ * How many days this week holds once it is whole. Normally 7 — but Week 15 is
+ * the 2-day tail of the run (Days 99–100), so it only ever needs those 2.
+ */
+export function weekLength(week: DailyLog[]): number {
+  const first = week[0];
+  if (first == null) return DAYS_PER_WEEK;
+  const isFinalWeek = first.day > CHALLENGE_DAYS - DAYS_PER_WEEK && first.day <= CHALLENGE_DAYS;
+  return isFinalWeek ? CHALLENGE_DAYS - first.day + 1 : DAYS_PER_WEEK;
+}
+
+/** Whether a week holds every day that belongs to it. */
+export function isWeekWhole(week: DailyLog[]): boolean {
+  return week.length > 0 && week.length >= weekLength(week);
+}
+
+/** Whether a week's verdict is final: it is whole, and its last day is past. */
+export function isWeekSettled(week: DailyLog[], today: string = formatDateInputValue()): boolean {
+  if (!isWeekWhole(week)) return false;
+  return week[week.length - 1].date < today;
+}
+
+/** Just the weeks that can be judged; drops the one still in progress. */
+export function settledWeeks(weeks: DailyLog[][], today?: string): DailyLog[][] {
+  return weeks.filter((week) => isWeekSettled(week, today));
+}
+
+/**
+ * The most recent week whose 7 days are complete, or null while the very first
+ * week is still running. This is the week a ⭐ verdict applies to.
+ */
+export function getLastSettledWeek(dayRange: DailyLog[], today?: string): DailyLog[] | null {
+  const settled = settledWeeks(chunkIntoWeeks(dayRange), today);
+  return settled.length ? settled[settled.length - 1] : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -463,9 +559,21 @@ const BADGE_CATALOG: BadgeDef[] = [
 /** The complete trophy catalog (every badge that can ever be earned). */
 export const ALL_BADGES: Badge[] = BADGE_CATALOG.map(({ earned: _earned, ...badge }) => badge);
 
-/** Every badge the player currently qualifies for, given their whole history. */
-export function getEarnedBadges(dayRange: DailyLog[], goals: WeeklyGoals, weightOpts?: BadgeWeightOpts): Badge[] {
-  const weeks = chunkIntoWeeks(dayRange);
+/**
+ * Every badge the player currently qualifies for, given their whole history.
+ *
+ * Week-based trophies are scored on *settled* weeks only. Unlocking is
+ * permanent and pays XP, so a week must be over before it can hand one out —
+ * otherwise a strong Monday-to-Thursday would bank a trophy the rest of the
+ * week no longer deserves.
+ */
+export function getEarnedBadges(
+  dayRange: DailyLog[],
+  goals: WeeklyGoals,
+  weightOpts?: BadgeWeightOpts,
+  today?: string,
+): Badge[] {
+  const weeks = settledWeeks(chunkIntoWeeks(dayRange), today);
   const totalStars = weeks.filter((w) => isAchieved(getWeeklyAvg(w), goals)).length;
 
   // "Built Different": the latest logged weight has reached the target, in

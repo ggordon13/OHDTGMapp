@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Star, X } from "lucide-react";
+import { AlertTriangle, Lock, Star, X } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
 import RunReport from "@/components/RunReport";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { calculateTargets, recommendedTargetRange, targetWeightRange, type GoalType } from "@/lib/profile";
 import { ArchivedBadge, RunSummary } from "@/lib/hundredDay";
+import { CHALLENGE_DAYS } from "@/lib/access";
 import type { RestartPlan } from "@/hooks/useHundredDay";
 import { formatDateInputValue, parseDateInputValue } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,12 @@ interface HundredDayFinishModalProps {
   /** The goal type the finished run used, carried over as the default. */
   currentGoalType: GoalType;
   busy: boolean;
+  /** True once Days 1–100 have been locked in — the modal then skips that gate. */
+  locked: boolean;
+  /** Days out of 100 that carry a weight, and whether Day 100 itself does. */
+  readiness: { daysLogged: number; totalDays: number; finalDayLogged: boolean };
+  /** Seal Days 1–100 and score the run. Resolves true on success. */
+  onLockIn: () => Promise<boolean>;
   /** Archive the run and re-base the profile. Resolves true on success. */
   onConfirm: (plan: RestartPlan) => Promise<boolean>;
 }
@@ -69,9 +76,12 @@ const HundredDayFinishModal = ({
   suggestedStartWeight,
   currentGoalType,
   busy,
+  locked,
+  readiness,
+  onLockIn,
   onConfirm,
 }: HundredDayFinishModalProps) => {
-  const [stage, setStage] = useState<"report" | "restart">("report");
+  const [stage, setStage] = useState<"lock" | "report" | "restart">(locked ? "report" : "lock");
 
   const today = formatDateInputValue();
   const [startChoice, setStartChoice] = useState<"today" | "tomorrow" | "custom">("today");
@@ -87,7 +97,7 @@ const HundredDayFinishModal = ({
   // finish never carries stale input.
   useEffect(() => {
     if (!open) return;
-    setStage("report");
+    setStage(locked ? "report" : "lock");
     setStartChoice("today");
     setCustomStart(shiftDays(1));
     setWeightInput(defaultWeight != null ? String(round1(defaultWeight)) : "");
@@ -142,6 +152,11 @@ const HundredDayFinishModal = ({
 
   const canConfirm = !busy && startValid && targets != null;
 
+  const lockIn = async () => {
+    if (busy) return;
+    if (await onLockIn()) setStage("report");
+  };
+
   const confirm = async () => {
     if (!canConfirm || !targets || !hasWeight) return;
     const resolvedTarget = useRecommended
@@ -178,7 +193,78 @@ const HundredDayFinishModal = ({
           onOpenAutoFocus={(e) => e.preventDefault()}
           className="game-panel fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto p-6 focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
         >
-          {stage === "report" ? (
+          {stage === "lock" ? (
+            <div className="space-y-5">
+              <div className="space-y-2 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-[hsl(6,55%,28%)] bg-gradient-to-b from-[hsl(6,70%,62%)] to-[hsl(6,62%,48%)] shadow-[0_4px_0_hsl(6,55%,28%),0_6px_12px_rgba(0,0,0,0.4),inset_0_2px_0_rgba(255,255,255,0.4)]">
+                  <Lock className="h-7 w-7 text-white" />
+                </div>
+                <Dialog.Title className="font-display text-2xl font-bold text-card-foreground">
+                  Lock in Day {CHALLENGE_DAYS}
+                </Dialog.Title>
+                <Dialog.Description className="text-sm font-bold text-muted-foreground">
+                  This closes the books on your challenge and scores it — including Week 15, the final 2 days.
+                </Dialog.Description>
+              </div>
+
+              <div className="rounded-xl border-2 border-[hsl(6,55%,45%)] bg-[hsl(6,60%,92%)] px-3 py-2.5">
+                <p className="flex items-start gap-1.5 text-sm font-bold text-[hsl(6,62%,38%)]">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    Once you lock in, <strong>Days 1–{CHALLENGE_DAYS} of this challenge become permanent</strong>. You
+                    won't be able to change any of that data again — so make sure everything is entered first.
+                  </span>
+                </p>
+              </div>
+
+              {/* Give them the numbers before they commit to them. */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="game-tag px-2.5 py-2">
+                  <p className="font-display text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                    Days logged
+                  </p>
+                  <p className="font-display text-sm font-bold text-card-foreground">
+                    {readiness.daysLogged}/{readiness.totalDays}
+                  </p>
+                </div>
+                <div className="game-tag px-2.5 py-2">
+                  <p className="font-display text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                    Day {CHALLENGE_DAYS} weight
+                  </p>
+                  <p
+                    className={cn(
+                      "font-display text-sm font-bold",
+                      readiness.finalDayLogged ? "text-[hsl(84,45%,28%)]" : "text-[hsl(6,62%,42%)]",
+                    )}
+                  >
+                    {readiness.finalDayLogged ? "Logged ✓" : "Missing"}
+                  </p>
+                </div>
+              </div>
+
+              {!readiness.finalDayLogged && (
+                <div className="rounded-lg border-2 border-[hsl(40,70%,45%)] bg-[hsl(45,82%,88%)] px-3 py-2 text-xs font-bold text-[hsl(30,55%,32%)]">
+                  ⚠️ Day {CHALLENGE_DAYS} has no weight yet. Log it before locking in, or your before-and-after will be
+                  missing its final number.
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <GameButton color="red" size="lg" className="w-full" disabled={busy} onClick={() => void lockIn()}>
+                  <Lock className="h-4 w-4" />
+                  {busy ? "Locking in…" : `Lock in Day ${CHALLENGE_DAYS} & see my results`}
+                </GameButton>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onOpenChange(false)}
+                  className="w-full text-center font-display text-sm font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-card-foreground disabled:opacity-50"
+                >
+                  Wait — I still need to edit something
+                </button>
+              </div>
+            </div>
+          ) : stage === "report" ? (
             <div className="space-y-5">
               <div className="space-y-2 text-center">
                 <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border-[4px] border-[hsl(33,75%,28%)] bg-gradient-to-b from-[hsl(44,98%,68%)] to-[hsl(36,88%,46%)] shadow-[0_5px_0_hsl(33,75%,28%),0_0_28px_hsl(42,95%,60%,0.6),inset_0_2px_0_rgba(255,255,255,0.55)]">
@@ -195,8 +281,9 @@ const HundredDayFinishModal = ({
               <RunReport summary={summary} badges={badges} />
 
               <div className="rounded-xl border-2 border-[hsl(40,70%,45%)] bg-[hsl(45,82%,88%)] px-3 py-2 text-xs font-bold text-[hsl(30,55%,32%)]">
-                Starting your next 100 days files this run away in your finisher archive and empties the trophy case
-                for a fresh set. Your XP, level and rank are permanent — they carry straight over.
+                🔒 Days 1–{CHALLENGE_DAYS} are locked and final. Starting your next 100 days files this run away in your
+                finisher archive and empties the trophy case for a fresh set — your XP, level and rank are permanent and
+                carry straight over.
               </div>
 
               <div className="space-y-2">

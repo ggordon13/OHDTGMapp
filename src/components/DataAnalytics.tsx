@@ -11,6 +11,8 @@ import GameButton from "@/components/game/GameButton";
 interface DataAnalyticsProps {
   logs: DailyLog[];
   goals: WeeklyGoals;
+  /** Date week settlement is judged against; set once a run is locked in. */
+  scoringDate?: string;
   userName: string;
   /** Premium/staff may view the numbers and export; free users see a locked teaser. */
   canExport: boolean;
@@ -35,8 +37,8 @@ const Tile = ({ icon, label, value, tone }: { icon: ReactNode; label: string; va
   </div>
 );
 
-const DataAnalytics = ({ logs, goals, userName, canExport, lockedSlot }: DataAnalyticsProps) => {
-  const analytics = useMemo(() => computeAnalytics(logs, goals), [logs, goals]);
+const DataAnalytics = ({ logs, goals, scoringDate, userName, canExport, lockedSlot }: DataAnalyticsProps) => {
+  const analytics = useMemo(() => computeAnalytics(logs, goals, scoringDate), [logs, goals, scoringDate]);
 
   const meta = useMemo<ExportMeta>(() => {
     const logged = logs.filter((l) => l.weight != null || l.calories != null || l.steps != null);
@@ -108,7 +110,7 @@ const DataAnalytics = ({ logs, goals, userName, canExport, lockedSlot }: DataAna
             value={w ? `${w.change > 0 ? "+" : ""}${w.change} kg` : "—"}
             tone={changeTone}
           />
-          <Tile icon={<Star className="h-4 w-4 fill-[hsl(40,90%,55%)] text-[hsl(40,90%,45%)]" />} label="Star weeks" value={`${analytics.starWeeks}/${analytics.weeks}`} />
+          <Tile icon={<Star className="h-4 w-4 fill-[hsl(40,90%,55%)] text-[hsl(40,90%,45%)]" />} label="Star weeks" value={`${analytics.starWeeks}/${analytics.settledWeeks}`} />
           <Tile icon={<Flame className="h-4 w-4 text-[hsl(24,85%,52%)]" />} label="Avg calories" value={analytics.averages.calories !== null ? `${analytics.averages.calories}` : "—"} />
           <Tile icon={<Beef className="h-4 w-4 text-[hsl(24,55%,42%)]" />} label="Avg protein" value={analytics.averages.protein !== null ? `${analytics.averages.protein}g` : "—"} />
           <Tile icon={<Droplets className="h-4 w-4 text-[hsl(200,60%,45%)]" />} label="Avg water" value={analytics.averages.water !== null ? `${analytics.averages.water}` : "—"} />

@@ -30,8 +30,11 @@ export interface PremiumAccessContext {
  */
 export const FREE_LOG_DAY_LIMIT = 30;
 
-/** The full challenge length premium unlocks. */
-export const CHALLENGE_DAYS = 100;
+/**
+ * The full challenge length premium unlocks. Defined by the scoring logic (it
+ * decides where Week 15 ends) and re-exported here for the access/limit code.
+ */
+export { CHALLENGE_DAYS } from "@/lib/gamification";
 
 /** Premium users may re-edit locked starting data once per this many days. */
 export const STARTING_DATA_LOCK_DAYS = 30;

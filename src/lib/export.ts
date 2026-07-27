@@ -21,7 +21,8 @@ function summaryRows(a: AnalyticsSummary): [string, string][] {
   const rows: [string, string][] = [
     ["Days logged", `${a.daysLogged} of ${a.totalDays}`],
     ["Weeks tracked", String(a.weeks)],
-    ["Star weeks", `${a.starWeeks} of ${a.weeks}`],
+    // Only finished weeks carry a verdict, so the denominator is those.
+    ["Star weeks", `${a.starWeeks} of ${a.settledWeeks} finished`],
   ];
   if (a.weight) {
     const dir = a.weight.change === 0 ? "" : a.weight.change < 0 ? " (down)" : " (up)";
@@ -53,7 +54,7 @@ function weeklyBody(a: AnalyticsSummary): string[][] {
     fmt(w.water),
     fmt(w.steps),
     `${w.exerciseDays}/${w.totalDays}`,
-    w.star ? "★" : "—",
+    !w.settled ? "in progress" : w.star ? "★" : "—",
   ]);
 }
 

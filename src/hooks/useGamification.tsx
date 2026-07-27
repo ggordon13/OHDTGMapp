@@ -20,6 +20,11 @@ interface UseGamificationArgs {
   refetchProfile: () => Promise<void>;
   dayRange: DailyLog[];
   weeklyGoals: WeeklyGoals;
+  /**
+   * The date week settlement is judged against. Normally today; once a run is
+   * locked in it's the day after Day 100, so the run's final week counts.
+   */
+  scoringDate?: string;
 }
 
 const claimKey = (period: string, questKey: string) => `${period}::${questKey}`;
@@ -29,7 +34,14 @@ export type Celebration =
   | { id: string; type: "badge"; badge: Badge }
   | { id: string; type: "level"; level: number };
 
-export function useGamification({ userId, profile, refetchProfile, dayRange, weeklyGoals }: UseGamificationArgs) {
+export function useGamification({
+  userId,
+  profile,
+  refetchProfile,
+  dayRange,
+  weeklyGoals,
+  scoringDate,
+}: UseGamificationArgs) {
   const [xp, setXp] = useState(profile?.total_xp ?? 0);
   const xpRef = useRef(profile?.total_xp ?? 0);
   // The trophy "season". Every 100-day finish starts a new one, so the same
@@ -195,10 +207,12 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
     // Wait for the profile (and thus the seeded XP total) before writing XP,
     // otherwise a grant fired mid-load could overwrite the stored total with 0.
     if (!userId || !profile || !achievementsLoaded || dayRange.length === 0) return;
-    const derived = getEarnedBadges(dayRange, weeklyGoals, {
-      startWeight: profile.current_weight,
-      targetWeight: profile.target_weight,
-    });
+    const derived = getEarnedBadges(
+      dayRange,
+      weeklyGoals,
+      { startWeight: profile.current_weight, targetWeight: profile.target_weight },
+      scoringDate,
+    );
     const toGrant = derived.filter((b) => !earnedBadgeKeys.has(b.key) && !grantingRef.current.has(b.key));
     if (toGrant.length === 0) return;
 
@@ -224,7 +238,18 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
         return n;
       });
     })();
-  }, [userId, profile, achievementsLoaded, dayRange, weeklyGoals, earnedBadgeKeys, runIndex, awardXp, pushCelebration]);
+  }, [
+    userId,
+    profile,
+    achievementsLoaded,
+    dayRange,
+    weeklyGoals,
+    earnedBadgeKeys,
+    runIndex,
+    scoringDate,
+    awardXp,
+    pushCelebration,
+  ]);
 
   // Recovery floor: total_xp should never sit below the XP actually recorded in
   // quest_claims + achievements. If it does (e.g. an earlier bug reset it), raise
@@ -272,6 +297,48 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
     }
   }, [userId, profile, dayRange, refetchProfile]);
 
+  /**
+   * Grant every trophy the run qualifies for as of `asOf`, then report the full
+   * unlocked set. Called when a 100-day run is locked in on Day 100 itself: the
+   * final week is settled by that act, so anything it unlocks has to be paid out
+   * before the trophy case is archived and reset for the next run.
+   *
+   * Deliberately silent — the finish modal is already on screen, so a queued
+   * full-screen celebration would fight with it.
+   */
+  const sealBadges = useCallback(
+    async (asOf: string): Promise<Badge[]> => {
+      if (!userId || !profile) return [];
+      const derived = getEarnedBadges(
+        dayRange,
+        weeklyGoals,
+        { startWeight: profile.current_weight, targetWeight: profile.target_weight },
+        asOf,
+      );
+      const toGrant = derived.filter((b) => !earnedBadgeKeys.has(b.key) && !grantingRef.current.has(b.key));
+      if (toGrant.length === 0) return derived;
+
+      toGrant.forEach((b) => grantingRef.current.add(b.key));
+      for (const b of toGrant) {
+        const { error } = await supabase.from("achievements").insert({
+          user_id: userId,
+          achievement_key: b.key,
+          run_index: runIndex,
+          tier: b.tier,
+          xp_awarded: b.xp,
+        });
+        if (!error) await awardXp(b.xp);
+      }
+      setEarnedBadgeKeys((prev) => {
+        const n = new Set(prev);
+        toGrant.forEach((b) => n.add(b.key));
+        return n;
+      });
+      return derived;
+    },
+    [userId, profile, dayRange, weeklyGoals, earnedBadgeKeys, runIndex, awardXp],
+  );
+
   const celebrateMilestone = useCallback(
     async (weight: number) => {
       if (!userId) return;
@@ -299,6 +366,7 @@ export function useGamification({ userId, profile, refetchProfile, dayRange, wee
     claimAll,
     claimingKey,
     badges: allBadges,
+    sealBadges,
     celebrateMilestone,
     celebrations,
     dismissCelebration,

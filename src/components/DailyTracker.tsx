@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { DailyLog, exerciseOptions } from "@/lib/mockData";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Save, ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
+import { Save, ChevronLeft, ChevronRight, ClipboardList, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import GamePanel from "@/components/game/GamePanel";
@@ -21,6 +21,8 @@ interface DailyTrackerProps {
   /** Inclusive date range (YYYY-MM-DD) of an active 30-day challenge; rows in it get a chip. */
   challengeStart?: string;
   challengeEnd?: string;
+  /** Days 1–100 have been locked in: the log is a read-only record. */
+  locked?: boolean;
 }
 
 const PAGE_SIZE = 7;
@@ -36,7 +38,16 @@ const PagerButton = ({ onClick, disabled, children }: { onClick: () => void; dis
   </button>
 );
 
-const DailyTracker = ({ logs, onUpdate, highlightDate, footer, statusBadge, challengeStart, challengeEnd }: DailyTrackerProps) => {
+const DailyTracker = ({
+  logs,
+  onUpdate,
+  highlightDate,
+  footer,
+  statusBadge,
+  challengeStart,
+  challengeEnd,
+  locked = false,
+}: DailyTrackerProps) => {
   const [editedLogs, setEditedLogs] = useState<DailyLog[]>(logs);
   const [page, setPage] = useState(Math.max(0, Math.floor((logs.length - 1) / PAGE_SIZE)));
   const todayRowRef = useRef<HTMLTableRowElement>(null);
@@ -56,6 +67,7 @@ const DailyTracker = ({ logs, onUpdate, highlightDate, footer, statusBadge, chal
   const totalPages = Math.ceil(editedLogs.length / PAGE_SIZE);
 
   const handleChange = (index: number, field: keyof DailyLog, value: string) => {
+    if (locked) return;
     const globalIdx = startIdx + index;
     const updated = [...editedLogs];
     const numFields: (keyof DailyLog)[] = ["weight", "calories", "protein", "water", "steps"];
@@ -69,6 +81,7 @@ const DailyTracker = ({ logs, onUpdate, highlightDate, footer, statusBadge, chal
   };
 
   const handleSave = () => {
+    if (locked) return;
     onUpdate(editedLogs);
     toast.success("Progress saved! Keep going 💪");
   };
@@ -168,6 +181,7 @@ const DailyTracker = ({ logs, onUpdate, highlightDate, footer, statusBadge, chal
                         {col.type === "select" ? (
                           <Select
                             value={(log[col.key] as string) || "None"}
+                            disabled={locked}
                             onValueChange={(value) => handleChange(idx, col.key, value)}
                           >
                             <SelectTrigger className="h-8 border-transparent bg-transparent text-sm transition-colors hover:border-input focus:border-input data-[state=open]:border-input">
@@ -184,8 +198,10 @@ const DailyTracker = ({ logs, onUpdate, highlightDate, footer, statusBadge, chal
                             type={col.type}
                             placeholder={isToday ? "0" : ""}
                             value={log[col.key] ?? ""}
+                            readOnly={locked}
+                            disabled={locked}
                             onChange={(e) => handleChange(idx, col.key, e.target.value)}
-                            className="h-8 border-transparent bg-transparent text-sm shadow-none transition-colors hover:border-input focus:border-input focus:bg-[hsl(40,48%,94%)]"
+                            className="h-8 border-transparent bg-transparent text-sm shadow-none transition-colors hover:border-input focus:border-input focus:bg-[hsl(40,48%,94%)] disabled:cursor-default disabled:opacity-100"
                           />
                         )}
                       </td>
@@ -200,17 +216,24 @@ const DailyTracker = ({ logs, onUpdate, highlightDate, footer, statusBadge, chal
         {footer}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {highlightDate != null && visibleLogs.some((l) => l.date === highlightDate) ? (
+          {locked ? (
+            <p className="flex items-center gap-1.5 text-xs font-bold text-[hsl(6,62%,42%)]">
+              <Lock className="h-3.5 w-3.5 shrink-0" />
+              This challenge is locked in — its log is a permanent record and can no longer be edited.
+            </p>
+          ) : highlightDate != null && visibleLogs.some((l) => l.date === highlightDate) ? (
             <p className="text-xs font-bold text-[hsl(70,45%,32%)]">
               Fill in the highlighted <span className="uppercase">Today</span> row, then save.
             </p>
           ) : (
             <span className="hidden sm:block" />
           )}
-          <GameButton onClick={handleSave} color="leaf" className="w-full shrink-0 whitespace-nowrap sm:w-auto">
-            <Save className="h-4 w-4" />
-            Save Progress
-          </GameButton>
+          {!locked && (
+            <GameButton onClick={handleSave} color="leaf" className="w-full shrink-0 whitespace-nowrap sm:w-auto">
+              <Save className="h-4 w-4" />
+              Save Progress
+            </GameButton>
+          )}
         </div>
       </div>
     </GamePanel>

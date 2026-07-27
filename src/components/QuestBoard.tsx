@@ -160,14 +160,18 @@ const QuestBoard = ({
     () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches,
   );
 
+  // Most weekly quests sit on the week in progress, but a quest may name its
+  // own period — the ⭐ quest scores the last *finished* week, not this one.
+  const periodOf = (quest: Quest) => quest.period ?? weeklyPeriod;
+
   const dailyDone = dailyQuests.filter((q) => isClaimed(dailyPeriod, q.key)).length;
-  const weeklyDone = weeklyQuests.filter((q) => isClaimed(weeklyPeriod, q.key)).length;
+  const weeklyDone = weeklyQuests.filter((q) => isClaimed(periodOf(q), q.key)).length;
 
   // Quests finished but not yet claimed — the reason the collapsed bar glows,
   // and exactly what "Claim all" will bank.
   const claimableItems: ClaimableItem[] = [
     ...dailyQuests.filter((q) => q.completed && !isClaimed(dailyPeriod, q.key)).map((q) => ({ quest: q, period: dailyPeriod })),
-    ...weeklyQuests.filter((q) => q.completed && !isClaimed(weeklyPeriod, q.key)).map((q) => ({ quest: q, period: weeklyPeriod })),
+    ...weeklyQuests.filter((q) => q.completed && !isClaimed(periodOf(q), q.key)).map((q) => ({ quest: q, period: periodOf(q) })),
   ];
   const claimable = claimableItems.length;
   const claimingAll = claimingKey === "__all__";
@@ -258,8 +262,8 @@ const QuestBoard = ({
                     <QuestRow
                       key={q.key}
                       quest={q}
-                      period={weeklyPeriod}
-                      claimed={isClaimed(weeklyPeriod, q.key)}
+                      period={periodOf(q)}
+                      claimed={isClaimed(periodOf(q), q.key)}
                       claiming={claimingKey === q.key}
                       onClaim={onClaim}
                     />
