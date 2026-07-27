@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, BookOpen, ShieldCheck } from "lucide-react";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, BookOpen, ShieldCheck, Palette } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,6 +20,8 @@ import Confetti from "@/components/Confetti";
 import CelebrationModal from "@/components/CelebrationModal";
 import Logo from "@/components/Logo";
 import QuickGuide from "@/components/QuickGuide";
+import ThemePicker from "@/components/ThemePicker";
+import { useTheme } from "@/hooks/useTheme";
 import DailyCheckIn from "@/components/DailyCheckIn";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import { revealPanels } from "@/lib/fx";
@@ -58,6 +60,7 @@ import {
   freeLogDayLimit,
   canManageAccess,
   normalizeAccessLevel,
+  getTrialState,
   FREE_LOG_DAY_LIMIT,
   CHALLENGE_DAYS,
 } from "@/lib/access";
@@ -68,6 +71,12 @@ const Index = () => {
   const navigate = useNavigate();
   const { logs, loading, updateLogs, refetch: refetchLogs } = useDailyLogs();
   const challenge = useChallenge();
+  // Applies the user's cosmetic theme (premium themes auto-revert when free).
+  const { appliedKey: themeKey, isPremium: themePremium, setTheme, startTrial } = useTheme({
+    profile,
+    userId: user?.id,
+    refetchProfile,
+  });
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showAdmin, setShowAdmin] = useState(true); // admin panels visible by default
@@ -82,6 +91,7 @@ const Index = () => {
   const runFinishShownRef = useRef(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideIsOnboarding, setGuideIsOnboarding] = useState(false);
+  const [showThemes, setShowThemes] = useState(false);
   const celebratingRef = useRef(false);
   const checkInDoneRef = useRef(false);
   const guideDoneRef = useRef(false);
@@ -223,12 +233,9 @@ const Index = () => {
     const loggedWeightToday = logs.some((l) => l.date === todayDate && l.weight != null);
     const isReturningUser = logs.length > 0;
 
-    // Don't prompt a check-in for a day the user can't log: a free user past
-    // the Day-{cap} wall, or when a pending Day 1 proposal is awaiting them.
-    const cap = freeLogDayLimit(profile.access_level, profile.role);
-    const todayDay = dayRange[dayRange.length - 1]?.day ?? 0;
-    // At/after the cap the free-limit modal takes over, so skip the check-in.
-    const freeWallHit = cap != null && todayDay >= cap;
+    // Logging today is always allowed (even for free users past their history
+    // window), so the only reasons to skip the check-in are a pending Day 1
+    // proposal or a challenge-results reveal.
 
     // A pending challenge-results reveal takes priority over the daily check-in.
     const cur = challenge.current;
@@ -244,7 +251,6 @@ const Index = () => {
       !alreadyGreetedToday &&
       !loggedWeightToday &&
       !profile.pending_challenge_start_date &&
-      !freeWallHit &&
       !challengeResultsPending &&
       !challengeNotStarted &&
       !profile.run_locked_at
@@ -260,11 +266,12 @@ const Index = () => {
     if (profile?.pending_challenge_start_date) setShowDay1Modal(true);
   }, [profile?.pending_challenge_start_date]);
 
-  // Notify a free user once, the first time they reach the Day-{cap} logging wall.
+  // Celebrate & pitch premium once, the first time a free user fills their free
+  // {cap}-day history window (logging today stays free after this).
   useEffect(() => {
     if (loading || profileLoading || !user || !profile) return;
     const cap = freeLogDayLimit(profile.access_level, profile.role);
-    if (cap == null) return; // premium/staff — no wall
+    if (cap == null) return; // premium/staff — no cap
     const todayDay = dayRange[dayRange.length - 1]?.day ?? 0;
     if (todayDay < cap) return;
 
@@ -503,12 +510,13 @@ const Index = () => {
   const isStaff = canManageAccess(profile?.role ?? undefined);
   const isPremium = normalizeAccessLevel(profile?.access_level) === "premium" || isStaff;
   const freeDayCap = freeLogDayLimit(profile?.access_level, profile?.role);
-  // Free users may only log Day 1..cap; days past the cap are locked (but any
-  // data already saved there is kept). Premium/staff have no cap.
-  const logCapped = freeDayCap != null && dayRange.length > freeDayCap;
-  const visibleDayRange = freeDayCap != null ? dayRange.slice(0, freeDayCap) : dayRange;
+  // Free users can always log *today*, but only see a trailing window of their
+  // most recent `freeDayCap` days — older history (and export) is premium. All
+  // data is preserved; premium just unlocks the full view. Premium/staff = no cap.
+  const historyCapped = freeDayCap != null && dayRange.length > freeDayCap;
+  const visibleDayRange = historyCapped ? dayRange.slice(-freeDayCap!) : dayRange;
   const visibleDates = new Set(visibleDayRange.map((d) => d.date));
-  const visibleLogs = logCapped ? logs.filter((l) => visibleDates.has(l.date)) : logs;
+  const visibleLogs = historyCapped ? logs.filter((l) => visibleDates.has(l.date)) : logs;
   const formattedDayOneDate = parseDateInputValue(profile?.challenge_start_date ?? todayDate).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -537,14 +545,14 @@ const Index = () => {
   const weightCaption = usingRecommendedRange ? "Projected Weight on Day 100" : "Target Weight on Day 100";
 
   // Free-plan footer notice, shared by the Daily Log and Today's Data panels:
-  // a light premium nudge (with the day counter) before the cap, a full wall
-  // after. Premium/staff (freeDayCap == null) see nothing.
+  // a light premium nudge (with the day counter) before the window fills, then a
+  // "history trimmed" nudge after. Premium/staff (freeDayCap == null) see nothing.
   const freeFooter =
-    freeDayCap == null ? undefined : logCapped ? (
+    freeDayCap == null ? undefined : historyCapped ? (
       <div className="flex flex-col items-center justify-between gap-3 rounded-xl border-2 border-[hsl(268,42%,60%)]/40 bg-[hsl(268,42%,60%)]/10 px-4 py-3 sm:flex-row">
         <p className="text-sm font-bold text-[hsl(268,40%,38%)]">
-          🔒 Free plan stops at Day {FREE_LOG_DAY_LIMIT}. Your logs are saved — go premium to keep logging all the
-          way to Day {CHALLENGE_DAYS}.
+          🔒 Free plan shows your latest {FREE_LOG_DAY_LIMIT} days — keep logging today for free. Go premium for your
+          full history & export, all the way to Day {CHALLENGE_DAYS}.
         </p>
         <GetPremiumButton size="sm" className="shrink-0" />
       </div>
@@ -570,7 +578,8 @@ const Index = () => {
     showChallengeComplete ||
     showChallengeResults ||
     showRunFinish ||
-    showFinisherArchive;
+    showFinisherArchive ||
+    showThemes;
 
   return (
     <div className="wood-bg min-h-screen">
@@ -593,6 +602,8 @@ const Index = () => {
         dayLimit={FREE_LOG_DAY_LIMIT}
         challengeDays={CHALLENGE_DAYS}
         getPremiumSlot={<GetPremiumButton size="md" />}
+        onStartTrial={startTrial}
+        trialUsed={getTrialState(profile?.premium_trial_started_at).used}
       />
       <ChallengeCompleteModal
         open={showChallengeComplete}
@@ -625,6 +636,16 @@ const Index = () => {
           if (!v) setGuideIsOnboarding(false);
         }}
         mustAcknowledge={guideIsOnboarding}
+      />
+      <ThemePicker
+        open={showThemes}
+        onOpenChange={setShowThemes}
+        selectedKey={profile?.theme ?? "oak"}
+        appliedKey={themeKey}
+        isPremium={themePremium}
+        trial={getTrialState(profile?.premium_trial_started_at)}
+        onSelect={setTheme}
+        onStartTrial={startTrial}
       />
       <HundredDayFinishModal
         open={showRunFinish}
@@ -678,6 +699,10 @@ const Index = () => {
               <BookOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Quick Guide</span>
             </GameButton>
+            <GameButton color="purple" size="sm" onClick={() => setShowThemes(true)} title="Change your theme">
+              <Palette className="h-4 w-4" />
+              <span className="hidden sm:inline">Themes</span>
+            </GameButton>
             {isStaff && (
               <GameButton
                 color="red"
@@ -728,7 +753,7 @@ const Index = () => {
               entry={todayEntry}
               onSave={handleSaveToday}
               footer={freeFooter}
-              locked={logCapped || runLocked}
+              locked={runLocked}
             />
           </div>
         </div>
@@ -828,7 +853,7 @@ const Index = () => {
             </div>
 
             {/* Primary logging surface: edit rows here (today's is highlighted) and save.
-                Free users hit a Day-{FREE_LOG_DAY_LIMIT} wall shown below the table. */}
+                Free users see a trailing {FREE_LOG_DAY_LIMIT}-day window; the footer nudges premium. */}
             <div data-reveal className="order-5 min-w-0">
               <DailyTracker
                 logs={visibleDayRange}
