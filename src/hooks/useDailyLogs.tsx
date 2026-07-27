@@ -66,5 +66,5 @@ export function useDailyLogs() {
     await fetchLogs();
   };
 
-  return { logs, loading, addLog, updateLogs };
+  return { logs, loading, addLog, updateLogs, refetch: fetchLogs };
 }

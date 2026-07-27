@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
-import { Flame, Target, Shield, Star, Flag, Scale, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Flame, Target, Shield, Star, Flag, Scale, TrendingDown, TrendingUp, Minus, Trophy } from "lucide-react";
 import { LevelProgress } from "@/lib/gamification";
 import GameProgress from "@/components/game/GameProgress";
+import GameButton from "@/components/game/GameButton";
+import FinisherStars from "@/components/FinisherStars";
+import RankBadge from "@/components/RankBadge";
+import { CHALLENGE_DAYS } from "@/lib/access";
 import { pop, pulse, floatIdle } from "@/lib/fx";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +26,15 @@ interface DashboardHeaderProps {
   shields?: number;
   streakProtected?: boolean;
   startPoint?: StartPoint;
+  /** Golden stars: one per finished 100-day run. */
+  finisherCount?: number;
+  /** Open the finisher archive (what the stars link to). */
+  onOpenArchive?: () => void;
+  /** Day 100 is behind them — offer to close the run out. */
+  canFinishRun?: boolean;
+  onFinishRun?: () => void;
+  /** Set when Day 1 of the next run hasn't arrived yet, e.g. "August 3, 2026". */
+  upcomingStartDate?: string | null;
 }
 
 const DashboardHeader = ({
@@ -32,8 +45,13 @@ const DashboardHeader = ({
   shields = 0,
   streakProtected = false,
   startPoint,
+  finisherCount = 0,
+  onOpenArchive,
+  canFinishRun = false,
+  onFinishRun,
+  upcomingStartDate = null,
 }: DashboardHeaderProps) => {
-  const progress = (currentDay / 100) * 100;
+  const progress = Math.min(100, (currentDay / CHALLENGE_DAYS) * 100);
   const streakRef = useRef<HTMLDivElement>(null);
   const medalRef = useRef<HTMLDivElement>(null);
   const prevLevel = useRef(levelProgress?.level);
@@ -62,10 +80,18 @@ const DashboardHeader = ({
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-wide text-[hsl(38,60%,90%)] [text-shadow:0_3px_0_rgba(0,0,0,0.4)]">
-            Hey {userName} 👋
+          <h1 className="flex flex-wrap items-center gap-2 font-display text-3xl font-bold tracking-wide text-[hsl(38,60%,90%)] [text-shadow:0_3px_0_rgba(0,0,0,0.4)]">
+            <span>Hey {userName}</span>
+            {onOpenArchive && <FinisherStars count={finisherCount} onClick={onOpenArchive} />}
           </h1>
-          <p className="mt-1 font-semibold text-[hsl(35,30%,65%)]">Day {currentDay} of your 100-day challenge</p>
+
+          {levelProgress && <RankBadge level={levelProgress.level} className="mt-1.5" />}
+
+          <p className="mt-1.5 font-semibold text-[hsl(35,30%,65%)]">
+            {upcomingStartDate
+              ? `Your next 100 days begin on ${upcomingStartDate}`
+              : `Day ${currentDay} of your ${CHALLENGE_DAYS}-day challenge`}
+          </p>
 
           {startPoint && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -147,14 +173,27 @@ const DashboardHeader = ({
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-1.5 font-semibold text-[hsl(35,30%,65%)]">
             <Target className="h-4 w-4" />
-            <span>100-Day Challenge</span>
+            <span>{CHALLENGE_DAYS}-Day Challenge</span>
           </div>
           <span className="font-display font-bold text-[hsl(178,45%,60%)] [text-shadow:0_2px_0_rgba(0,0,0,0.35)]">
-            {currentDay}%
+            {Math.round(progress)}%
           </span>
         </div>
         <GameProgress value={progress} color="teal" size="h-4" />
       </div>
+
+      {/* Day 100 cleared: claim the star and line up the next run. */}
+      {canFinishRun && onFinishRun && (
+        <div className="flex flex-col items-center justify-between gap-3 rounded-xl border-2 border-[hsl(42,95%,62%)]/60 bg-[hsl(42,95%,62%)]/12 px-4 py-3 shadow-[0_0_18px_hsl(42,95%,60%,0.18)] sm:flex-row">
+          <p className="font-display text-sm font-bold text-[hsl(42,85%,72%)] [text-shadow:0_2px_0_rgba(0,0,0,0.35)]">
+            🏆 You've cleared Day {CHALLENGE_DAYS}! Claim your golden star and set up your next 100 days.
+          </p>
+          <GameButton color="gold" size="md" className="shrink-0" onClick={onFinishRun}>
+            <Trophy className="h-4 w-4" />
+            Finish Challenge
+          </GameButton>
+        </div>
+      )}
     </div>
   );
 };

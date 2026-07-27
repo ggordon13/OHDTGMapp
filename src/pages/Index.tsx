@@ -46,6 +46,11 @@ import ChallengeResultsModal from "@/components/ChallengeResultsModal";
 import { type LeaderboardRow } from "@/hooks/useChallenge";
 import Day1ChangeModal from "@/components/Day1ChangeModal";
 import FreeLimitModal from "@/components/FreeLimitModal";
+import HundredDayFinishModal from "@/components/HundredDayFinishModal";
+import FinisherArchiveModal from "@/components/FinisherArchiveModal";
+import { useHundredDay, type RestartPlan } from "@/hooks/useHundredDay";
+import { buildRunSummary, canFinishRun, toArchivedBadge } from "@/lib/hundredDay";
+import type { GoalType } from "@/lib/profile";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getAccessBadgeLabel,
@@ -60,7 +65,7 @@ const Index = () => {
   const { user, signOut } = useAuth();
   const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
-  const { logs, loading, updateLogs } = useDailyLogs();
+  const { logs, loading, updateLogs, refetch: refetchLogs } = useDailyLogs();
   const challenge = useChallenge();
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
   const [showCheckIn, setShowCheckIn] = useState(false);
@@ -71,6 +76,9 @@ const Index = () => {
   const [showChallengeResults, setShowChallengeResults] = useState(false);
   const [challengeResultRows, setChallengeResultRows] = useState<LeaderboardRow[]>([]);
   const challengeCompleteShownRef = useRef(false);
+  const [showRunFinish, setShowRunFinish] = useState(false);
+  const [showFinisherArchive, setShowFinisherArchive] = useState(false);
+  const runFinishShownRef = useRef(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideIsOnboarding, setGuideIsOnboarding] = useState(false);
   const celebratingRef = useRef(false);
@@ -114,6 +122,12 @@ const Index = () => {
     [profile?.challenge_start_date, todayDate, logs],
   );
 
+  // Which day of the current 100-day run we're on (0 before Day 1 arrives — a
+  // restart may schedule Day 1 in the future).
+  const runDay = dayRange.length > 0 ? dayRange[dayRange.length - 1].day : 0;
+  const runStartIso = profile?.challenge_start_date ?? todayDate;
+  const challengeNotStarted = runStartIso > todayDate;
+
   const {
     levelProgress,
     shields,
@@ -132,6 +146,8 @@ const Index = () => {
     dayRange,
     weeklyGoals,
   });
+
+  const hundredDay = useHundredDay(user?.id);
 
   // Celebrate the first time the weight trend crosses a new 1kg milestone.
   const startWeight = profile?.current_weight ?? null;
@@ -212,7 +228,8 @@ const Index = () => {
       !loggedWeightToday &&
       !profile.pending_challenge_start_date &&
       !freeWallHit &&
-      !challengeResultsPending
+      !challengeResultsPending &&
+      !challengeNotStarted
     ) {
       setShowCheckIn(true);
       localStorage.setItem(key, todayDate);
@@ -281,6 +298,71 @@ const Index = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [challenge.current, challenge.getLeaderboard, challengeEndIso, loading, profileLoading]);
+
+  // ---------------------------------------------------------------------------
+  // 100-day finish line
+  // ---------------------------------------------------------------------------
+
+  // The current run's window. Day 100 is 99 days after Day 1.
+  const runEndIso = useMemo(() => {
+    const end = parseDateInputValue(runStartIso);
+    end.setDate(end.getDate() + CHALLENGE_DAYS - 1);
+    return formatDateInputValue(end);
+  }, [runStartIso]);
+
+  const unlockedBadges = useMemo(() => badges.filter((b) => b.unlocked), [badges]);
+
+  // The report card that gets archived with the run — also what the finish
+  // modal shows, so the celebration and the archive can never disagree.
+  const runSummary = useMemo(
+    () =>
+      buildRunSummary({
+        dayRange,
+        goals: weeklyGoals,
+        startWeight: profile?.current_weight ?? null,
+        targetWeight: profile?.target_weight ?? null,
+        badges: unlockedBadges,
+        xp: levelProgress.xp,
+        level: levelProgress.level,
+      }),
+    [dayRange, weeklyGoals, profile?.current_weight, profile?.target_weight, unlockedBadges, levelProgress],
+  );
+
+  const archivedBadges = useMemo(() => unlockedBadges.map(toArchivedBadge), [unlockedBadges]);
+  const runFinishable = canFinishRun(runDay);
+
+  // Clearing Day 100 opens the finish celebration on the first visit of each
+  // day until it's claimed. The header keeps a permanent button either way, so
+  // dismissing it never strands the star.
+  useEffect(() => {
+    if (loading || profileLoading || !user || !profile) return;
+    if (!runFinishable || runFinishShownRef.current) return;
+    runFinishShownRef.current = true;
+
+    const key = `runFinishPrompt:${user.id}:${profile.current_run ?? 1}`;
+    if (localStorage.getItem(key) === todayDate) return;
+    localStorage.setItem(key, todayDate);
+    setShowRunFinish(true);
+  }, [loading, profileLoading, user, profile, runFinishable, todayDate]);
+
+  const handleFinishRun = async (plan: RestartPlan): Promise<boolean> => {
+    const ok = await hundredDay.finishRun({
+      startDate: runStartIso,
+      endDate: runEndIso,
+      summary: runSummary,
+      badges: archivedBadges,
+      restart: plan,
+    });
+    if (!ok) return false;
+
+    // Re-arm the prompt for the run that just started, then pull in the
+    // re-based profile and the seeded Day 1 row.
+    runFinishShownRef.current = false;
+    setConfettiTrigger(Date.now());
+    toast.success("Golden star earned ⭐ Your next 100 days are set up!");
+    await Promise.all([refetchProfile(), refetchLogs()]);
+    return true;
+  };
 
   const dismissChallengeComplete = async () => {
     const cur = challenge.current;
@@ -379,7 +461,7 @@ const Index = () => {
 
   const todayEntry = dayRange.length > 0 ? dayRange[dayRange.length - 1] : null;
   const streakResult = getStreakWithShields(dayRange, shields);
-  const currentDay = todayEntry?.day ?? 0;
+  const currentDay = runDay;
 
   const currentWeek = getCurrentWeek(dayRange);
   const weeklyPeriod = getCurrentWeekPeriod(dayRange);
@@ -454,7 +536,14 @@ const Index = () => {
   // make the (non-Radix) celebration's buttons unclickable if both showed at
   // once. Hold celebrations in the queue until every blocking modal is closed.
   const blockingModalOpen =
-    showGuide || showCheckIn || showDay1Modal || showFreeLimit || showChallengeComplete || showChallengeResults;
+    showGuide ||
+    showCheckIn ||
+    showDay1Modal ||
+    showFreeLimit ||
+    showChallengeComplete ||
+    showChallengeResults ||
+    showRunFinish ||
+    showFinisherArchive;
 
   return (
     <div className="wood-bg min-h-screen">
@@ -509,6 +598,30 @@ const Index = () => {
           if (!v) setGuideIsOnboarding(false);
         }}
         mustAcknowledge={guideIsOnboarding}
+      />
+      <HundredDayFinishModal
+        open={showRunFinish}
+        onOpenChange={setShowRunFinish}
+        userName={displayName}
+        summary={runSummary}
+        badges={archivedBadges}
+        starCount={profile?.finisher_count ?? 0}
+        stats={{
+          age: profile?.age ?? null,
+          heightCm: profile?.height_cm ?? null,
+          gender: profile?.gender ?? null,
+          activityLevel: profile?.activity_level ?? null,
+        }}
+        suggestedStartWeight={latestWeight}
+        currentGoalType={(profile?.goal_type === "maintain" ? "maintain" : "lose") as GoalType}
+        busy={hundredDay.finishing}
+        onConfirm={handleFinishRun}
+      />
+      <FinisherArchiveModal
+        open={showFinisherArchive}
+        onOpenChange={setShowFinisherArchive}
+        runs={hundredDay.runs}
+        userName={displayName}
       />
       <div className="relative z-10 mx-auto max-w-[1720px] space-y-8 px-4 py-8 lg:px-8">
         {/* Top toolbar: app title + account actions, styled to match the game theme */}
@@ -569,6 +682,11 @@ const Index = () => {
             levelProgress={levelProgress}
             shields={shields}
             startPoint={{ date: formattedDayOneDate, weight: startWeight, status: weightStatus }}
+            finisherCount={profile?.finisher_count ?? 0}
+            onOpenArchive={() => setShowFinisherArchive(true)}
+            canFinishRun={runFinishable}
+            onFinishRun={() => setShowRunFinish(true)}
+            upcomingStartDate={challengeNotStarted ? formattedDayOneDate : null}
           />
           <div data-reveal>
             <TodayData entry={todayEntry} onSave={handleSaveToday} footer={freeFooter} locked={logCapped} />
@@ -583,7 +701,7 @@ const Index = () => {
           {/* Left column (desktop): Trophy Case → Quests → Analytics & Export */}
           <div className="contents lg:block lg:col-span-4 lg:space-y-6 xl:col-span-3">
             <div data-reveal className="order-2 min-w-0">
-              <BadgeShelf badges={badges} />
+              <BadgeShelf badges={badges} runNumber={profile?.current_run ?? 1} />
             </div>
             <div data-reveal className="order-3 min-w-0">
               <QuestBoard

@@ -46,6 +46,10 @@ export interface UserProfile {
   level: number | null;
   streak_shields: number | null;
   last_celebrated_weight: number | null;
+  /** Golden stars earned — one per finished 100-day run. */
+  finisher_count: number | null;
+  /** Which run the live trophy case belongs to (1-based). */
+  current_run: number | null;
 }
 
 export function useProfile() {
