@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { getTrialState, isPremiumUser } from "@/lib/access";
+import { track } from "@/lib/telemetry";
 import GameButton from "@/components/game/GameButton";
 
 interface StartTrialButtonProps {
@@ -29,6 +30,7 @@ const StartTrialButton = ({ size = "sm", className }: StartTrialButtonProps) => 
     try {
       const { error } = await supabase.rpc("start_premium_trial");
       if (error) throw error;
+      track("trial_started");
       await refetch();
       toast.success("7-day premium trial started — enjoy! ✨");
     } catch {

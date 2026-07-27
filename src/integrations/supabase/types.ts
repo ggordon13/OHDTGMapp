@@ -56,6 +56,33 @@ export type Database = {
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       challenges: {
         Row: {
           created_at: string
@@ -445,6 +472,28 @@ export type Database = {
       start_premium_trial: {
         Args: Record<string, never>
         Returns: string
+      }
+      join_challenge_by_link: {
+        Args: { p_challenge: string }
+        Returns: undefined
+      }
+      start_challenge: {
+        Args: { p_challenge: string }
+        Returns: undefined
+      }
+      challenge_invite_info: {
+        Args: { p_challenge: string }
+        Returns: {
+          id: string
+          mode: string
+          status: string
+          start_date: string
+          duration_days: number
+          leader_username: string | null
+          accepted_count: number
+          capacity: number
+          is_member: boolean
+        }[]
       }
       sync_my_access_level: {
         Args: Record<string, never>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, BookOpen, ShieldCheck, Palette } from "lucide-react";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, BookOpen, ShieldCheck, Palette, Share2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +21,9 @@ import CelebrationModal from "@/components/CelebrationModal";
 import Logo from "@/components/Logo";
 import QuickGuide from "@/components/QuickGuide";
 import ThemePicker from "@/components/ThemePicker";
+import ShareCardModal from "@/components/ShareCardModal";
+import InstallButton from "@/components/InstallButton";
+import NotificationsButton from "@/components/NotificationsButton";
 import { useTheme } from "@/hooks/useTheme";
 import DailyCheckIn from "@/components/DailyCheckIn";
 import FireflyCanvas from "@/components/FireflyCanvas";
@@ -56,6 +59,7 @@ import { useHundredDay, type RestartPlan } from "@/hooks/useHundredDay";
 import { buildRunSummary, canFinishRun, runSealDate, toArchivedBadge } from "@/lib/hundredDay";
 import type { GoalType } from "@/lib/profile";
 import { supabase } from "@/integrations/supabase/client";
+import { track } from "@/lib/telemetry";
 import {
   getAccessBadgeLabel,
   freeLogDayLimit,
@@ -93,6 +97,17 @@ const Index = () => {
   const [showGuide, setShowGuide] = useState(false);
   const [guideIsOnboarding, setGuideIsOnboarding] = useState(false);
   const [showThemes, setShowThemes] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+
+  // A shared challenge link sent a not-yet-signed-in visitor through auth; now
+  // that they've landed on the dashboard, bounce them to finish joining.
+  useEffect(() => {
+    const pending = localStorage.getItem("pendingJoinChallenge");
+    if (pending) {
+      localStorage.removeItem("pendingJoinChallenge");
+      navigate(`/join/${pending}`, { replace: true });
+    }
+  }, [navigate]);
   const celebratingRef = useRef(false);
   const checkInDoneRef = useRef(false);
   const guideDoneRef = useRef(false);
@@ -279,6 +294,7 @@ const Index = () => {
     const key = `freeLimitNotified:${user.id}`;
     if (localStorage.getItem(key) !== "1") {
       setShowFreeLimit(true);
+      track("paywall_viewed", { source: "history_cap" });
       localStorage.setItem(key, "1");
     }
   }, [loading, profileLoading, user, profile, dayRange]);
@@ -482,6 +498,7 @@ const Index = () => {
   // just persists without an extra toast.
   const handleSaveToday = async (updated: DailyLog) => {
     await updateLogs([updated]);
+    track("day_saved", { day: updated.day });
   };
 
   if (loading || profileLoading) {
@@ -583,7 +600,8 @@ const Index = () => {
     showChallengeResults ||
     showRunFinish ||
     showFinisherArchive ||
-    showThemes;
+    showThemes ||
+    showShare;
 
   return (
     <div className="wood-bg min-h-screen">
@@ -651,6 +669,18 @@ const Index = () => {
         onSelect={setTheme}
         onStartTrial={startTrial}
       />
+      <ShareCardModal
+        open={showShare}
+        onOpenChange={setShowShare}
+        data={{
+          name: displayName,
+          level: levelProgress.level,
+          streak: streakResult.streak,
+          day: Math.min(currentDay, CHALLENGE_DAYS),
+          totalDays: CHALLENGE_DAYS,
+          pct: Math.max(0, Math.min(100, Math.round((currentDay / CHALLENGE_DAYS) * 100))),
+        }}
+      />
       <HundredDayFinishModal
         open={showRunFinish}
         onOpenChange={setShowRunFinish}
@@ -693,6 +723,8 @@ const Index = () => {
               {accessBadgeLabel}
             </div>
             <div className="order-1 flex flex-wrap items-center justify-end gap-2 sm:order-2">
+            <InstallButton size="sm" />
+            <NotificationsButton size="sm" />
             {!isPremium && <StartTrialButton size="sm" />}
             {!isPremium && <GetPremiumButton size="sm" />}
             <GameButton
@@ -710,6 +742,10 @@ const Index = () => {
             <GameButton color="purple" size="sm" onClick={() => setShowThemes(true)} title="Change your theme">
               <Palette className="h-4 w-4" />
               <span className="hidden sm:inline">Themes</span>
+            </GameButton>
+            <GameButton color="teal" size="sm" onClick={() => setShowShare(true)} title="Share your progress">
+              <Share2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Share</span>
             </GameButton>
             {isStaff && (
               <GameButton

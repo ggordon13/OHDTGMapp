@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { track } from "@/lib/telemetry";
 import { useAuth } from "./useAuth";
 
 export type ChallengeMode = "partner" | "group";
@@ -56,6 +57,19 @@ export interface CreateChallengeInput {
   startDate: string;
   participantIds: string[];
   rewards: Partial<Record<AwardKey, string>>;
+}
+
+/** Public-ish preview of a challenge shown on the /join landing page. */
+export interface ChallengeInviteInfo {
+  id: string;
+  mode: ChallengeMode;
+  status: ChallengeStatus;
+  start_date: string;
+  duration_days: number;
+  leader_username: string | null;
+  accepted_count: number;
+  capacity: number;
+  is_member: boolean;
 }
 
 export interface LeaderboardRow {
@@ -173,10 +187,39 @@ export function useChallenge() {
         p_rewards: input.rewards,
       });
       if (error) throw error;
+      track("challenge_created", { mode: input.mode, invitees: input.participantIds.length });
       await fetchChallenges();
     },
     [fetchChallenges],
   );
+
+  /** Join a pending challenge via its shared link. */
+  const joinByLink = useCallback(
+    async (challengeId: string) => {
+      const { error } = await supabase.rpc("join_challenge_by_link", { p_challenge: challengeId });
+      if (error) throw error;
+      track("challenge_joined", { via: "link" });
+      await fetchChallenges();
+    },
+    [fetchChallenges],
+  );
+
+  /** Leader flips a pending challenge live. */
+  const startChallenge = useCallback(
+    async (challengeId: string) => {
+      const { error } = await supabase.rpc("start_challenge", { p_challenge: challengeId });
+      if (error) throw error;
+      await fetchChallenges();
+    },
+    [fetchChallenges],
+  );
+
+  /** Minimal preview info for the /join landing page (no membership needed). */
+  const getInviteInfo = useCallback(async (challengeId: string): Promise<ChallengeInviteInfo | null> => {
+    const { data, error } = await supabase.rpc("challenge_invite_info", { p_challenge: challengeId });
+    if (error) return null;
+    return ((data ?? [])[0] as ChallengeInviteInfo | undefined) ?? null;
+  }, []);
 
   const respond = useCallback(
     async (challengeId: string, accept: boolean) => {
@@ -243,6 +286,9 @@ export function useChallenge() {
     refetch: fetchChallenges,
     resolveInvitee,
     create,
+    joinByLink,
+    startChallenge,
+    getInviteInfo,
     respond,
     cancel,
     voteCancel,

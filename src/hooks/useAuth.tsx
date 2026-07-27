@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { identifyUser, resetAnalytics } from "@/lib/telemetry";
 
 interface AuthContextType {
   session: Session | null;
@@ -32,6 +33,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (nextUserId !== currentUserId) {
         currentUserId = nextUserId;
         setSession(session);
+        // Tie analytics to the signed-in user (and forget them on sign-out).
+        if (nextUserId) identifyUser(nextUserId, { email: session?.user?.email });
+        else resetAnalytics();
       }
       setLoading(false);
     };
