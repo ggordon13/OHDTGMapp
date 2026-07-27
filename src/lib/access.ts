@@ -39,6 +39,36 @@ export { CHALLENGE_DAYS } from "@/lib/gamification";
 /** Premium users may re-edit locked starting data once per this many days. */
 export const STARTING_DATA_LOCK_DAYS = 30;
 
+/** Length of the one-time free trial that unlocks full premium. */
+export const PREMIUM_TRIAL_DAYS = 7;
+
+export interface TrialState {
+  /** Whether the trial has ever been started. */
+  used: boolean;
+  /** Whether the trial is currently within its window. */
+  active: boolean;
+  /** When the trial ends, if started. */
+  endsAt: Date | null;
+  /** Whole days remaining while active (0 otherwise). */
+  daysLeft: number;
+}
+
+/** Derive the trial window from its start timestamp. */
+export function getTrialState(startedAt?: string | null, now: Date = new Date()): TrialState {
+  if (!startedAt) return { used: false, active: false, endsAt: null, daysLeft: 0 };
+  const start = new Date(startedAt);
+  if (Number.isNaN(start.getTime())) return { used: false, active: false, endsAt: null, daysLeft: 0 };
+  const endsAt = new Date(start.getTime() + PREMIUM_TRIAL_DAYS * 24 * 60 * 60 * 1000);
+  const active = now < endsAt;
+  const daysLeft = active ? Math.ceil((endsAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)) : 0;
+  return { used: true, active, endsAt, daysLeft };
+}
+
+/** Whether a user counts as premium right now (paid/premium level or staff). */
+export function isPremiumUser(accessLevel?: string | null, role?: string | null): boolean {
+  return canManageAccess(role) || normalizeAccessLevel(accessLevel) === "premium";
+}
+
 export type RequestStatus = "pending" | "approved" | "rejected";
 
 export interface PremiumRequest {
@@ -161,8 +191,13 @@ export async function resolveEffectiveAccessLevel(
   userEmail: string | null | undefined,
   profileAccessLevel?: string | null,
   role?: string | null,
+  trialStartedAt?: string | null,
 ): Promise<AccessLevel> {
   const currentLevel = normalizeAccessLevel(profileAccessLevel);
+
+  // An active trial grants full premium regardless of the allowlist. When it
+  // expires this stops firing and the checks below demote back to free.
+  if (getTrialState(trialStartedAt).active) return "premium";
 
   const normalizedEmail = userEmail?.trim().toLowerCase();
   if (!normalizedEmail) return currentLevel;

@@ -300,6 +300,7 @@ export type Database = {
           last_celebrated_weight: number | null
           level: number
           pending_challenge_start_date: string | null
+          premium_trial_started_at: string | null
           role: string
           run_locked_at: string | null
           starting_data_updated_at: string | null
@@ -307,6 +308,7 @@ export type Database = {
           target_weight: number | null
           target_weight_max: number | null
           target_weight_min: number | null
+          theme: string
           total_xp: number
           updated_at: string
           user_id: string
@@ -339,6 +341,7 @@ export type Database = {
           last_celebrated_weight?: number | null
           level?: number
           pending_challenge_start_date?: string | null
+          premium_trial_started_at?: string | null
           role?: string
           run_locked_at?: string | null
           starting_data_updated_at?: string | null
@@ -346,6 +349,7 @@ export type Database = {
           target_weight?: number | null
           target_weight_max?: number | null
           target_weight_min?: number | null
+          theme?: string
           total_xp?: number
           updated_at?: string
           user_id: string
@@ -378,6 +382,7 @@ export type Database = {
           last_celebrated_weight?: number | null
           level?: number
           pending_challenge_start_date?: string | null
+          premium_trial_started_at?: string | null
           role?: string
           run_locked_at?: string | null
           starting_data_updated_at?: string | null
@@ -385,6 +390,7 @@ export type Database = {
           target_weight?: number | null
           target_weight_max?: number | null
           target_weight_min?: number | null
+          theme?: string
           total_xp?: number
           updated_at?: string
           user_id?: string
@@ -434,6 +440,14 @@ export type Database = {
       }
       resolve_challenge_user: {
         Args: { identifier: string }
+        Returns: string
+      }
+      start_premium_trial: {
+        Args: Record<string, never>
+        Returns: string
+      }
+      sync_my_access_level: {
+        Args: Record<string, never>
         Returns: string
       }
       resolve_challenge_invitee: {

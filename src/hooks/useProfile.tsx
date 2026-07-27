@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { resolveEffectiveAccessLevel } from "@/lib/access";
 import { requiresProfileSetup } from "@/lib/profile";
 import { clearPendingWhopCheckout, hasPendingWhopCheckout } from "@/lib/whop";
 import { useAuth } from "./useAuth";
@@ -55,6 +54,10 @@ export interface UserProfile {
    * the log is read-only and every week (including the 2-day Week 15) is scored.
    */
   run_locked_at: string | null;
+  /** Selected cosmetic theme key (premium themes revert to default when free). */
+  theme: string | null;
+  /** When the one-time 7-day premium trial was started, if ever. */
+  premium_trial_started_at: string | null;
 }
 
 export function useProfile() {
@@ -74,17 +77,16 @@ export function useProfile() {
       console.error("Failed to load profile", error);
     }
 
-    const effectiveAccessLevel = await resolveEffectiveAccessLevel(user.email, data?.access_level ?? null, data?.role ?? null);
-    if (data && effectiveAccessLevel !== data.access_level) {
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ access_level: effectiveAccessLevel })
-        .eq("user_id", user.id);
-
-      if (updateError) {
-        console.error("Failed to sync effective access level", updateError);
-      } else {
-        data.access_level = effectiveAccessLevel;
+    // Reconcile the effective access level server-side (allowlist + trial + role).
+    // access_level is a locked column, so only this SECURITY DEFINER RPC may write
+    // it — the client can no longer self-grant premium. It returns the level so
+    // the UI reflects it immediately.
+    if (data) {
+      const { data: level, error: syncError } = await supabase.rpc("sync_my_access_level");
+      if (syncError) {
+        console.error("Failed to sync effective access level", syncError);
+      } else if (level) {
+        data.access_level = level;
       }
     }
 
@@ -96,28 +98,6 @@ export function useProfile() {
     setLoading(true);
     fetchProfile();
   }, [fetchProfile]);
-
-  useEffect(() => {
-    if (!user?.email) return;
-
-    const normalizedEmail = user.email.trim().toLowerCase();
-    if (normalizedEmail !== "gordongaming13@gmail.com") return;
-
-    void supabase
-      .from("profiles")
-      .upsert({
-        user_id: user.id,
-        role: "admin",
-        access_level: "premium",
-      }, { onConflict: "user_id" })
-      .then(({ error }) => {
-        if (error) {
-          console.error("Failed to sync admin access", error);
-          return;
-        }
-        void fetchProfile();
-      });
-  }, [fetchProfile, user?.email, user?.id]);
 
   // Coming back from a Whop checkout, premium arrives via the webhook a moment
   // later. Poll (and re-check on tab focus) so the upgrade lands without a reload.
