@@ -10,6 +10,7 @@ import { lazy, Suspense } from "react";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import ProfileSetup from "./pages/ProfileSetup";
+import JoinChallenge from "./pages/JoinChallenge";
 import NotFound from "./pages/NotFound";
 
 // Dev-only style preview (mock data, no auth); excluded from production routing.
@@ -54,6 +55,7 @@ const App = () => (
               />
             )}
             <Route path="/setup" element={<ProfileSetup />} />
+            <Route path="/join/:challengeId" element={<JoinChallenge />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

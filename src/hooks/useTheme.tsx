@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isPremiumUser } from "@/lib/access";
 import { DEFAULT_THEME_KEY, applyThemeVars, effectiveTheme } from "@/lib/themes";
+import { track } from "@/lib/telemetry";
 import type { UserProfile } from "./useProfile";
 
 interface UseThemeArgs {
@@ -38,6 +39,7 @@ export function useTheme({ profile, userId, refetchProfile }: UseThemeArgs) {
   const startTrial = useCallback(async () => {
     const { error } = await supabase.rpc("start_premium_trial");
     if (error) throw error;
+    track("trial_started");
     await refetchProfile();
   }, [refetchProfile]);
 

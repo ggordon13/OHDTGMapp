@@ -1,3 +1,5 @@
+import { track } from "@/lib/telemetry";
+
 // Client-side Whop checkout. ONLY the public hosted-checkout URL lives here —
 // never WHOP_API_KEY. Anything with the secret key (SDK calls, webhooks, payment
 // storage) runs in the Supabase Edge Function, because VITE_* vars are compiled
@@ -37,6 +39,7 @@ export function startWhopCheckout(opts: { email?: string | null; userId?: string
   const url = new URL(getWhopCheckoutUrl());
   if (opts.email) url.searchParams.set("email", opts.email);
   if (opts.userId) url.searchParams.set("metadata[app_user_id]", opts.userId);
+  track("premium_checkout_started");
   markWhopCheckoutStarted();
   window.location.href = url.toString();
 }

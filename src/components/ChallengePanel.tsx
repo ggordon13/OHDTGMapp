@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Swords, Crown, Check, X, UserPlus, Trash2, Loader2, CalendarDays, Trophy, Users, AlertTriangle, Lock } from "lucide-react";
+import { Swords, Crown, Check, X, UserPlus, Trash2, Loader2, CalendarDays, Trophy, Users, AlertTriangle, Lock, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -146,9 +146,10 @@ const CreateForm = ({ create, resolveInvitee, onCreated }: CreateFormProps) => {
 
   const filled = invitees.filter((i) => i.identifier.trim() !== "");
   const uniqueUsers = new Set(filled.map((i) => i.userId));
-  const allFound = filled.length > 0 && filled.every((i) => i.status === "found");
+  const allFound = filled.every((i) => i.status === "found");
   const noDupes = uniqueUsers.size === filled.length;
-  const countOk = mode === "partner" ? filled.length === 1 : filled.length >= 1 && filled.length <= 5;
+  // Group challenges can start with nobody pre-invited and be filled by link.
+  const countOk = mode === "partner" ? filled.length === 1 : filled.length <= 5;
   const dateOk = startDate >= formatDateInputValue();
   const canSubmit = allFound && noDupes && countOk && dateOk && !submitting;
 
@@ -257,6 +258,12 @@ const CreateForm = ({ create, resolveInvitee, onCreated }: CreateFormProps) => {
           >
             <UserPlus className="h-3.5 w-3.5" /> Add another (up to 5)
           </button>
+        )}
+        {mode === "group" && (
+          <p className="flex items-start gap-1.5 text-xs font-semibold text-muted-foreground">
+            <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Leave it empty and invite people with a share link after creating — even friends new to GGLvlup.
+          </p>
         )}
       </div>
 
@@ -492,16 +499,19 @@ function challengePhase(view: ChallengeView): ChallengePhase {
 const CurrentView = ({
   view,
   voteCancel,
+  startChallenge,
   getLeaderboard,
   onStartNew,
 }: {
   view: ChallengeView;
   voteCancel: (id: string, agree: boolean) => Promise<void>;
+  startChallenge: (id: string) => Promise<void>;
   getLeaderboard: (id: string) => Promise<LeaderboardRow[]>;
   onStartNew: () => void;
 }) => {
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
   const phase = challengePhase(view);
   const started = phase === "live" || phase === "results";
@@ -537,6 +547,31 @@ const CurrentView = ({
     }
   };
 
+  const inviteLink = `${window.location.origin}/join/${view.challenge.id}`;
+  const capacity = view.challenge.mode === "partner" ? 2 : 6;
+  const canInviteMore = accepted.length + pendingCount < capacity;
+
+  const copyInviteLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      toast.success("Invite link copied — share it anywhere!");
+    } catch {
+      toast.error("Couldn't copy the link.");
+    }
+  };
+
+  const handleStart = async () => {
+    setStarting(true);
+    try {
+      await startChallenge(view.challenge.id);
+      toast.success("Challenge started — good luck! 🔥");
+    } catch (e) {
+      toast.error((e as Error).message || "Couldn't start the challenge.");
+    } finally {
+      setStarting(false);
+    }
+  };
+
   const heading = phase === "results" ? "Final results" : phase === "live" ? "Challenge is live" : "Waiting to start";
 
   return (
@@ -569,7 +604,27 @@ const CurrentView = ({
           </div>
           <RewardList view={view} />
           {phase === "roster" && (
-            <p className="text-xs font-semibold text-muted-foreground">Everyone must accept before the challenge begins.</p>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">
+                Share the invite link to fill your roster — even friends new to GGLvlup can join.
+              </p>
+              {canInviteMore && (
+                <GameButton color="teal" size="sm" className="w-full" onClick={() => void copyInviteLink()}>
+                  <Link2 className="h-4 w-4" /> Copy invite link
+                </GameButton>
+              )}
+              {view.isLeader && (
+                <GameButton
+                  color="leaf"
+                  size="sm"
+                  className="w-full"
+                  disabled={accepted.length < 2 || starting}
+                  onClick={() => void handleStart()}
+                >
+                  {starting ? "Starting…" : accepted.length < 2 ? "Waiting for 1 more to join…" : "Start challenge now"}
+                </GameButton>
+              )}
+            </div>
           )}
         </>
       )}
@@ -631,7 +686,7 @@ const CurrentView = ({
 // ---------------------------------------------------------------------------
 
 const ChallengePanel = ({ challenge }: { challenge: ReturnType<typeof useChallenge> }) => {
-  const { current, invites, loading, create, resolveInvitee, respond, voteCancel, getLeaderboard } = challenge;
+  const { current, invites, loading, create, resolveInvitee, respond, voteCancel, startChallenge, getLeaderboard } = challenge;
   const [startingNew, setStartingNew] = useState(false);
 
   const showCreate = startingNew || (!current && invites.length === 0);
@@ -643,7 +698,13 @@ const ChallengePanel = ({ challenge }: { challenge: ReturnType<typeof useChallen
       ) : showCreate ? (
         <CreateForm create={create} resolveInvitee={resolveInvitee} onCreated={() => setStartingNew(false)} />
       ) : current ? (
-        <CurrentView view={current} voteCancel={voteCancel} getLeaderboard={getLeaderboard} onStartNew={() => setStartingNew(true)} />
+        <CurrentView
+          view={current}
+          voteCancel={voteCancel}
+          startChallenge={startChallenge}
+          getLeaderboard={getLeaderboard}
+          onStartNew={() => setStartingNew(true)}
+        />
       ) : (
         <div className="space-y-3">
           {invites.map((v) => (

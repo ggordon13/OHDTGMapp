@@ -13,6 +13,7 @@ import {
   levelFromXp,
 } from "@/lib/gamification";
 import { getRank, type Rank } from "@/lib/ranks";
+import { track } from "@/lib/telemetry";
 import type { UserProfile } from "./useProfile";
 
 interface UseGamificationArgs {
@@ -115,9 +116,11 @@ export function useGamification({
       const newLevel = levelFromXp(next);
       if (newLevel > prevLevel) {
         pushCelebration({ type: "level", level: newLevel });
+        track("level_up", { level: newLevel });
         const newRank = getRank(newLevel);
         if (newRank.key !== getRank(prevLevel).key) {
           pushCelebration({ type: "rank", rank: newRank });
+          track("rank_up", { rank: newRank.key, level: newLevel });
         }
       }
       await supabase
@@ -145,6 +148,7 @@ export function useGamification({
         });
         if (error) throw error;
         await awardXp(quest.xp);
+        track("quest_claimed", { quest: quest.key, xp: quest.xp });
         toast.success(`+${quest.xp} XP · ${quest.title}`);
       } catch (error) {
         console.error("claimQuest failed", error);
@@ -191,6 +195,7 @@ export function useGamification({
         if (error) throw error;
         const total = pending.reduce((s, { quest }) => s + quest.xp, 0);
         await awardXp(total);
+        track("quests_claimed_all", { count: pending.length, xp: total });
         toast.success(`+${total} XP · ${pending.length} quest${pending.length === 1 ? "" : "s"} claimed`);
       } catch (error) {
         console.error("claimAll failed", error);
