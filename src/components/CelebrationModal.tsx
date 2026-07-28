@@ -5,6 +5,7 @@ import type { Celebration } from "@/hooks/useGamification";
 import type { BadgeTier } from "@/lib/gamification";
 import GameButton from "@/components/game/GameButton";
 import { confettiBurst, sparkle, shine } from "@/lib/fx";
+import { sfx } from "@/lib/sfx";
 import { cn } from "@/lib/utils";
 
 interface CelebrationModalProps {
@@ -33,6 +34,13 @@ const CelebrationModal = ({ event, onDismiss }: CelebrationModalProps) => {
   // Re-run the entrance choreography for each queued event.
   useEffect(() => {
     if (!event) return;
+
+    // Sound rides with the takeover regardless of the motion preference —
+    // "reduce motion" is about movement, not audio (muting has its own toggle).
+    if (event.type === "badge") sfx.trophy();
+    else if (event.type === "rank") sfx.rankUp();
+    else sfx.levelUp();
+
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const spin = !reduced && raysRef.current

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { PartyPopper } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
+import { sfx } from "@/lib/sfx";
 
 interface ChallengeCompleteModalProps {
   open: boolean;
@@ -16,6 +17,10 @@ interface ChallengeCompleteModalProps {
  */
 const ChallengeCompleteModal = ({ open, onOpenChange, onDismiss }: ChallengeCompleteModalProps) => {
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) sfx.finish();
+  }, [open]);
 
   const done = async () => {
     if (busy) return;
