@@ -1,17 +1,10 @@
-// Turn a DOM node into a shareable PNG and hand it to the OS share sheet (or a
-// download as a fallback). Uses html2canvas, which is already bundled.
+// Take a rendered canvas and hand it to the OS share sheet (or a download as a
+// fallback).
 
-import html2canvas from "html2canvas";
 import { track } from "@/lib/telemetry";
 
-/** Rasterise a node to a PNG blob at @scale device pixels per CSS pixel. */
-export async function nodeToPngBlob(node: HTMLElement, scale = 2): Promise<Blob | null> {
-  const canvas = await html2canvas(node, {
-    scale,
-    backgroundColor: null,
-    useCORS: true,
-    logging: false,
-  });
+/** Read a canvas back as a PNG blob. */
+export function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
 }
 

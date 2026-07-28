@@ -16,6 +16,8 @@ interface TodayDataProps {
   onSave: (entry: DailyLog) => void | Promise<void>;
   /** Small chip shown in the panel header (e.g. the free-plan day counter). */
   statusBadge?: ReactNode;
+  /** Action pinned to the top-right of the panel (e.g. the quick guide). */
+  headerAction?: ReactNode;
   /** Rendered below the fields (e.g. the free-plan premium notice). */
   footer?: ReactNode;
   /** When true, today is beyond the free plan's cap — fields are read-only. */
@@ -39,7 +41,7 @@ const toFormValue = (v: string | number | null | undefined) => (v == null ? "" :
 const seedValue = (entry: DailyLog, key: FieldKey): string =>
   key === "exercise" ? entry.exercise || "None" : toFormValue(entry[key]);
 
-const TodayData = ({ entry, onSave, statusBadge, footer, locked = false }: TodayDataProps) => {
+const TodayData = ({ entry, onSave, statusBadge, headerAction, footer, locked = false }: TodayDataProps) => {
   const [form, setForm] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<FieldKey | null>(null);
   const doneRef = useRef<HTMLDivElement>(null);
@@ -116,6 +118,7 @@ const TodayData = ({ entry, onSave, statusBadge, footer, locked = false }: Today
           <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
             {savedCount}/{fields.length} saved
           </span>
+          {headerAction}
         </div>
       }
     >

@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useChallenge";
 import GamePanel from "@/components/game/GamePanel";
 import GameButton from "@/components/game/GameButton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { formatDateInputValue, parseDateInputValue, cn } from "@/lib/utils";
 import { AWARD_META, topBy, overallWinner } from "@/lib/challenge";
@@ -112,12 +113,15 @@ const CreateForm = ({ create, resolveInvitee, onCreated }: CreateFormProps) => {
     profile?.access_level === "premium" || profile?.role === "admin" || profile?.role === "dev";
   const [mode, setMode] = useState<ChallengeMode>("partner");
   const [invitees, setInvitees] = useState<Invitee[]>([newInvitee()]);
+  /** Group only: skip the name fields and fill the roster with a share link instead. */
+  const [inviteByLink, setInviteByLink] = useState(false);
   const [startDate, setStartDate] = useState(formatDateInputValue());
   const [rewards, setRewards] = useState<Partial<Record<AwardKey, string>>>({});
   const [submitting, setSubmitting] = useState(false);
 
   const switchMode = (next: ChallengeMode) => {
     setMode(next);
+    if (next === "partner") setInviteByLink(false);
     setInvitees((list) => (next === "partner" ? [list[0] ?? newInvitee()] : list));
   };
 
@@ -144,7 +148,9 @@ const CreateForm = ({ create, resolveInvitee, onCreated }: CreateFormProps) => {
     );
   };
 
-  const filled = invitees.filter((i) => i.identifier.trim() !== "");
+  // Invite-by-link starts the roster empty, so the typed names are ignored.
+  const linkOnly = mode === "group" && inviteByLink;
+  const filled = linkOnly ? [] : invitees.filter((i) => i.identifier.trim() !== "");
   const uniqueUsers = new Set(filled.map((i) => i.userId));
   const allFound = filled.every((i) => i.status === "found");
   const noDupes = uniqueUsers.size === filled.length;
@@ -214,7 +220,7 @@ const CreateForm = ({ create, resolveInvitee, onCreated }: CreateFormProps) => {
         <p className="font-display text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
           {mode === "partner" ? "Partner (username or email)" : "Members (username or email)"}
         </p>
-        {invitees.map((inv, i) => (
+        {!linkOnly && invitees.map((inv, i) => (
           <div key={inv.id} className="flex items-center gap-2">
             <div className="relative flex-1">
               <Input
@@ -244,13 +250,13 @@ const CreateForm = ({ create, resolveInvitee, onCreated }: CreateFormProps) => {
             )}
           </div>
         ))}
-        {invitees.some((v) => v.status === "notfound") && (
+        {!linkOnly && invitees.some((v) => v.status === "notfound") && (
           <p className="text-xs font-bold text-[hsl(6,62%,42%)]">Some usernames/emails weren't found.</p>
         )}
-        {invitees.some((v) => v.status === "self") && (
+        {!linkOnly && invitees.some((v) => v.status === "self") && (
           <p className="text-xs font-bold text-[hsl(6,62%,42%)]">You can't invite yourself.</p>
         )}
-        {mode === "group" && invitees.length < 5 && (
+        {!linkOnly && mode === "group" && invitees.length < 5 && (
           <button
             type="button"
             onClick={() => setInvitees((l) => [...l, newInvitee()])}
@@ -260,10 +266,19 @@ const CreateForm = ({ create, resolveInvitee, onCreated }: CreateFormProps) => {
           </button>
         )}
         {mode === "group" && (
-          <p className="flex items-start gap-1.5 text-xs font-semibold text-muted-foreground">
-            <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Leave it empty and invite people with a share link after creating — even friends new to GGLvlup.
-          </p>
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border-2 border-[hsl(33,28%,60%)] bg-[hsl(37,40%,82%)] px-3 py-2">
+            <Checkbox
+              checked={inviteByLink}
+              onCheckedChange={(v) => setInviteByLink(v === true)}
+              className="mt-0.5 border-[hsl(33,30%,45%)] data-[state=checked]:border-[hsl(222,45%,30%)] data-[state=checked]:bg-[hsl(222,46%,48%)]"
+            />
+            <span className="text-xs font-semibold text-muted-foreground">
+              <span className="flex items-center gap-1.5 font-bold text-card-foreground">
+                <Link2 className="h-3.5 w-3.5 shrink-0" /> Invite with a share link instead
+              </span>
+              Start now with just you, then share the link to fill the roster — even friends new to GGLvlup can join.
+            </span>
+          </label>
         )}
       </div>
 
@@ -549,7 +564,10 @@ const CurrentView = ({
 
   const inviteLink = `${window.location.origin}/join/${view.challenge.id}`;
   const capacity = view.challenge.mode === "partner" ? 2 : 6;
-  const canInviteMore = accepted.length + pendingCount < capacity;
+  /** Seats nobody holds yet — pending invites already own theirs. */
+  const slotsOpen = Math.max(0, capacity - (accepted.length + pendingCount));
+  const canInviteMore = slotsOpen > 0;
+  const canStart = accepted.length >= 2;
 
   const copyInviteLink = async () => {
     try {
@@ -617,11 +635,24 @@ const CurrentView = ({
                 <GameButton
                   color="leaf"
                   size="sm"
-                  className="w-full"
-                  disabled={accepted.length < 2 || starting}
+                  className={cn("w-full", !canStart && !starting && "flex-col gap-0 py-1.5 leading-tight")}
+                  disabled={!canStart || starting}
                   onClick={() => void handleStart()}
                 >
-                  {starting ? "Starting…" : accepted.length < 2 ? "Waiting for 1 more to join…" : "Start challenge now"}
+                  {starting ? (
+                    "Starting…"
+                  ) : canStart ? (
+                    "Start challenge now"
+                  ) : (
+                    <>
+                      <span>Waiting for at least 1 more to join…</span>
+                      <span className="text-[10px] font-bold normal-case tracking-normal opacity-85">
+                        {slotsOpen > 0
+                          ? `${slotsOpen} more ${slotsOpen === 1 ? "player" : "players"} can join`
+                          : "Waiting on pending invites"}
+                      </span>
+                    </>
+                  )}
                 </GameButton>
               )}
             </div>

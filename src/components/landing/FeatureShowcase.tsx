@@ -67,9 +67,9 @@ const FEATURES: Feature[] = [
   {
     key: "trophies",
     eyebrow: "Trophy case",
-    title: "Twelve trophies. Zero excuses.",
+    title: "A case full of trophies. Zero excuses.",
     blurb:
-      "Perfect weeks, iron streaks, hydration runs. Locked trophies sit in your case in plain sight — and that empty slot is exactly why you'll log tonight.",
+      "Perfect weeks, iron streaks, hydration runs, and plenty you earn just by turning up. Locked trophies sit in your case in plain sight — and that empty slot is exactly why you'll log tonight.",
     icon: Award,
     accent: "gold",
     demo: TrophyDemo,

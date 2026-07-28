@@ -24,10 +24,37 @@ const day = (over: Partial<DailyLog>): DailyLog => ({
 });
 
 describe("XP / levels", () => {
-  it("uses a triangular cumulative curve", () => {
+  it("uses a triangular cumulative curve up to the cap", () => {
     expect(cumulativeXpForLevel(1)).toBe(0);
     expect(cumulativeXpForLevel(2)).toBe(100);
     expect(cumulativeXpForLevel(3)).toBe(300);
+    expect(cumulativeXpForLevel(9)).toBe(3600);
+  });
+
+  it("caps the per-level step at 800 past level 9", () => {
+    const step = (l: number) => cumulativeXpForLevel(l) - cumulativeXpForLevel(l - 1);
+    // Still ramping…
+    expect(step(9)).toBe(800);
+    // …then flat, forever.
+    expect(step(10)).toBe(800);
+    expect(step(20)).toBe(800);
+    expect(step(30)).toBe(800);
+    expect(cumulativeXpForLevel(30)).toBe(20400);
+  });
+
+  it("never demotes anyone when the curve is lowered", () => {
+    // The capped curve must sit at or below the old triangular one at every
+    // level, so an existing total_xp can only ever map to the same or a higher
+    // level — nobody loses a level or a rank on deploy.
+    for (let l = 1; l <= 60; l++) {
+      expect(cumulativeXpForLevel(l)).toBeLessThanOrEqual(50 * (l - 1) * l);
+    }
+  });
+
+  it("keeps ranks a constant 2,400 XP apart past Pathfinder", () => {
+    for (const l of [12, 15, 18, 21, 24, 27, 30]) {
+      expect(cumulativeXpForLevel(l) - cumulativeXpForLevel(l - 3)).toBe(2400);
+    }
   });
 
   it("derives level from total xp", () => {
@@ -89,11 +116,25 @@ describe("weight milestones", () => {
 });
 
 describe("daily quests", () => {
+  const goals = { caloriesMax: 2000, protein: 150, water: 7, steps: 10000 };
+  const loggedQuest = (log: DailyLog | null) =>
+    getDailyQuests(log, goals).find((q) => q.key === "daily-logged");
+
   it("marks the calorie quest complete only within budget", () => {
-    const goals = { caloriesMax: 2000, protein: 150, water: 7, steps: 10000 };
     const under = getDailyQuests(day({ calories: 1800 }), goals).find((q) => q.key === "daily-calories");
     const over = getDailyQuests(day({ calories: 2200 }), goals).find((q) => q.key === "daily-calories");
     expect(under?.completed).toBe(true);
     expect(over?.completed).toBe(false);
+  });
+
+  it("pays the show-up quest for logging at all, with no target to hit", () => {
+    expect(loggedQuest(day({ weight: 80 }))?.completed).toBe(true);
+    // Way over every target, but they turned up — it still pays.
+    expect(loggedQuest(day({ weight: 80, calories: 9000, steps: 0 }))?.completed).toBe(true);
+  });
+
+  it("withholds the show-up quest before anything is logged", () => {
+    expect(loggedQuest(null)?.completed).toBe(false);
+    expect(loggedQuest(day({ calories: 1800 }))?.completed).toBe(false); // no weight yet
   });
 });
