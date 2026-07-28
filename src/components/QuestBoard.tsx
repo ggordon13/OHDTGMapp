@@ -6,6 +6,7 @@ import GamePanel from "@/components/game/GamePanel";
 import GameButton from "@/components/game/GameButton";
 import GameProgress from "@/components/game/GameProgress";
 import { xpFly, confettiBurst, shine, pop } from "@/lib/fx";
+import { sfx } from "@/lib/sfx";
 import { cn } from "@/lib/utils";
 
 /** A completed, still-unclaimed quest paired with the period it belongs to. */
@@ -41,6 +42,7 @@ const ClaimAllButton = ({
   const totalXp = items.reduce((s, { quest }) => s + quest.xp, 0);
 
   const handle = () => {
+    sfx.claimAll();
     if (ref.current) {
       const xpTarget = document.querySelector('[data-fx="xp-target"]');
       confettiBurst(ref.current, 26);
@@ -83,6 +85,7 @@ const QuestRow = ({
   }, [claimed]);
 
   const handleClaim = () => {
+    sfx.claim();
     if (btnRef.current) {
       const xpTarget = document.querySelector('[data-fx="xp-target"]');
       shine(rowRef.current);

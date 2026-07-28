@@ -24,10 +24,12 @@ import ThemePicker from "@/components/ThemePicker";
 import ShareCardModal from "@/components/ShareCardModal";
 import InstallButton from "@/components/InstallButton";
 import NotificationsButton from "@/components/NotificationsButton";
+import SoundToggleButton from "@/components/SoundToggleButton";
 import { useTheme } from "@/hooks/useTheme";
 import DailyCheckIn from "@/components/DailyCheckIn";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import { revealPanels } from "@/lib/fx";
+import { sfx } from "@/lib/sfx";
 import { buildDayRange, type DailyLog } from "@/lib/mockData";
 import {
   getStreakWithShields,
@@ -211,6 +213,7 @@ const Index = () => {
     if (crossed != null) {
       celebratingRef.current = true;
       setConfettiTrigger(Date.now());
+      sfx.milestone();
       toast.success(`Milestone! You crossed ${crossed} kg 🎉 +30 XP`);
       celebrateMilestone(crossed).finally(() => {
         celebratingRef.current = false;
@@ -408,6 +411,7 @@ const Index = () => {
     // re-based profile and the seeded Day 1 row.
     runFinishShownRef.current = false;
     setConfettiTrigger(Date.now());
+    sfx.trophy();
     toast.success("Golden star earned ⭐ Your next 100 days are set up!");
     await Promise.all([refetchProfile(), refetchLogs()]);
     return true;
@@ -490,6 +494,7 @@ const Index = () => {
     if (!todayRow) return;
     await updateLogs([{ ...todayRow, weight }]);
     setConfettiTrigger(Date.now());
+    sfx.milestone();
     toast.success(`Logged ${weight} kg for today 💪`);
   };
 
@@ -749,6 +754,7 @@ const Index = () => {
               <Share2 className="h-4 w-4" />
               <span className="hidden sm:inline">Share</span>
             </GameButton>
+            <SoundToggleButton size="sm" />
             {isStaff && (
               <GameButton
                 color="red"

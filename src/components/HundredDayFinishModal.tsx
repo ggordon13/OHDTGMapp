@@ -10,6 +10,7 @@ import { calculateTargets, recommendedTargetRange, targetWeightRange, type GoalT
 import { ArchivedBadge, RunSummary } from "@/lib/hundredDay";
 import { CHALLENGE_DAYS } from "@/lib/access";
 import type { RestartPlan } from "@/hooks/useHundredDay";
+import { sfx } from "@/lib/sfx";
 import { formatDateInputValue, parseDateInputValue } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -92,6 +93,11 @@ const HundredDayFinishModal = ({
   const [goalType, setGoalType] = useState<GoalType>(currentGoalType);
   const [targetInput, setTargetInput] = useState("");
   const [useRecommended, setUseRecommended] = useState(true);
+
+  // The finish-line fanfare — 100 days earns the biggest cue in the kit.
+  useEffect(() => {
+    if (open) sfx.finish();
+  }, [open]);
 
   // Re-arm the form each time the modal is opened, so a dismissed-and-reopened
   // finish never carries stale input.

@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Trophy } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
 import type { ChallengeMode, ChallengeReward, LeaderboardRow } from "@/hooks/useChallenge";
 import { AWARD_META, topBy, overallWinner } from "@/lib/challenge";
+import { sfx } from "@/lib/sfx";
 
 interface ChallengeResultsModalProps {
   open: boolean;
@@ -25,6 +26,11 @@ const ChallengeResultsModal = ({ open, mode, rows, rewards, onAcknowledge }: Cha
   const [busy, setBusy] = useState(false);
   const rewardText = (key: string) => rewards.find((r) => r.award_key === key)?.reward_text || null;
   const overall = mode === "partner" ? overallWinner(rows) : null;
+
+  // Winners revealed — cheer the reveal itself, not the acknowledgement.
+  useEffect(() => {
+    if (open) sfx.finish();
+  }, [open]);
 
   const ack = async () => {
     if (busy) return;
