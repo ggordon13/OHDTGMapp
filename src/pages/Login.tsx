@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import gsap from "gsap";
 import { Scale, Utensils, Footprints, Flame, ShieldCheck } from "lucide-react";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import Logo from "@/components/Logo";
+import WaitlistForm from "@/components/WaitlistForm";
 import { floatIdle, shine } from "@/lib/fx";
 
 const features = [
@@ -146,8 +147,21 @@ const Login = () => {
           </div>
         </div>
 
+        {/* Not ready to sign in? Capture the email for the launch list. */}
+        <div data-in className="space-y-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-[hsl(35,30%,60%)]">
+            Not ready yet? Get launch updates
+          </p>
+          <WaitlistForm />
+        </div>
+
         <p data-in className="text-xs font-bold uppercase tracking-wide text-[hsl(35,30%,55%)]">
           Free to play · Your data stays yours
+        </p>
+        <p data-in className="text-xs font-semibold text-[hsl(35,30%,48%)]">
+          <Link to="/privacy" className="hover:text-[hsl(42,88%,62%)]">Privacy</Link>
+          <span className="mx-2">·</span>
+          <Link to="/terms" className="hover:text-[hsl(42,88%,62%)]">Terms</Link>
         </p>
       </div>
     </div>

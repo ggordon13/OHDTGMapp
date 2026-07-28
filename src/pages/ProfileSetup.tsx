@@ -19,7 +19,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import GameButton from "@/components/game/GameButton";
+import DeleteAccountButton from "@/components/DeleteAccountButton";
 import { canEditStartingData } from "@/lib/access";
+import { track } from "@/lib/telemetry";
 import { toast } from "sonner";
 
 const ProfileSetup = () => {
@@ -251,6 +253,8 @@ const ProfileSetup = () => {
         toast.error("Failed to save profile");
       }
     } else {
+      // Activation funnel: first-time completion is the "profile done" step.
+      track("profile_completed", { first_time: !isUpdate });
       toast.success(isUpdate ? "Profile updated" : "Profile saved! Let's start your journey 💪");
       // First-time setup hands off to the dashboard with a flag so the quick
       // guide is shown before the user starts tracking.
@@ -509,6 +513,12 @@ const ProfileSetup = () => {
             )}
           </div>
         </form>
+
+        {isUpdate && (
+          <div className="mt-6 border-t-2 border-[hsl(33,28%,62%)] pt-5">
+            <DeleteAccountButton />
+          </div>
+        )}
       </div>
     </div>
   );

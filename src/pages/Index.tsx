@@ -498,7 +498,9 @@ const Index = () => {
   // just persists without an extra toast.
   const handleSaveToday = async (updated: DailyLog) => {
     await updateLogs([updated]);
-    track("day_saved", { day: updated.day });
+    // has_weight marks a "real" logged day (matches isDayLogged / the streak
+    // rule) — Weekly Logging Users counts these, not partial saves.
+    track("day_saved", { day: updated.day, has_weight: updated.weight != null });
   };
 
   if (loading || profileLoading) {

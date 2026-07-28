@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { requiresProfileSetup } from "@/lib/profile";
 import { clearPendingWhopCheckout, hasPendingWhopCheckout } from "@/lib/whop";
+import { track } from "@/lib/telemetry";
 import { useAuth } from "./useAuth";
 
 /** How long to keep checking for premium after a user returns from Whop. */
@@ -105,7 +106,10 @@ export function useProfile() {
     if (!user?.id || !hasPendingWhopCheckout()) return;
 
     if (profile?.access_level === "premium") {
-      if (clearPendingWhopCheckout()) toast.success("Premium unlocked. Welcome in! 👑");
+      if (clearPendingWhopCheckout()) {
+        track("premium_activated");
+        toast.success("Premium unlocked. Welcome in! 👑");
+      }
       return;
     }
 
