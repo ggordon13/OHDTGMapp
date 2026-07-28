@@ -18,7 +18,7 @@ import GameButton from "@/components/game/GameButton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { formatDateInputValue, parseDateInputValue, cn } from "@/lib/utils";
-import { AWARD_META, topBy, overallWinner } from "@/lib/challenge";
+import { AWARD_META, awardLabel, topBy, overallWinner } from "@/lib/challenge";
 
 const GROUP_AWARDS: { key: AwardKey; label: string; icon: string; desc: string }[] = [
   { key: "golden_shoe", label: "Golden Shoe", icon: "👟", desc: "Highest avg steps" },
@@ -71,16 +71,20 @@ const RosterRow = ({ m }: { m: ChallengeMember }) => (
 
 const RewardList = ({ view }: { view: ChallengeView }) => {
   if (view.rewards.length === 0) return null;
-  const label = (k: string) => GROUP_AWARDS.find((a) => a.key === k)?.label ?? (k === "overall" ? "Winner" : k);
   return (
     <div className="space-y-1.5">
       <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(222,40%,42%)]">Rewards</p>
-      {view.rewards.map((r) => (
-        <div key={r.award_key} className="flex items-center justify-between gap-2 text-xs">
-          <span className="font-bold text-muted-foreground">{label(r.award_key)}</span>
-          <span className="font-bold text-card-foreground">{r.reward_text || "—"}</span>
-        </div>
-      ))}
+      {view.rewards.map((r) => {
+        const { icon, label } = awardLabel(r.award_key);
+        return (
+          <div key={r.award_key} className="flex items-center justify-between gap-2 text-xs">
+            <span className="font-bold text-muted-foreground">
+              {icon} {label}
+            </span>
+            <span className="font-bold text-card-foreground">{r.reward_text || "—"}</span>
+          </div>
+        );
+      })}
     </div>
   );
 };

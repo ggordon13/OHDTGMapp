@@ -14,6 +14,12 @@ export const AWARD_META: {
   { key: "milestone_master", label: "The Milestone Master", icon: "⭐", desc: "Most quest XP", metric: "xp_window" },
 ];
 
+/** Icon + label for any award key, including partner mode's "overall". */
+export function awardLabel(key: AwardKey): { icon: string; label: string } {
+  const meta = AWARD_META.find((a) => a.key === key);
+  return meta ? { icon: meta.icon, label: meta.label } : { icon: "🏆", label: "Overall winner" };
+}
+
 /** The row with the highest positive value for a metric, or null (no winner yet). */
 export function topBy(rows: LeaderboardRow[], metric: keyof LeaderboardRow): LeaderboardRow | null {
   let best: LeaderboardRow | null = null;

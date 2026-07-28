@@ -511,6 +511,7 @@ export type Database = {
           accepted_count: number
           capacity: number
           is_member: boolean
+          rewards: Json
         }[]
       }
       sync_my_access_level: {
