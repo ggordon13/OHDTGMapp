@@ -20,6 +20,7 @@ import GameProgress from "@/components/game/GameProgress";
 import TrophyHex from "@/components/game/TrophyHex";
 import RankBadge from "@/components/RankBadge";
 import { RANKS, getRank } from "@/lib/ranks";
+import { ALL_BADGES } from "@/lib/gamification";
 import { CHALLENGE_DAYS } from "@/lib/access";
 import { cn } from "@/lib/utils";
 
@@ -434,7 +435,7 @@ export const TrophyDemo = ({ playing }: DemoProps) => {
       <div className="flex items-center justify-between">
         <DemoLabel>Trophy case</DemoLabel>
         <span className="game-tag px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-muted-foreground">
-          {unlocked + 4}/12 unlocked
+          {unlocked + 4}/{ALL_BADGES.length} unlocked
         </span>
       </div>
 

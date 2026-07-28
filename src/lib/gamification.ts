@@ -45,13 +45,32 @@ function didExercise(log: DailyLog | null): boolean {
 
 // ---------------------------------------------------------------------------
 // XP & levels
-//   Cumulative XP required to *reach* a level follows a triangular curve:
-//   L1=0, L2=100, L3=300, L4=600, L5=1000, ... (each level costs 100*level).
+//
+// Cumulative XP required to *reach* a level is triangular up to level 9 — each
+// level costs 100 more than the last (L2=100, L3=300, L4=600, L5=1000, …) — and
+// from level 10 on the step is capped at a flat 800 XP.
+//
+// The cap is the whole point. Uncapped, the step grows without bound (level 30
+// alone would cost 2,900 XP), so every rank takes longer than the one before it
+// and the late game stalls out. Capped, each rank past Pathfinder costs a flat
+// 2,400 XP, so promotions keep arriving on a steady beat however high you climb.
+// The early curve is deliberately left alone: the first three ranks are what
+// hook a new player, and they were never the problem.
+//
+// Note that lowering a threshold is always safe — levelFromXp can only return
+// the same or a higher level for a given total, so no existing player can lose
+// a level or a rank when this changes.
 // ---------------------------------------------------------------------------
+
+/** Flat cost of every level once the triangular ramp is over. */
+const LEVEL_STEP_CAP = 800;
+/** Last level on the triangular part (its own step is exactly the cap). */
+const CAP_LEVEL = LEVEL_STEP_CAP / 100 + 1;
 
 export function cumulativeXpForLevel(level: number): number {
   const l = Math.max(1, level);
-  return 50 * (l - 1) * l;
+  if (l <= CAP_LEVEL) return 50 * (l - 1) * l;
+  return 50 * (CAP_LEVEL - 1) * CAP_LEVEL + LEVEL_STEP_CAP * (l - CAP_LEVEL);
 }
 
 export function levelFromXp(xp: number): number {
@@ -115,6 +134,19 @@ export function getDailyQuests(today: DailyLog | null, goals: QuestGoals): Quest
   const steps = today?.steps ?? null;
 
   return [
+    {
+      // Participation, not performance. Every other daily quest asks you to hit
+      // a target, which is exactly what a struggling user misses — this one only
+      // asks them to turn up, so the floor on daily income is never zero.
+      key: "daily-logged",
+      title: "Show up",
+      description: "Log anything at all today",
+      xp: 20,
+      category: "daily",
+      current: today && isDayLogged(today) ? 1 : 0,
+      target: 1,
+      completed: !!today && isDayLogged(today),
+    },
     {
       key: "daily-calories",
       title: "Stay in your calorie budget",
@@ -517,6 +549,8 @@ interface BadgeContext {
   proteinRun: number;
   perfectWeek: boolean;
   reachedTargetWeight: boolean;
+  /** Kg moved *toward* the target so far (negative if moving away). */
+  weightProgress: number;
 }
 
 /** A badge definition plus the predicate that decides when it's earned. */
@@ -536,7 +570,10 @@ const BADGE_CATALOG: BadgeDef[] = [
   { key: "medallion-bronze", label: "Bronze Medallion", description: "Earn 4 ⭐ weeks in total", tier: "bronze", icon: "🥉", xp: 75, earned: (c) => c.totalStars >= 4 },
   { key: "medallion-silver", label: "Silver Medallion", description: "Earn 8 ⭐ weeks in total", tier: "silver", icon: "🥈", xp: 150, earned: (c) => c.totalStars >= 8 },
   { key: "medallion-gold", label: "Gold Medallion", description: "Earn 12 ⭐ weeks in total", tier: "gold", icon: "🥇", xp: 250, earned: (c) => c.totalStars >= 12 },
-  { key: "virtuoso", label: "Virtuoso", description: "Earn 15 ⭐ weeks in total", tier: "special", icon: "👑", xp: 350, earned: (c) => c.totalStars >= 15 },
+  // 14, not 15: a 100-day run is 14 whole weeks plus a 2-day Week 15, so 15
+  // stars demanded a star in the 2-day tail as well. 14 means "every full week
+  // of the run was a ⭐ week" — the hardest thing that is actually achievable.
+  { key: "virtuoso", label: "Virtuoso", description: "Earn 14 ⭐ weeks in total", tier: "special", icon: "👑", xp: 350, earned: (c) => c.totalStars >= 14 },
 
   {
     key: "hydration-hero", label: "Hydration Hero", description: "Hit your water goal every logged day of a week", tier: "special", icon: "💧", xp: 60,
@@ -553,6 +590,18 @@ const BADGE_CATALOG: BadgeDef[] = [
   { key: "protein-master", label: "Protein Master", description: "Hit your protein target 5 weeks in a row", tier: "special", icon: "🥩", xp: 120, earned: (c) => c.proteinRun >= 5 },
   { key: "perfectionist", label: "The Perfectionist", description: "A perfect week — every single target met", tier: "gold", icon: "💯", xp: 150, earned: (c) => c.perfectWeek },
   { key: "iron-streak", label: "Iron Streak", description: "Logged 14 days in a row", tier: "gold", icon: "🔥", xp: 120, earned: (c) => c.longestStreak >= 14 },
+
+  // Turning-up trophies. Everything above is gated behind hitting a target, and
+  // seven of them behind ⭐ weeks specifically — so a user who logs faithfully
+  // without meeting the weekly bar watches half the case stay grey through the
+  // middle of a run. These are earned by showing up, and they deliberately land
+  // in the day-20-to-day-100 stretch where nothing else was unlocking.
+  { key: "three-week-streak", label: "Three Weeks Strong", description: "Logged 21 days in a row", tier: "silver", icon: "⛓️", xp: 100, earned: (c) => c.longestStreak >= 21 },
+  { key: "committed", label: "Committed", description: "Logged 30 days in total", tier: "bronze", icon: "📓", xp: 75, earned: (c) => c.loggedDays >= 30 },
+  { key: "halfway-there", label: "Halfway There", description: "Logged 50 days in total", tier: "silver", icon: "🧭", xp: 150, earned: (c) => c.loggedDays >= 50 },
+  { key: "century-club", label: "Century Club", description: "Logged 100 days in total", tier: "gold", icon: "💎", xp: 300, earned: (c) => c.loggedDays >= 100 },
+  { key: "moving-the-needle", label: "Moving the Needle", description: "Moved 3 kg toward your target", tier: "silver", icon: "📉", xp: 120, earned: (c) => c.weightProgress >= 3 },
+
   { key: "built-different", label: "Built Different", description: "Reached your target weight", tier: "special", icon: "🗿", xp: 300, earned: (c) => c.reachedTargetWeight },
 ];
 
@@ -588,6 +637,14 @@ export function getEarnedBadges(
         : latestWeight >= targetWeight
       : false;
 
+  // Distance travelled toward the target, in whichever direction the goal runs.
+  const weightProgress =
+    startWeight != null && targetWeight != null && latestWeight != null && startWeight !== targetWeight
+      ? startWeight > targetWeight
+        ? startWeight - latestWeight
+        : latestWeight - startWeight
+      : 0;
+
   const ctx: BadgeContext = {
     goals,
     weeks,
@@ -598,6 +655,7 @@ export function getEarnedBadges(
     proteinRun: maxConsecutiveProteinWeeks(weeks, goals),
     perfectWeek: hasPerfectWeek(weeks, goals),
     reachedTargetWeight,
+    weightProgress,
   };
   return BADGE_CATALOG.filter((b) => b.earned(ctx)).map(({ earned: _earned, ...badge }) => badge);
 }

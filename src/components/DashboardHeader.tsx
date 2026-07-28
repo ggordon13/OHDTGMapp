@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Flame, Target, Shield, Star, Flag, Scale, TrendingDown, TrendingUp, Minus, Trophy, Lock } from "lucide-react";
+import { Flame, Target, Shield, Star, Flag, Scale, TrendingDown, TrendingUp, Minus, Trophy, Lock, Share2 } from "lucide-react";
 import { LevelProgress } from "@/lib/gamification";
 import GameProgress from "@/components/game/GameProgress";
 import GameButton from "@/components/game/GameButton";
@@ -37,6 +37,8 @@ interface DashboardHeaderProps {
   runLocked?: boolean;
   /** Set when Day 1 of the next run hasn't arrived yet, e.g. "August 3, 2026". */
   upcomingStartDate?: string | null;
+  /** Open the share card. Sits with the streak — that's what people share. */
+  onShare?: () => void;
 }
 
 const DashboardHeader = ({
@@ -53,6 +55,7 @@ const DashboardHeader = ({
   onFinishRun,
   runLocked = false,
   upcomingStartDate = null,
+  onShare,
 }: DashboardHeaderProps) => {
   const progress = Math.min(100, (currentDay / CHALLENGE_DAYS) * 100);
   const streakRef = useRef<HTMLDivElement>(null);
@@ -140,6 +143,12 @@ const DashboardHeader = ({
             <Flame className={`h-4 w-4 ${streakProtected ? "text-sky-300" : "text-yellow-300"}`} />
             {streak} day streak
           </div>
+          {onShare && (
+            <GameButton color="teal" size="sm" onClick={onShare} title="Share your progress">
+              <Share2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Share</span>
+            </GameButton>
+          )}
         </div>
       </div>
 

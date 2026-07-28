@@ -4,7 +4,7 @@ import { X, Share2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ShareCard, { type ShareCardData } from "@/components/ShareCard";
 import GameButton from "@/components/game/GameButton";
-import { nodeToPngBlob, shareOrDownload } from "@/lib/shareImage";
+import { canvasToPngBlob, shareOrDownload } from "@/lib/shareImage";
 
 interface ShareCardModalProps {
   open: boolean;
@@ -14,14 +14,14 @@ interface ShareCardModalProps {
 
 /** Preview + share/download of a branded progress card. */
 const ShareCardModal = ({ open, onOpenChange, data }: ShareCardModalProps) => {
-  const cardRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLCanvasElement>(null);
   const [busy, setBusy] = useState(false);
 
   const handleShare = async () => {
     if (!cardRef.current || busy) return;
     setBusy(true);
     try {
-      const blob = await nodeToPngBlob(cardRef.current, 2);
+      const blob = await canvasToPngBlob(cardRef.current);
       if (!blob) throw new Error("render failed");
       const res = await shareOrDownload(blob, {
         filename: "gglvlup-progress.png",

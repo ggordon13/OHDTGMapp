@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, UserCog, BookOpen, ShieldCheck, Palette, Share2 } from "lucide-react";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, BookOpen, ShieldCheck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,7 +24,7 @@ import ThemePicker from "@/components/ThemePicker";
 import ShareCardModal from "@/components/ShareCardModal";
 import InstallButton from "@/components/InstallButton";
 import NotificationsButton from "@/components/NotificationsButton";
-import SoundToggleButton from "@/components/SoundToggleButton";
+import SettingsMenu from "@/components/SettingsMenu";
 import { useTheme } from "@/hooks/useTheme";
 import DailyCheckIn from "@/components/DailyCheckIn";
 import FireflyCanvas from "@/components/FireflyCanvas";
@@ -734,27 +734,13 @@ const Index = () => {
             <NotificationsButton size="sm" />
             {!isPremium && <StartTrialButton size="sm" />}
             {!isPremium && <GetPremiumButton size="sm" />}
-            <GameButton
-              color="wood"
+            {/* Share lives with the streak, Quick Guide with Today's Data, and
+                the set-and-forget controls are behind Settings. */}
+            <SettingsMenu
               size="sm"
-              onClick={() => navigate("/setup", { state: { intentional: true } })}
-            >
-              <UserCog className="h-4 w-4" />
-              <span className="hidden sm:inline">Update Profile</span>
-            </GameButton>
-            <GameButton color="gold" size="sm" onClick={() => setShowGuide(true)} title="Open the quick guide">
-              <BookOpen className="h-4 w-4" />
-              <span className="hidden sm:inline">Quick Guide</span>
-            </GameButton>
-            <GameButton color="purple" size="sm" onClick={() => setShowThemes(true)} title="Change your theme">
-              <Palette className="h-4 w-4" />
-              <span className="hidden sm:inline">Themes</span>
-            </GameButton>
-            <GameButton color="teal" size="sm" onClick={() => setShowShare(true)} title="Share your progress">
-              <Share2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Share</span>
-            </GameButton>
-            <SoundToggleButton size="sm" />
+              onOpenThemes={() => setShowThemes(true)}
+              onUpdateProfile={() => navigate("/setup", { state: { intentional: true } })}
+            />
             {isStaff && (
               <GameButton
                 color="red"
@@ -800,11 +786,18 @@ const Index = () => {
             onFinishRun={() => setShowRunFinish(true)}
             runLocked={runLocked}
             upcomingStartDate={challengeNotStarted ? formattedDayOneDate : null}
+            onShare={() => setShowShare(true)}
           />
           <div data-reveal>
             <TodayData
               entry={todayEntry}
               onSave={handleSaveToday}
+              headerAction={
+                <GameButton color="gold" size="sm" onClick={() => setShowGuide(true)} title="Open the quick guide">
+                  <BookOpen className="h-4 w-4" />
+                  <span className="hidden sm:inline">Quick Guide</span>
+                </GameButton>
+              }
               footer={freeFooter}
               locked={runLocked}
             />

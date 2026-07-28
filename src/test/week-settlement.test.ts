@@ -120,6 +120,69 @@ describe("week-based trophies", () => {
   });
 });
 
+describe("turning-up trophies", () => {
+  // Logs faithfully, hits nothing. The weight is in — so the day counts and the
+  // streak runs — but every target is missed, so no ⭐ week can ever settle and
+  // none of the achievement-gated trophies are reachable. This is the user the
+  // volume/streak trophies exist for.
+  const slackerRun = (days: number, weightAt: (i: number) => number = (i) => 85 - i * 0.15): DailyLog[] =>
+    Array.from({ length: days }, (_, i) => {
+      const d = new Date(2026, 1, 1);
+      d.setDate(d.getDate() + i);
+      return {
+        date: formatDateInputValue(d),
+        day: i + 1,
+        weight: weightAt(i),
+        calories: 3200, // over budget
+        protein: 40, // under target
+        water: 1, // under target
+        exercise: "None",
+        steps: 1200, // under target
+      };
+    });
+
+  /** Badge keys as of the day after the run ends, so every week has settled. */
+  const keysAfter = (days: DailyLog[], weightOpts?: { startWeight: number; targetWeight: number }) => {
+    const end = new Date(2026, 1, 1);
+    end.setDate(end.getDate() + days.length + 1);
+    return getEarnedBadges(days, goals, weightOpts, formatDateInputValue(end)).map((b) => b.key);
+  };
+
+  it("unlocks without a single ⭐ week", () => {
+    const keys = keysAfter(slackerRun(30));
+    expect(keys).toContain("committed");
+    expect(keys).toContain("three-week-streak");
+    // The point of the exercise: nothing target-gated is within reach.
+    expect(keys).not.toContain("star-bronze");
+    expect(keys).not.toContain("step-master");
+    expect(keys).not.toContain("hydration-hero");
+    expect(keys).not.toContain("perfectionist");
+  });
+
+  it("steps up with days logged", () => {
+    expect(keysAfter(slackerRun(20))).not.toContain("committed");
+    expect(keysAfter(slackerRun(30))).not.toContain("halfway-there");
+    expect(keysAfter(slackerRun(50))).toContain("halfway-there");
+    expect(keysAfter(slackerRun(100))).toContain("century-club");
+  });
+
+  it("credits weight progress in whichever direction the goal runs", () => {
+    // Losing: 85 → 80.65 is 4.35 kg toward a 75 kg target.
+    expect(keysAfter(slackerRun(30), { startWeight: 85, targetWeight: 75 })).toContain("moving-the-needle");
+    // Gaining: 60 → 64.35 is 4.35 kg toward a 70 kg target.
+    expect(
+      keysAfter(slackerRun(30, (i) => 60 + i * 0.15), { startWeight: 60, targetWeight: 70 }),
+    ).toContain("moving-the-needle");
+  });
+
+  it("does not credit weight moving away from the target", () => {
+    // Target is 75 but they gained — progress is negative, not 4.35.
+    expect(
+      keysAfter(slackerRun(30, (i) => 85 + i * 0.15), { startWeight: 85, targetWeight: 75 }),
+    ).not.toContain("moving-the-needle");
+  });
+});
+
 describe("Week 15 — the 2-day tail of the run", () => {
   // Day 1 is 2026-02-01, so Day N is 2026-02-01 + (N-1). Day 99 → 2026-05-10,
   // Day 100 → 2026-05-11.
@@ -159,6 +222,19 @@ describe("Week 15 — the 2-day tail of the run", () => {
     const wk15 = chunkIntoWeeks(fullRun(100))[14];
     expect(isWeekSettled(wk15, "2026-05-11")).toBe(false); // Day 100 itself
     expect(isWeekSettled(wk15, "2026-05-12")).toBe(true); // the morning after
+  });
+
+  it("makes Virtuoso reachable off the 14 whole weeks alone", () => {
+    // Days 1–98: every full week is a ⭐ week, Week 15 not yet played.
+    const keys = getEarnedBadges(fullRun(98), goals, undefined, "2026-05-10").map((b) => b.key);
+    expect(keys).toContain("virtuoso");
+  });
+
+  it("does not hand Virtuoso out early", () => {
+    // 13 settled ⭐ weeks (Days 1–91) is one short.
+    const keys = getEarnedBadges(fullRun(91), goals, undefined, "2026-05-03").map((b) => b.key);
+    expect(keys).toContain("medallion-gold"); // 12 stars, so the tier below lands
+    expect(keys).not.toContain("virtuoso");
   });
 
   it("scales the day-count quests down so they stay reachable", () => {
