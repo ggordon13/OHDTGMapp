@@ -3,3 +3,8 @@ project_id = "fmvzcourofsnhhufurdt"
 # Whop calls this without a Supabase JWT, so skip JWT verification
 # (the function verifies the Whop webhook signature itself).
 verify_jwt = false
+
+[functions.send-reminders]
+# The scheduler (pg_cron → pg_net) calls this without a Supabase JWT, so skip
+# JWT verification (the function checks its own CRON_SECRET header instead).
+verify_jwt = false

@@ -11,6 +11,8 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import ProfileSetup from "./pages/ProfileSetup";
 import JoinChallenge from "./pages/JoinChallenge";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import NotFound from "./pages/NotFound";
 
 // Dev-only style preview (mock data, no auth); excluded from production routing.
@@ -56,6 +58,8 @@ const App = () => (
             )}
             <Route path="/setup" element={<ProfileSetup />} />
             <Route path="/join/:challengeId" element={<JoinChallenge />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
