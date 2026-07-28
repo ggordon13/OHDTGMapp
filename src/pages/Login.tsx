@@ -87,24 +87,28 @@ const Login = () => {
   };
 
   return (
-    <div className="wood-bg relative min-h-screen overflow-hidden px-4 py-12">
+    <div className="wood-bg relative min-h-screen overflow-hidden px-4 py-12 md:pt-8">
       <FireflyCanvas count={140} />
 
       <div ref={rootRef} className="relative z-10 mx-auto w-full max-w-5xl">
-        <div className="mx-auto w-full max-w-xl space-y-6 text-center">
-          {/* Floating brand badge — width-based so the wide logo fills the space. */}
-          <Logo ref={medalRef} className="mx-auto h-auto w-72 sm:w-[26rem]" />
+        {/* On desktop the hero is deliberately kept short — it has to clear the
+            fold with room to spare so the top of the feature tour peeks in and
+            advertises that there's more below. */}
+        <div className="mx-auto w-full max-w-xl space-y-6 text-center md:max-w-4xl md:space-y-5">
+          {/* Floating brand badge — width-based so the wide logo fills the space.
+              The art is 3:2, so width is what drives its (considerable) height. */}
+          <Logo ref={medalRef} className="mx-auto h-auto w-72 sm:w-[26rem] md:w-[18rem]" />
 
           <h1
             data-in
-            className="font-display text-4xl font-bold leading-[1.05] tracking-wide text-[hsl(38,60%,90%)] [text-shadow:0_4px_0_rgba(0,0,0,0.45)] sm:text-5xl"
+            className="font-display text-4xl font-bold leading-[1.05] tracking-wide text-[hsl(38,60%,90%)] [text-shadow:0_4px_0_rgba(0,0,0,0.45)] sm:text-5xl md:text-[2.5rem]"
           >
             Level up your life,
-            <br />
+            <br className="md:hidden" />{" "}
             <span className="text-[hsl(42,88%,62%)]">one day at a time.</span>
           </h1>
 
-          <p data-in className="mx-auto max-w-md font-semibold text-[hsl(35,30%,66%)]">
+          <p data-in className="mx-auto max-w-md font-semibold text-[hsl(35,30%,66%)] md:max-w-xl">
             GGLvlup turns your weight, food and movement into a game of levels, streaks and trophies —
             so leveling up your life actually sticks.
           </p>
@@ -119,15 +123,21 @@ const Login = () => {
             ))}
           </div>
 
-          {/* Sign-in card */}
-          <div data-in ref={cardRef} className="game-panel mx-auto max-w-sm space-y-4 p-6">
-            <GoogleSignInButton busy={isSigningIn} onClick={handleGoogleSignIn} />
+          {/* Sign-in card. Stacked on phones; on desktop the reassurance note
+              sits beside the button instead of under it, which buys back most
+              of the card's height. */}
+          <div
+            data-in
+            ref={cardRef}
+            className="game-panel mx-auto flex max-w-sm flex-col gap-4 p-6 md:max-w-2xl md:flex-row md:items-center md:p-5"
+          >
+            <GoogleSignInButton busy={isSigningIn} onClick={handleGoogleSignIn} className="md:w-auto md:shrink-0" />
 
             <div className="game-tag flex items-start gap-2 px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground">
               <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
-                We only use your Google account to sign you in and personalize your dashboard.
-                We never post on your behalf.
+                We only use your Google account to sign you in and personalize your dashboard —
+                we never post on your behalf.
               </span>
             </div>
           </div>

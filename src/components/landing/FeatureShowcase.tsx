@@ -248,8 +248,8 @@ const FeatureCard = ({ feature }: { feature: Feature }) => {
  */
 const FeatureShowcase = () => (
   <MotionConfig reducedMotion="user">
-    <section className="mt-16">
-      <div className="mx-auto max-w-2xl space-y-2 text-center">
+    <section className="mt-12 md:mt-10">
+      <div className="mx-auto max-w-2xl space-y-2 text-center md:max-w-4xl">
         <p className="font-display text-[11px] font-bold uppercase tracking-[0.22em] text-[hsl(42,88%,62%)]">
           A gamified way to a better you
         </p>
@@ -258,13 +258,13 @@ const FeatureShowcase = () => (
           <br className="sm:hidden" />{" "}
           <span className="text-[hsl(42,88%,62%)]">Then go take the crown.</span>
         </h2>
-        <p className="font-semibold text-[hsl(35,30%,66%)]">
+        <p className="mx-auto max-w-2xl font-semibold text-[hsl(35,30%,66%)]">
           Finish quests, top the leaderboard and earn trophies to climb the ranks — with your friends dragged along for
           the ride. Hover any card to watch it happen.
         </p>
       </div>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
+      <div className="mt-6 grid gap-4 md:mt-7 md:grid-cols-2">
         {FEATURES.map((feature) => (
           <FeatureCard key={feature.key} feature={feature} />
         ))}
