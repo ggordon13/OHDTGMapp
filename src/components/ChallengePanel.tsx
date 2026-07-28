@@ -639,21 +639,22 @@ const CurrentView = ({
                 <GameButton
                   color="leaf"
                   size="sm"
-                  className={cn("w-full", !canStart && !starting && "flex-col gap-0 py-1.5 leading-tight")}
+                  className={cn("w-full", !starting && "flex-col gap-0 py-1.5 leading-tight")}
                   disabled={!canStart || starting}
                   onClick={() => void handleStart()}
                 >
                   {starting ? (
                     "Starting…"
-                  ) : canStart ? (
-                    "Start challenge now"
                   ) : (
                     <>
-                      <span>Waiting for at least 1 more to join…</span>
+                      <span>{canStart ? "Start challenge now" : "Waiting for at least 1 more to join…"}</span>
+                      {/* Room left on the roster — worth knowing once you can start, too. */}
                       <span className="text-[10px] font-bold normal-case tracking-normal opacity-85">
                         {slotsOpen > 0
-                          ? `${slotsOpen} more ${slotsOpen === 1 ? "player" : "players"} can join`
-                          : "Waiting on pending invites"}
+                          ? `${slotsOpen} more ${slotsOpen === 1 ? "player" : "players"} can still join`
+                          : canStart
+                            ? "Roster is full"
+                            : "Waiting on pending invites"}
                       </span>
                     </>
                   )}
