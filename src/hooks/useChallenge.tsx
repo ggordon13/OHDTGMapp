@@ -70,6 +70,8 @@ export interface ChallengeInviteInfo {
   accepted_count: number;
   capacity: number;
   is_member: boolean;
+  /** What the leader put on the line; empty when they set nothing. */
+  rewards: ChallengeReward[];
 }
 
 export interface LeaderboardRow {
@@ -218,7 +220,11 @@ export function useChallenge() {
   const getInviteInfo = useCallback(async (challengeId: string): Promise<ChallengeInviteInfo | null> => {
     const { data, error } = await supabase.rpc("challenge_invite_info", { p_challenge: challengeId });
     if (error) return null;
-    return ((data ?? [])[0] as ChallengeInviteInfo | undefined) ?? null;
+    const row = (data ?? [])[0];
+    if (!row) return null;
+    // rewards arrives as JSONB — an array of {award_key, reward_text}, or null.
+    const rewards = Array.isArray(row.rewards) ? (row.rewards as unknown as ChallengeReward[]) : [];
+    return { ...(row as unknown as Omit<ChallengeInviteInfo, "rewards">), rewards };
   }, []);
 
   const respond = useCallback(

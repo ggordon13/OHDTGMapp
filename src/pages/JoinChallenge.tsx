@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Swords, Crown, Users, UserPlus, CalendarDays, Loader2 } from "lucide-react";
+import { Swords, Crown, Users, UserPlus, CalendarDays, Loader2, Gift } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useChallenge, type ChallengeInviteInfo } from "@/hooks/useChallenge";
+import { awardLabel } from "@/lib/challenge";
 import { parseDateInputValue } from "@/lib/utils";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import Logo from "@/components/Logo";
@@ -128,6 +129,26 @@ const JoinChallenge = () => {
                   <CalendarDays className="h-4 w-4" /> Starts {prettyDate(info.start_date)} · {info.duration_days} days
                 </p>
               </div>
+
+              {/* What the leader put up for grabs — the reason to say yes. */}
+              {info.rewards.length > 0 && (
+                <div className="space-y-2 rounded-xl border-2 border-[hsl(40,70%,45%)] bg-[hsl(45,82%,88%)] p-3 text-left">
+                  <p className="flex items-center gap-1.5 font-display text-[11px] font-bold uppercase tracking-wide text-[hsl(30,65%,32%)]">
+                    <Gift className="h-3.5 w-3.5" /> Rewards on the line
+                  </p>
+                  {info.rewards.map((r) => {
+                    const { icon, label } = awardLabel(r.award_key);
+                    return (
+                      <div key={r.award_key} className="flex items-start justify-between gap-3 text-xs">
+                        <span className="shrink-0 font-bold text-[hsl(30,45%,32%)]">
+                          {icon} {label}
+                        </span>
+                        <span className="text-right font-bold text-card-foreground">{r.reward_text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {open ? (
                 <GameButton color="leaf" size="lg" className="w-full" disabled={joining} onClick={() => void handleJoin()}>
