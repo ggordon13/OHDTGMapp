@@ -8,6 +8,8 @@ import { Scale, Utensils, Footprints, Flame, ShieldCheck } from "lucide-react";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import Logo from "@/components/Logo";
 import WaitlistForm from "@/components/WaitlistForm";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
+import FeatureShowcase from "@/components/landing/FeatureShowcase";
 import { floatIdle, shine } from "@/lib/fx";
 
 const features = [
@@ -85,80 +87,90 @@ const Login = () => {
   };
 
   return (
-    <div className="wood-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
+    <div className="wood-bg relative min-h-screen overflow-hidden px-4 py-12">
       <FireflyCanvas count={140} />
 
-      <div ref={rootRef} className="relative z-10 w-full max-w-xl space-y-6 text-center">
-        {/* Floating brand badge — width-based so the wide logo fills the space. */}
-        <Logo ref={medalRef} className="mx-auto h-auto w-72 sm:w-[26rem]" />
+      <div ref={rootRef} className="relative z-10 mx-auto w-full max-w-5xl">
+        <div className="mx-auto w-full max-w-xl space-y-6 text-center">
+          {/* Floating brand badge — width-based so the wide logo fills the space. */}
+          <Logo ref={medalRef} className="mx-auto h-auto w-72 sm:w-[26rem]" />
 
-        <h1
-          data-in
-          className="font-display text-4xl font-bold leading-[1.05] tracking-wide text-[hsl(38,60%,90%)] [text-shadow:0_4px_0_rgba(0,0,0,0.45)] sm:text-5xl"
-        >
-          Level up your life,
-          <br />
-          <span className="text-[hsl(42,88%,62%)]">one day at a time.</span>
-        </h1>
-
-        <p data-in className="mx-auto max-w-md font-semibold text-[hsl(35,30%,66%)]">
-          GGLvlup turns your weight, food and movement into a game of levels, streaks and trophies —
-          so leveling up your life actually sticks.
-        </p>
-
-        {/* Feature chips */}
-        <div data-in className="flex flex-wrap items-center justify-center gap-2">
-          {features.map(({ icon: Icon, label }) => (
-            <span key={label} className="game-tag inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-muted-foreground">
-              <Icon className="h-3.5 w-3.5 text-[hsl(24,55%,42%)]" />
-              {label}
-            </span>
-          ))}
-        </div>
-
-        {/* Sign-in card */}
-        <div data-in ref={cardRef} className="game-panel mx-auto max-w-sm space-y-4 p-6">
-          <button
-            onClick={handleGoogleSignIn}
-            disabled={isSigningIn}
-            className="inline-flex w-full items-center justify-center gap-2.5 rounded-xl border-2 border-[hsl(33,32%,52%)] bg-[hsl(40,50%,95%)] px-6 py-3 font-display text-sm font-semibold uppercase tracking-wide text-card-foreground shadow-[0_4px_0_hsl(33,32%,58%)] transition-[transform,box-shadow,filter] duration-100 hover:brightness-[1.03] active:translate-y-[3px] active:shadow-[0_1px_0_hsl(33,32%,58%)] disabled:pointer-events-none disabled:opacity-60"
+          <h1
+            data-in
+            className="font-display text-4xl font-bold leading-[1.05] tracking-wide text-[hsl(38,60%,90%)] [text-shadow:0_4px_0_rgba(0,0,0,0.45)] sm:text-5xl"
           >
-            {isSigningIn ? (
-              "Redirecting to Google..."
-            ) : (
-              <>
-                <svg className="h-5 w-5" viewBox="0 0 24 24">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                </svg>
-                Continue with Google
-              </>
-            )}
-          </button>
+            Level up your life,
+            <br />
+            <span className="text-[hsl(42,88%,62%)]">one day at a time.</span>
+          </h1>
 
-          <div className="game-tag flex items-start gap-2 px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground">
-            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>
-              We only use your Google account to sign you in and personalize your dashboard.
-              We never post on your behalf.
-            </span>
+          <p data-in className="mx-auto max-w-md font-semibold text-[hsl(35,30%,66%)]">
+            GGLvlup turns your weight, food and movement into a game of levels, streaks and trophies —
+            so leveling up your life actually sticks.
+          </p>
+
+          {/* Feature chips */}
+          <div data-in className="flex flex-wrap items-center justify-center gap-2">
+            {features.map(({ icon: Icon, label }) => (
+              <span key={label} className="game-tag inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-muted-foreground">
+                <Icon className="h-3.5 w-3.5 text-[hsl(24,55%,42%)]" />
+                {label}
+              </span>
+            ))}
           </div>
+
+          {/* Sign-in card */}
+          <div data-in ref={cardRef} className="game-panel mx-auto max-w-sm space-y-4 p-6">
+            <GoogleSignInButton busy={isSigningIn} onClick={handleGoogleSignIn} />
+
+            <div className="game-tag flex items-start gap-2 px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground">
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                We only use your Google account to sign you in and personalize your dashboard.
+                We never post on your behalf.
+              </span>
+            </div>
+          </div>
+
+          <p data-in className="text-xs font-bold uppercase tracking-wide text-[hsl(35,30%,55%)]">
+            Free to play · Your data stays yours
+          </p>
         </div>
+
+        {/* Hover tour of what the app actually does. */}
+        <FeatureShowcase />
+
+        {/* Second ask, now that they've seen the goods. */}
+        <section className="mx-auto mt-14 max-w-xl">
+          <div className="game-panel space-y-4 p-6 text-center sm:p-8">
+            <p className="font-display text-[11px] font-bold uppercase tracking-[0.22em] text-[hsl(24,55%,42%)]">
+              Day 1 starts whenever you say
+            </p>
+            <h2 className="font-display text-3xl font-bold leading-tight tracking-wide text-card-foreground">
+              Ready to start your run?
+            </h2>
+            <p className="mx-auto max-w-sm text-sm font-semibold text-muted-foreground">
+              Sign in and you'll be logging your first day in under a minute — Level 1, streak 0, a whole trophy case to
+              fill. Free to play, no card, no setup wizard.
+            </p>
+            <div className="mx-auto max-w-sm">
+              <GoogleSignInButton busy={isSigningIn} onClick={handleGoogleSignIn} label="Continue with Google" />
+            </div>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              Free to play · Your data stays yours
+            </p>
+          </div>
+        </section>
 
         {/* Not ready to sign in? Capture the email for the launch list. */}
-        <div data-in className="space-y-2">
+        <section className="mx-auto mt-10 max-w-sm space-y-2 text-center">
           <p className="text-xs font-bold uppercase tracking-wide text-[hsl(35,30%,60%)]">
             Not ready yet? Get launch updates
           </p>
           <WaitlistForm />
-        </div>
+        </section>
 
-        <p data-in className="text-xs font-bold uppercase tracking-wide text-[hsl(35,30%,55%)]">
-          Free to play · Your data stays yours
-        </p>
-        <p data-in className="text-xs font-semibold text-[hsl(35,30%,48%)]">
+        <p className="mt-10 text-center text-xs font-semibold text-[hsl(35,30%,48%)]">
           <Link to="/privacy" className="hover:text-[hsl(42,88%,62%)]">Privacy</Link>
           <span className="mx-2">·</span>
           <Link to="/terms" className="hover:text-[hsl(42,88%,62%)]">Terms</Link>
