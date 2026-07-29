@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GGLvlup · Asset Factory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --wood-1: hsl(24 38% 26%);
+    --wood-2: hsl(23 40% 13%);
+    --parch: hsl(39 52% 90%);
+    --ink: hsl(24 42% 16%);
+    --rim: hsl(33 30% 55%);
+    --gold: hsl(42 88% 60%);
+    --leaf: hsl(70 50% 38%);
+    --cream: hsl(38 45% 92%);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: linear-gradient(180deg, var(--wood-1), var(--wood-2)) fixed;
+    color: var(--cream);
+    font-family: Fredoka, "Segoe UI", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 2rem 1.25rem 5rem; display: flex; flex-direction: column; gap: 2rem; }
+  h1 { font-size: clamp(1.7rem, 4vw, 2.4rem); margin: 0; font-weight: 700; }
+  h2 { font-size: 1.25rem; margin: 0; font-weight: 700; color: var(--gold); }
+  p { margin: 0; }
+  .muted { color: hsl(38 25% 72%); }
+  .panel {
+    background: hsl(39 52% 90%);
+    color: var(--ink);
+    border: 2px solid hsl(33 30% 45%);
+    border-radius: 14px;
+    box-shadow: 0 4px 0 hsl(22 45% 10%);
+    padding: 1rem 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .cfg { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.7rem; }
+  .cfg label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .cfg input {
+    font: inherit; font-size: 0.95rem; padding: 0.35rem 0.55rem;
+    border: 2px solid hsl(33 30% 55%); border-radius: 8px; background: hsl(40 48% 96%); color: var(--ink);
+  }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    border: 2px solid hsl(22 45% 12%); border-radius: 10px;
+    padding: 0.4rem 0.8rem; color: #fff;
+    background: linear-gradient(180deg, hsl(178 48% 44%), hsl(178 54% 32%));
+    box-shadow: 0 3px 0 hsl(178 50% 16%);
+  }
+  button.gold { background: linear-gradient(180deg, hsl(42 92% 60%), hsl(36 85% 46%)); color: hsl(26 50% 16%); box-shadow: 0 3px 0 hsl(33 75% 26%); }
+  button.small { padding: 0.25rem 0.6rem; font-size: 0.8rem; box-shadow: 0 2px 0 hsl(178 50% 16%); }
+  button:active { transform: translateY(2px); box-shadow: none; }
+  button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.1rem; }
+  .card { display: flex; flex-direction: column; gap: 0.5rem; }
+  .card canvas { width: 100%; height: auto; border-radius: 10px; display: block; background: #000; }
+  .card .name { font-size: 0.85rem; font-weight: 600; }
+  .card .dim { font-size: 0.72rem; color: hsl(38 25% 68%); }
+  .vids { display: flex; flex-direction: column; gap: 0.9rem; }
+  .vid { display: grid; grid-template-columns: 110px 1fr; gap: 0.9rem; align-items: start; }
+  .vid canvas { width: 110px; height: auto; border-radius: 8px; display: block; }
+  .vid .body { display: flex; flex-direction: column; gap: 0.4rem; }
+  .chip { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.15rem 0.45rem; border: 2px solid currentColor; border-radius: 6px; color: var(--gold); }
+  .hooktext { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; background: hsl(24 30% 20%); border: 1px dashed hsl(33 25% 40%); border-radius: 6px; padding: 0.35rem 0.5rem; }
+  .status { position: fixed; right: 1rem; bottom: 1rem; background: hsl(70 50% 34%); color: #fff; padding: 0.5rem 0.9rem; border-radius: 10px; font-weight: 600; box-shadow: 0 4px 0 hsl(70 50% 18%); opacity: 0; transition: opacity 160ms; pointer-events: none; }
+  .status.show { opacity: 1; }
+  ol.steps { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header style="display:flex;flex-direction:column;gap:0.6rem">
+    <h1>GGLvlup Asset Factory</h1>
+    <p class="muted" style="max-width:62ch">
+      Every static asset from the 4-week plan, drawn on canvas in the app's own palette and exported as
+      export-ready PNGs. Change the numbers below and everything re-renders. Nothing is uploaded anywhere —
+      this runs entirely in your browser.
+    </p>
+  </header>
+
+  <div class="panel">
+    <h2 style="color:hsl(24 42% 16%)">1 · Set your numbers</h2>
+    <div class="cfg" id="cfg"></div>
+    <div class="row">
+      <button class="gold" id="dlPubmats">⬇ Download all pubmats</button>
+      <button id="dlHooks">⬇ Download all hook + end cards (32)</button>
+      <button id="dlCaptions">⬇ Download captions.txt</button>
+    </div>
+    <p style="font-size:0.82rem;color:hsl(26 20% 38%)">
+      Your browser will ask permission to download multiple files — allow it. Files land in your Downloads folder,
+      named so they sort in posting order.
+    </p>
+  </div>
+
+  <section style="display:flex;flex-direction:column;gap:0.9rem">
+    <h2>2 · Pubmats</h2>
+    <p class="muted">Feed posts are 1080×1350. Stories are 1080×1920. Click any card to download that one.</p>
+    <div class="grid" id="pubmats"></div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:0.9rem">
+    <h2>2b · Zero-follower pack</h2>
+    <p class="muted">
+      Built to spread in <em>other people's</em> feeds and to convert a profile visitor — for when you have no
+      audience yet. A 5-slide value <strong>carousel</strong> (post all five as one carousel), a share-to-recruit
+      <strong>challenge invite</strong>, a <strong>feature-demo</strong> card, and a <strong>profile kit</strong>
+      (avatar, 3 story-highlight covers, pinned post).
+    </p>
+    <div class="row">
+      <button class="gold" id="dlZero">⬇ Download zero-follower pack</button>
+      <button id="dlZeroCaps">📋 Copy bio + captions</button>
+    </div>
+    <div class="grid" id="zeropack"></div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:0.9rem">
+    <h2>3 · Video cards — one hook + one end card per video</h2>
+    <p class="muted">
+      Drop the hook card on the first 1.5 seconds of your edit and the end card on the last 2 seconds.
+      The middle is your screen recording. Captions copy straight to your clipboard.
+    </p>
+    <div class="vids" id="videos"></div>
+  </section>
+
+  <div class="panel">
+    <h2 style="color:hsl(24 42% 16%)">4 · How to assemble a video</h2>
+    <ol class="steps">
+      <li>Import your screen recording into CapCut, crop to 9:16, trim off the dead first second.</li>
+      <li>Drop the hook card PNG on top of frame one, 1.5s, with a 3-frame fade out.</li>
+      <li>Cut the app footage to the beats in the playbook. Keep every cut on a sound.</li>
+      <li>End card PNG for the last 2 seconds — hold it long enough to read twice.</li>
+      <li>Add trending audio <em>inside</em> TikTok/IG, not in CapCut. Sounds added in-app get the reach; exported audio doesn't.</li>
+      <li>Export 1080×1920, no watermark. Same clean file to both platforms.</li>
+    </ol>
+  </div>
+
+</div>
+<div class="status" id="status"></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Config — every asset re-renders from these.
+// ---------------------------------------------------------------------------
+const CFG = {
+  keyword: "GG",
+  invites: 10,
+  users: 12,
+  daysLogged: 340,
+  challenges: 4,
+  dayA: 1,
+  dayB: 21,
+  streak: 21,
+  dropTime: "8PM",
+  reward: "buys samgyup 🍖",
+  handle: "@gglvlup",
+};
+const FIELDS = [
+  ["keyword", "CTA keyword"], ["invites", "Invites this drop"], ["users", "Users so far"],
+  ["daysLogged", "Days logged (total)"], ["challenges", "Challenges run"],
+  ["dayA", "Compare: day A"], ["dayB", "Compare: day B"], ["streak", "Streak shown"], ["dropTime", "Drop time"],
+  ["reward", "Challenge stake"], ["handle", "Your @handle"],
+];
+const STRING_KEYS = new Set(["keyword", "dropTime", "reward", "handle"]);
+
+// --- Brand -----------------------------------------------------------------
+const C = {
+  woodTop: "hsl(24, 38%, 26%)", woodBot: "hsl(23, 40%, 14%)", woodRim: "hsl(22, 45%, 12%)",
+  parch: "hsl(39, 52%, 89%)", parchRim: "hsl(33, 30%, 55%)", ink: "hsl(24, 42%, 16%)",
+  inkSoft: "hsl(27, 24%, 40%)", cream: "hsl(40, 55%, 95%)", goldText: "hsl(42, 82%, 70%)",
+  goldFace: "hsl(42, 95%, 62%)", goldDeep: "hsl(36, 85%, 46%)", goldRim: "hsl(33, 75%, 28%)",
+  leafFace: "hsl(68, 46%, 50%)", leafDeep: "hsl(70, 50%, 38%)", leafRim: "hsl(70, 50%, 22%)",
+  redFace: "hsl(6, 70%, 62%)", redDeep: "hsl(6, 62%, 50%)", redRim: "hsl(6, 55%, 40%)",
+  teal: "hsl(178, 52%, 32%)",
+};
+const FONT = 'Fredoka, "Segoe UI", system-ui, sans-serif';
+const f = (w, s) => `${w} ${s}px ${FONT}`;
+
+// --- Canvas helpers --------------------------------------------------------
+function rr(ctx, x, y, w, h, r) {
+  const rad = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rad);
+  ctx.arcTo(x + w, y + h, x, y + h, rad);
+  ctx.arcTo(x, y + h, x, y, rad);
+  ctx.arcTo(x, y, x + w, y, rad);
+  ctx.closePath();
+}
+function vgrad(ctx, y, h, a, b) {
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, a); g.addColorStop(1, b); return g;
+}
+function tw(ctx, text, tracking) {
+  if (!tracking) return ctx.measureText(text).width;
+  let w = 0;
+  for (const ch of text) w += ctx.measureText(ch).width + tracking;
+  return Math.max(0, w - tracking);
+}
+/** Draws text with `y` as the vertical middle. Returns the width drawn. */
+function txt(ctx, text, x, y, o) {
+  ctx.font = o.font; ctx.fillStyle = o.color;
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  const tr = o.tracking || 0;
+  const w = tw(ctx, text, tr);
+  let cx = o.align === "center" ? x - w / 2 : o.align === "right" ? x - w : x;
+  if (!tr) { ctx.fillText(text, cx, y); return w; }
+  for (const ch of text) { ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + tr; }
+  return w;
+}
+function wrap(ctx, text, maxW, font) {
+  ctx.font = font;
+  const out = [];
+  for (const para of String(text).split("\n")) {
+    let line = "";
+    for (const word of para.split(" ")) {
+      const test = line ? line + " " + word : word;
+      if (ctx.measureText(test).width > maxW && line) { out.push(line); line = word; }
+      else line = test;
+    }
+    out.push(line);
+  }
+  return out;
+}
+function block(ctx, text, x, y, maxW, size, color, align, weight) {
+  const font = f(weight || 700, size);
+  const lines = wrap(ctx, text, maxW, font);
+  const lh = size * 1.08;
+  lines.forEach((l, i) => txt(ctx, l, x, y + lh / 2 + i * lh, { font, color, align: align || "left" }));
+  return lines.length * lh;
+}
+
+/** Deterministic PRNG so fireflies don't jump on every re-render. */
+function rng(seed) { return () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296; }
+
+function woodBg(ctx, W, H, seed) {
+  rr(ctx, 0, 0, W, H, 0);
+  ctx.fillStyle = vgrad(ctx, 0, H, C.woodTop, C.woodBot); ctx.fill();
+  const r = rng(seed || 7);
+  for (let i = 0; i < 44; i++) {
+    const x = r() * W, y = r() * H, rad = 2 + r() * 5, a = 0.10 + r() * 0.30;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rad * 5);
+    g.addColorStop(0, `hsla(46, 95%, 72%, ${a})`);
+    g.addColorStop(1, "hsla(46, 95%, 72%, 0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad * 5, 0, 7); ctx.fill();
+    ctx.fillStyle = `hsla(48, 100%, 82%, ${a + 0.25})`;
+    ctx.beginPath(); ctx.arc(x, y, rad * 0.5, 0, 7); ctx.fill();
+  }
+  ctx.lineWidth = 10; ctx.strokeStyle = C.woodRim;
+  rr(ctx, 5, 5, W - 10, H - 10, 0); ctx.stroke();
+}
+function parchment(ctx, x, y, w, h, r) {
+  rr(ctx, x, y, w, h, r === undefined ? 28 : r);
+  ctx.fillStyle = C.parch; ctx.fill();
+  ctx.lineWidth = 5; ctx.strokeStyle = C.parchRim; ctx.stroke();
+}
+function plate(ctx, x, y, w, h, face, deep, rim, label, size) {
+  rr(ctx, x, y + 8, w, h, h / 2); ctx.fillStyle = rim; ctx.fill();
+  rr(ctx, x, y, w, h, h / 2);
+  ctx.fillStyle = vgrad(ctx, y, h, face, deep); ctx.fill();
+  ctx.lineWidth = 5; ctx.strokeStyle = rim; ctx.stroke();
+  txt(ctx, label, x + w / 2, y + h / 2, { font: f(700, size || 40), color: "#fff", align: "center", tracking: 2 });
+}
+function wordmark(ctx, W, y) {
+  txt(ctx, "GGLVLUP · LEVEL UP YOUR LIFE", W / 2, y, { font: f(600, 26), color: C.goldText, align: "center", tracking: 5 });
+}
+function kicker(ctx, text, W, y) {
+  txt(ctx, text, W / 2, y, { font: f(600, 28), color: C.goldText, align: "center", tracking: 6 });
+}
+function rowsSheet(ctx, x, y, w, rows, opts) {
+  const o = opts || {};
+  const rh = o.rowHeight || 74;
+  const h = rows.length * rh + 44;
+  parchment(ctx, x, y, w, h);
+  rows.forEach((r, i) => {
+    const cy = y + 22 + rh / 2 + i * rh;
+    if (i) { ctx.strokeStyle = "hsl(33, 28%, 76%)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + 34, cy - rh / 2); ctx.lineTo(x + w - 34, cy - rh / 2); ctx.stroke(); }
+    txt(ctx, r[0], x + 34, cy, { font: f(600, o.left || 34), color: r[2] || C.ink });
+    txt(ctx, r[1], x + w - 34, cy, { font: f(700, o.right || 34), color: r[3] || C.teal, align: "right" });
+  });
+  return h;
+}
+function cta(ctx, x, y, w, h, label) {
+  rr(ctx, x, y + 9, w, h, 22); ctx.fillStyle = C.leafRim; ctx.fill();
+  rr(ctx, x, y, w, h, 22);
+  ctx.fillStyle = vgrad(ctx, y, h, C.leafFace, C.leafDeep); ctx.fill();
+  ctx.lineWidth = 5; ctx.strokeStyle = C.leafRim; ctx.stroke();
+  txt(ctx, label, x + w / 2, y + h / 2, { font: f(700, 46), color: "#fff", align: "center", tracking: 3 });
+}
+
+// --- Zero-follower pack helpers --------------------------------------------
+/** Parchment list, one item per row: [emoji, title, sub?]. */
+function listSheet(ctx, x, y, w, items, opts) {
+  const o = opts || {};
+  const rh = o.rowHeight || 130;
+  const h = items.length * rh + 40;
+  parchment(ctx, x, y, w, h);
+  items.forEach((it, i) => {
+    const cy = y + 20 + rh / 2 + i * rh;
+    if (i) {
+      ctx.strokeStyle = "hsl(33, 28%, 78%)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + 34, cy - rh / 2); ctx.lineTo(x + w - 34, cy - rh / 2); ctx.stroke();
+    }
+    txt(ctx, it[0], x + 50, cy, { font: f(400, o.icon || 60), color: C.ink });
+    txt(ctx, it[1], x + 150, it[2] ? cy - 20 : cy, { font: f(700, o.title || 36), color: C.ink });
+    if (it[2]) txt(ctx, it[2], x + 150, cy + 28, { font: f(500, o.sub || 28), color: C.inkSoft });
+  });
+  return h;
+}
+/** Slide counter + "swipe →" for carousels. */
+function slideBadge(ctx, W, H, n, total) {
+  txt(ctx, `${n} / ${total}`, W - 70, 74, { font: f(700, 36), color: C.goldText, align: "right" });
+  if (n < total) txt(ctx, "swipe →", W - 70, H - 74, { font: f(600, 36), color: "hsl(38, 25%, 72%)", align: "right" });
+}
+/** Gold medallion — either a level (star + number) or custom text. */
+function medallion(ctx, cx, cy, r, opts) {
+  const o = opts || {};
+  ctx.beginPath(); ctx.arc(cx, cy + 8, r, 0, 7); ctx.fillStyle = C.goldRim; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7);
+  ctx.fillStyle = vgrad(ctx, cy - r, r * 2, C.goldFace, C.goldDeep); ctx.fill();
+  ctx.lineWidth = 6; ctx.strokeStyle = C.goldRim; ctx.stroke();
+  if (o.text !== undefined) {
+    txt(ctx, o.text, cx, cy, { font: f(700, r * 0.72), color: C.ink, align: "center", tracking: 2 });
+  } else {
+    txt(ctx, "★", cx, cy - r * 0.26, { font: f(700, r * 0.5), color: C.ink, align: "center" });
+    txt(ctx, String(o.lvl), cx, cy + r * 0.3, { font: f(700, r * 0.82), color: C.ink, align: "center" });
+  }
+}
+/** IG story-highlight cover: big icon in a gold disc (safe inside the circle crop). */
+function hcover(ctx, W, H, emoji, label) {
+  woodBg(ctx, W, H, (label.charCodeAt(0) || 65) * 7 + 3);
+  ctx.beginPath(); ctx.arc(W / 2, H / 2, W * 0.4, 0, 7);
+  ctx.fillStyle = vgrad(ctx, H / 2 - W * 0.4, W * 0.8, C.goldFace, C.goldDeep); ctx.fill();
+  ctx.lineWidth = 10; ctx.strokeStyle = C.goldRim; ctx.stroke();
+  txt(ctx, emoji, W / 2, H / 2 - 30, { font: f(400, 300), color: C.ink, align: "center" });
+  txt(ctx, label, W / 2, H / 2 + 210, { font: f(700, 46), color: C.ink, align: "center", tracking: 2 });
+}
+
+// ---------------------------------------------------------------------------
+// Pubmats
+// ---------------------------------------------------------------------------
+const RANKS = [
+  ["Newcomer", "Lv 1", "hsl(32,12%,72%)", "hsl(30,10%,56%)", "hsl(30,12%,42%)"],
+  ["Adventurer", "Lv 6", "hsl(84,48%,52%)", "hsl(88,52%,34%)", "hsl(88,50%,20%)"],
+  ["Veteran", "Lv 12", "hsl(220,58%,58%)", "hsl(226,60%,38%)", "hsl(224,60%,18%)"],
+  ["Elite", "Lv 18", "hsl(44,95%,66%)", "hsl(36,88%,48%)", "hsl(33,78%,26%)"],
+  ["Legend", "Lv 24", "hsl(276,62%,64%)", "hsl(268,58%,42%)", "hsl(272,60%,24%)"],
+  ["Mythic", "Lv 30", "hsl(316,80%,62%)", "hsl(196,85%,56%)", "hsl(190,80%,22%)"],
+];
+
+const PUBMATS = [
+  {
+    id: "01-invite-drop", name: "Invite drop", w: 1080, h: 1350,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 11);
+      kicker(ctx, "CLOSED BETA", W, 120);
+      block(ctx, `${c.invites} invites.\nTonight only.`, W / 2, 168, W - 140, 104, C.cream, "center");
+      const rows = [["👟 Golden Shoe", "Most steps"], ["🔥 The Energetic", "Most exercise"],
+                    ["📉 Biggest Loser", "Most % lost"], ["⭐ Milestone Master", "Most XP"]];
+      rowsSheet(ctx, 80, 470, W - 160, rows, { right: 30 });
+      txt(ctx, "invite-only while I fix the rough edges", W / 2, 880, { font: f(500, 32), color: C.goldText, align: "center" });
+      cta(ctx, 130, 950, W - 260, 130, `COMMENT ${c.keyword}`);
+      txt(ctx, "or join the waitlist — link in bio", W / 2, 1140, { font: f(500, 28), color: "hsl(38,25%,72%)", align: "center" });
+      wordmark(ctx, W, H - 90);
+    },
+  },
+  {
+    id: "02-story-countdown", name: "Story · countdown", w: 1080, h: 1920,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 23);
+      kicker(ctx, "GGLVLUP CLOSED BETA", W, 300);
+      block(ctx, `INVITES\nDROP AT\n${c.dropTime}`, W / 2, 380, W - 160, 150, C.cream, "center");
+      ctx.setLineDash([14, 12]); ctx.lineWidth = 4; ctx.strokeStyle = "hsla(42,80%,70%,0.5)";
+      rr(ctx, 190, 900, W - 380, 320, 24); ctx.stroke(); ctx.setLineDash([]);
+      txt(ctx, "put the countdown sticker here", W / 2, 1060, { font: f(500, 30), color: "hsla(42,80%,70%,0.75)", align: "center" });
+      cta(ctx, 160, 1330, W - 320, 140, `COMMENT ${c.keyword}`);
+      txt(ctx, `${c.invites} spots · first come`, W / 2, 1540, { font: f(500, 34), color: "hsl(38,25%,74%)", align: "center" });
+      wordmark(ctx, W, H - 160);
+    },
+  },
+  {
+    id: "03-rank-ladder", name: "Rank ladder", w: 1080, h: 1350,
+    draw(ctx, W, H) {
+      woodBg(ctx, W, H, 31);
+      kicker(ctx, "11 RANKS · LEVELS NEVER RESET", W, 110);
+      block(ctx, "Newcomer today.\nMythic later.", W / 2, 158, W - 140, 92, C.cream, "center");
+      let y = 400;
+      RANKS.forEach((r) => {
+        plate(ctx, 150, y, 500, 78, r[2], r[3], r[4], r[0].toUpperCase(), 36);
+        txt(ctx, r[1], W - 150, y + 39, { font: f(700, 40), color: C.goldText, align: "right" });
+        y += 108;
+      });
+      txt(ctx, "finish a run, keep the level, start the next one higher", W / 2, 1180, { font: f(500, 28), color: "hsl(38,25%,72%)", align: "center" });
+      wordmark(ctx, W, H - 80);
+    },
+  },
+  {
+    id: "04-daily-xp", name: "Daily XP breakdown", w: 1080, h: 1350,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 43);
+      kicker(ctx, "THE DAILY LOOP", W, 110);
+      block(ctx, "One minute a day.\nReal XP.", W / 2, 158, W - 140, 92, C.cream, "center");
+      const rows = [["Show up", "+20 XP"], ["🍚 Calorie budget", "+20 XP"], ["🥩 Hit your protein", "+20 XP"],
+                    ["💧 Stay hydrated", "+15 XP"], ["👟 Get your steps in", "+15 XP"], ["🔥 Move your body", "+15 XP"],
+                    ["Full log bonus", "+25 XP"], ["Perfect day", "130 XP"]];
+      rowsSheet(ctx, 80, 400, W - 160, rows, { rowHeight: 72 });
+      cta(ctx, 130, 1050, W - 260, 120, `COMMENT ${c.keyword}`);
+      wordmark(ctx, W, H - 70);
+    },
+  },
+  {
+    id: "05-trophy-case", name: "Trophy case", w: 1080, h: 1350,
+    draw(ctx, W, H) {
+      woodBg(ctx, W, H, 57);
+      kicker(ctx, "TROPHY CASE", W, 110);
+      block(ctx, "Which one are you\ngetting first?", W / 2, 158, W - 140, 88, C.cream, "center");
+      const items = [["🌱", "First Steps", 1], ["🔥", "Iron Streak", 1], ["💧", "Hydration Hero", 1],
+                     ["💯", "Perfectionist", 0], ["👟", "Step Master", 1], ["🥩", "Protein Master", 0],
+                     ["💎", "Century Club", 0], ["👑", "Virtuoso", 0], ["🗿", "Built Different", 0]];
+      const gx = 80, gy = 410, tile = (W - 160 - 40) / 3;
+      items.forEach((it, i) => {
+        const x = gx + (i % 3) * (tile + 20), y = gy + Math.floor(i / 3) * (tile + 20);
+        rr(ctx, x, y, tile, tile, 22);
+        ctx.fillStyle = it[2] ? C.parch : "hsl(30, 18%, 74%)"; ctx.fill();
+        ctx.lineWidth = 5; ctx.strokeStyle = it[2] ? C.goldRim : "hsl(30, 12%, 52%)"; ctx.stroke();
+        ctx.globalAlpha = it[2] ? 1 : 0.35;
+        txt(ctx, it[0], x + tile / 2, y + tile / 2 - 26, { font: f(400, 84), color: C.ink, align: "center" });
+        ctx.globalAlpha = 1;
+        txt(ctx, it[1], x + tile / 2, y + tile - 44, { font: f(600, 24), color: it[2] ? C.ink : "hsl(30,12%,42%)", align: "center" });
+      });
+      txt(ctx, "the empty slots are why I log at 11:47pm", W / 2, 1215, { font: f(500, 30), color: C.goldText, align: "center" });
+      wordmark(ctx, W, H - 70);
+    },
+  },
+  {
+    id: "06-challenge-board", name: "Challenge scoreboard", w: 1080, h: 1350,
+    draw(ctx, W, H) {
+      woodBg(ctx, W, H, 61);
+      kicker(ctx, "30-DAY CHALLENGE", W, 110);
+      block(ctx, "Loser buys samgyup.", W / 2, 158, W - 140, 92, C.cream, "center");
+      const board = [["🥇  Mika", "2,480 XP"], ["🥈  Gords", "2,310 XP"], ["🥉  JP", "1,995 XP"], ["4    Ryan", "1,640 XP"]];
+      rowsSheet(ctx, 80, 380, W - 160, board, { rowHeight: 78, left: 36, right: 34 });
+      const awards = [["👟 Golden Shoe", "Coffee"], ["🔥 The Energetic", "Samgyup"],
+                      ["📉 Biggest Loser", "Shirt"], ["⭐ Milestone Master", "Cash prize"]];
+      rowsSheet(ctx, 80, 760, W - 160, awards, { rowHeight: 66, left: 30, right: 30 });
+      txt(ctx, "live leaderboard · 4 side awards · up to 6 people", W / 2, 1190, { font: f(500, 28), color: C.goldText, align: "center" });
+      wordmark(ctx, W, H - 70);
+    },
+  },
+  {
+    id: "07-thesis", name: "Thesis quote", w: 1080, h: 1350,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 71);
+      kicker(ctx, "WHY THIS EXISTS", W, 150);
+      block(ctx, "Your tracker never once told you you were doing well.", W / 2, 300, W - 170, 92, C.cream, "center");
+      txt(ctx, "It just… stored it.", W / 2, 800, { font: f(500, 46), color: C.goldText, align: "center" });
+      ctx.lineWidth = 5; ctx.strokeStyle = "hsla(42,80%,70%,0.45)";
+      ctx.beginPath(); ctx.moveTo(340, 880); ctx.lineTo(W - 340, 880); ctx.stroke();
+      block(ctx, "Logging should pay you back the same day.", W / 2, 930, W - 260, 44, "hsl(38,30%,84%)", "center", 500);
+      cta(ctx, 200, 1090, W - 400, 116, `COMMENT ${c.keyword}`);
+      wordmark(ctx, W, H - 70);
+    },
+  },
+  {
+    id: "08-day-compare", name: "Day A vs Day B", w: 1080, h: 1350,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 83);
+      kicker(ctx, "SAME PERSON · SAME APP", W, 110);
+      block(ctx, `Day ${c.dayA} vs Day ${c.dayB}`, W / 2, 158, W - 140, 96, C.cream, "center");
+      const colW = (W - 200) / 2, y0 = 400;
+      const cols = [
+        ["DAY " + c.dayA, [["Level", "1"], ["Streak", "0"], ["Trophies", "1"], ["XP", "20"]]],
+        ["DAY " + c.dayB, [["Level", "6"], ["Streak", String(c.streak)], ["Trophies", "7"], ["XP", "2,310"]]],
+      ];
+      cols.forEach((col, i) => {
+        const x = 80 + i * (colW + 40);
+        parchment(ctx, x, y0, colW, 520);
+        txt(ctx, col[0], x + colW / 2, y0 + 60, { font: f(700, 40), color: i ? C.teal : C.inkSoft, align: "center", tracking: 3 });
+        col[1].forEach((r, j) => {
+          const cy = y0 + 150 + j * 92;
+          txt(ctx, r[0], x + 36, cy, { font: f(500, 30), color: C.inkSoft });
+          txt(ctx, r[1], x + colW - 36, cy, { font: f(700, 40), color: i ? C.ink : C.inkSoft, align: "right" });
+        });
+      });
+      txt(ctx, "I didn't get more disciplined. I just wanted the XP.", W / 2, 1030, { font: f(500, 32), color: C.goldText, align: "center" });
+      cta(ctx, 200, 1100, W - 400, 116, `COMMENT ${c.keyword}`);
+      wordmark(ctx, W, H - 60);
+    },
+  },
+  {
+    id: "09-streak-guard", name: "Streak freeze", w: 1080, h: 1350,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 97);
+      kicker(ctx, "STREAKS & FREEZES", W, 110);
+      block(ctx, "One bad day won't\nkill the run.", W / 2, 158, W - 140, 92, C.cream, "center");
+      const bx = 100, by = 430, bw = W - 200, bh = 160;
+      rr(ctx, bx, by + 9, bw, bh, 30); ctx.fillStyle = C.redRim; ctx.fill();
+      rr(ctx, bx, by, bw, bh, 30);
+      ctx.fillStyle = vgrad(ctx, by, bh, C.redFace, C.redDeep); ctx.fill();
+      ctx.lineWidth = 5; ctx.strokeStyle = C.redRim; ctx.stroke();
+      txt(ctx, `🔥  ${c.streak}-DAY STREAK`, W / 2, by + bh / 2, { font: f(700, 68), color: "#fff", align: "center", tracking: 2 });
+      const rows = [["Missed Wednesday", "−1 freeze"], ["Streak", "still " + c.streak], ["Guilt", "none"]];
+      rowsSheet(ctx, 100, 660, W - 200, rows, { rowHeight: 84, left: 36, right: 36 });
+      block(ctx, "Your streak is the hardest thing to rebuild, so it's guarded.", W / 2, 980, W - 200, 34, C.goldText, "center", 500);
+      cta(ctx, 200, 1110, W - 400, 116, `COMMENT ${c.keyword}`);
+      wordmark(ctx, W, H - 60);
+    },
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Zero-follower pack — value carousel, join-challenge invite, feature demo,
+// profile/bio kit. These are the assets built to spread in OTHER people's feeds
+// (saves/shares) and to convert a profile visitor, when you have no audience yet.
+// ---------------------------------------------------------------------------
+const ZEROPACK = [
+  // (a) Value carousel — "Why the scale isn't moving" · post all 5 as one carousel
+  { id: "z01-carousel-1", name: "Carousel 1 · cover", w: 1080, h: 1350,
+    draw(ctx, W, H) {
+      woodBg(ctx, W, H, 111);
+      kicker(ctx, "SAVE THIS 🔖", W, 150);
+      block(ctx, "Scale hasn't moved\nin 2 weeks?", W / 2, 230, W - 140, 112, C.cream, "center");
+      txt(ctx, "It's probably not your fault.", W / 2, 780, { font: f(500, 46), color: C.goldText, align: "center" });
+      block(ctx, "6 reasons the scale lies — and the one number that actually matters.", W / 2, 920, W - 220, 40, "hsl(38, 30%, 84%)", "center", 500);
+      slideBadge(ctx, W, H, 1, 5);
+      wordmark(ctx, W, H - 90);
+    } },
+  { id: "z02-carousel-2", name: "Carousel 2 · reasons", w: 1080, h: 1350,
+    draw(ctx, W, H) {
+      woodBg(ctx, W, H, 113);
+      kicker(ctx, "6 REASONS THE SCALE LIES", W, 120);
+      listSheet(ctx, 80, 300, W - 160, [
+        ["💧", "Water retention", "after salt, carbs or a hard workout"],
+        ["🧂", "Sodium / carbs / alcohol", "yesterday still shows up today"],
+        ["🚽", "No restroom before weigh-in", "weigh at the same time, empty"],
+        ["😰", "Stress (cortisol)", "holds water like a sponge"],
+        ["😴", "Poor sleep", "one bad night moves the number"],
+        ["🌙", "Menstrual cycle", "a normal monthly swing"],
+      ], { rowHeight: 152 });
+      slideBadge(ctx, W, H, 2, 5);
+      wordmark(ctx, W, H - 70);
+    } },
+  { id: "z03-carousel-3", name: "Carousel 3 · the metric", w: 1080, h: 1350,
+    draw(ctx, W, H) {
+      woodBg(ctx, W, H, 127);
+      kicker(ctx, "THE ONLY NUMBER THAT MATTERS", W, 160);
+      block(ctx, "Weekly average\n>\nany single day.", W / 2, 320, W - 160, 118, C.cream, "center");
+      block(ctx, "One day is noise. The 7-day average is the signal. Track the line, not the dot.", W / 2, 960, W - 220, 42, C.goldText, "center", 500);
+      slideBadge(ctx, W, H, 3, 5);
+      wordmark(ctx, W, H - 70);
+    } },
+  { id: "z04-carousel-4", name: "Carousel 4 · week 1", w: 1080, h: 1350,
+    draw(ctx, W, H) {
+      woodBg(ctx, W, H, 131);
+      kicker(ctx, "WEEK 1 IS NOT THE TEST", W, 160);
+      block(ctx, "Week 1 is the\nawareness phase.", W / 2, 300, W - 150, 110, C.cream, "center");
+      block(ctx, "You're learning what to adjust — not failing. Don't panic, don't quit. Adjust and keep the streak.", W / 2, 880, W - 220, 42, C.goldText, "center", 500);
+      slideBadge(ctx, W, H, 4, 5);
+      wordmark(ctx, W, H - 70);
+    } },
+  { id: "z05-carousel-5", name: "Carousel 5 · CTA", w: 1080, h: 1350,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 137);
+      kicker(ctx, "I STOPPED GUESSING", W, 150);
+      block(ctx, "My app shows the weekly average + trend automatically.", W / 2, 280, W - 200, 84, C.cream, "center");
+      block(ctx, "And it pays me XP for logging, so I actually keep doing it.", W / 2, 740, W - 240, 44, C.goldText, "center", 500);
+      cta(ctx, 150, 950, W - 300, 140, `COMMENT ${c.keyword}`);
+      txt(ctx, "or tap the link in bio", W / 2, 1170, { font: f(500, 30), color: "hsl(38, 25%, 72%)", align: "center" });
+      slideBadge(ctx, W, H, 5, 5);
+      wordmark(ctx, W, H - 70);
+    } },
+
+  // (b) Join-my-challenge invite — a graphic your USERS post to recruit friends
+  { id: "z06-join-feed", name: "Join challenge · feed", w: 1080, h: 1350,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 149);
+      kicker(ctx, "I'M STARTING A 30-DAY CHALLENGE", W, 120);
+      block(ctx, `Join me.\nLoser ${c.reward}.`, W / 2, 180, W - 150, 100, C.cream, "center");
+      const awards = [["👟 Golden Shoe", "Most steps"], ["🔥 The Energetic", "Most exercise"],
+                      ["📉 Biggest Loser", "Most % lost"], ["⭐ Milestone Master", "Most XP"]];
+      rowsSheet(ctx, 80, 470, W - 160, awards, { rowHeight: 76, right: 30 });
+      txt(ctx, "live leaderboard · up to 6 people · 4 side awards", W / 2, 890, { font: f(500, 28), color: C.goldText, align: "center" });
+      cta(ctx, 130, 960, W - 260, 130, `COMMENT ${c.keyword}`);
+      txt(ctx, "tap my link & you're in — even if you're new to the app", W / 2, 1160, { font: f(500, 26), color: "hsl(38, 25%, 72%)", align: "center" });
+      wordmark(ctx, W, H - 70);
+    } },
+  { id: "z07-join-story", name: "Join challenge · story", w: 1080, h: 1920,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 151);
+      kicker(ctx, "30-DAY CHALLENGE", W, 320);
+      block(ctx, `Join me.\nLoser\n${c.reward}.`, W / 2, 420, W - 160, 150, C.cream, "center");
+      ctx.setLineDash([14, 12]); ctx.lineWidth = 4; ctx.strokeStyle = "hsla(42, 80%, 70%, 0.5)";
+      rr(ctx, 180, 1000, W - 360, 300, 24); ctx.stroke(); ctx.setLineDash([]);
+      txt(ctx, "drop your challenge link here", W / 2, 1150, { font: f(500, 30), color: "hsla(42, 80%, 70%, 0.75)", align: "center" });
+      cta(ctx, 160, 1400, W - 320, 140, `COMMENT ${c.keyword}`);
+      txt(ctx, "up to 6 people · 4 side awards", W / 2, 1610, { font: f(500, 34), color: "hsl(38, 25%, 74%)", align: "center" });
+      wordmark(ctx, W, H - 160);
+    } },
+
+  // (c) Feature-demo card — "wait, a fitness app with ranks & trophies?"
+  { id: "z08-feature-demo", name: "Feature demo card", w: 1080, h: 1350,
+    draw(ctx, W, H) {
+      woodBg(ctx, W, H, 163);
+      kicker(ctx, "A TRACKER THAT PLAYS LIKE A GAME", W, 120);
+      parchment(ctx, 80, 240, W - 160, 860);
+      plate(ctx, 140, 300, 430, 80, "hsl(84, 48%, 52%)", "hsl(88, 52%, 34%)", "hsl(88, 50%, 20%)", "ADVENTURER", 34);
+      txt(ctx, "Lv 6", W - 150, 340, { font: f(700, 40), color: C.teal, align: "right" });
+      medallion(ctx, 250, 570, 110, { lvl: 6 });
+      const sx = 420, sy = 480, sw = W - 160 - 420 - 60, sh = 92;
+      rr(ctx, sx, sy + 8, sw, sh, 20); ctx.fillStyle = C.redRim; ctx.fill();
+      rr(ctx, sx, sy, sw, sh, 20); ctx.fillStyle = vgrad(ctx, sy, sh, C.redFace, C.redDeep); ctx.fill();
+      ctx.lineWidth = 4; ctx.strokeStyle = C.redRim; ctx.stroke();
+      txt(ctx, "🔥 21-DAY STREAK", sx + sw / 2, sy + sh / 2, { font: f(700, 40), color: "#fff", align: "center" });
+      const xx = 420, xy = 615, xw = sw, xh = 46;
+      rr(ctx, xx, xy, xw, xh, xh / 2); ctx.fillStyle = "hsl(37, 30%, 80%)"; ctx.fill();
+      rr(ctx, xx, xy, xw * 0.62, xh, xh / 2); ctx.fillStyle = vgrad(ctx, xy, xh, C.goldFace, C.goldDeep); ctx.fill();
+      txt(ctx, "185 / 600 XP to Lv 7", xx + xw / 2, xy + xh / 2, { font: f(600, 26), color: C.ink, align: "center" });
+      const tro = [["🌱", "First Steps"], ["🔥", "Iron Streak"], ["💧", "Hydration"]];
+      const tgx = 140, tgy = 730, ts = (W - 160 - 120 - 40) / 3;
+      tro.forEach((t, i) => {
+        const x = tgx + i * (ts + 20);
+        rr(ctx, x, tgy, ts, ts, 20); ctx.fillStyle = C.parch; ctx.fill();
+        ctx.lineWidth = 4; ctx.strokeStyle = C.goldRim; ctx.stroke();
+        txt(ctx, t[0], x + ts / 2, tgy + ts / 2 - 16, { font: f(400, 90), color: C.ink, align: "center" });
+        txt(ctx, t[1], x + ts / 2, tgy + ts - 34, { font: f(600, 22), color: C.ink, align: "center" });
+      });
+      block(ctx, "Weight, food & steps → levels, streaks and trophies.", W / 2, 1160, W - 200, 42, C.goldText, "center", 500);
+      wordmark(ctx, W, H - 70);
+    } },
+
+  // (d) Profile / bio kit — avatar, 3 highlight covers, pinned intro post
+  { id: "z09-avatar", name: "Profile avatar (1080²)", w: 1080, h: 1080,
+    draw(ctx, W, H) {
+      woodBg(ctx, W, H, 3);
+      medallion(ctx, W / 2, H / 2 - 60, 250, { text: "GG" });
+      txt(ctx, "GGLVLUP", W / 2, H / 2 + 300, { font: f(700, 90), color: C.goldText, align: "center", tracking: 6 });
+      txt(ctx, "LEVEL UP YOUR LIFE", W / 2, H / 2 + 382, { font: f(600, 34), color: "hsl(38, 25%, 72%)", align: "center", tracking: 5 });
+    } },
+  { id: "z10-cover-how", name: "Highlight · How it works", w: 1080, h: 1080,
+    draw(ctx, W, H) { hcover(ctx, W, H, "📖", "HOW IT WORKS"); } },
+  { id: "z11-cover-challenge", name: "Highlight · Challenges", w: 1080, h: 1080,
+    draw(ctx, W, H) { hcover(ctx, W, H, "🏆", "CHALLENGES"); } },
+  { id: "z12-cover-join", name: "Highlight · Join / FAQ", w: 1080, h: 1080,
+    draw(ctx, W, H) { hcover(ctx, W, H, "✅", "JOIN · FAQ"); } },
+  { id: "z13-pinned", name: "Pinned intro post", w: 1080, h: 1350,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 181);
+      kicker(ctx, "START HERE 👋", W, 120);
+      block(ctx, "A fitness tracker\nthat plays like a game.", W / 2, 180, W - 150, 88, C.cream, "center");
+      listSheet(ctx, 80, 470, W - 160, [
+        ["📊", "Log weight, food & steps", "one minute a day"],
+        ["⭐", "Earn XP, levels & trophies", "get paid back the same day"],
+        ["⚔️", "30-day challenges with friends", "live leaderboard, side awards"],
+        ["🔥", "Streaks with freezes", "one bad day won't kill the run"],
+      ], { rowHeight: 150 });
+      cta(ctx, 130, 1100, W - 260, 120, `COMMENT ${c.keyword}`);
+      txt(ctx, "or tap the link in bio to join", W / 2, 1250, { font: f(500, 28), color: "hsl(38, 25%, 72%)", align: "center" });
+      wordmark(ctx, W, H - 60);
+    } },
+
+  // Story slides (1080×1920) — one self-contained slide behind each Highlight.
+  { id: "z14-story-how", name: "Story · How it works", w: 1080, h: 1920,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 191);
+      kicker(ctx, "HOW IT WORKS", W, 290);
+      block(ctx, "A tracker that\nplays like a game.", W / 2, 380, W - 150, 92, C.cream, "center");
+      listSheet(ctx, 90, 740, W - 180, [
+        ["📊", "Log weight, food & steps", "one minute a day"],
+        ["⭐", "Earn XP, levels & trophies", "paid back the same day"],
+        ["⚔️", "30-day challenges with friends", "live leaderboard + awards"],
+        ["🔥", "Streaks with freezes", "one bad day won't kill it"],
+      ], { rowHeight: 185 });
+      cta(ctx, 150, 1600, W - 300, 130, `COMMENT ${c.keyword}`);
+      txt(ctx, "or tap the link in bio", W / 2, 1800, { font: f(500, 30), color: "hsl(38, 25%, 72%)", align: "center" });
+      wordmark(ctx, W, H - 70);
+    } },
+  { id: "z15-story-challenge", name: "Story · Challenges", w: 1080, h: 1920,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 193);
+      kicker(ctx, "30-DAY CHALLENGES", W, 290);
+      block(ctx, `Race your friends.\nLoser ${c.reward}.`, W / 2, 380, W - 150, 92, C.cream, "center");
+      rowsSheet(ctx, 90, 720, W - 180, [
+        ["🥇  Mika", "2,480 XP"], ["🥈  Gords", "2,310 XP"], ["🥉  JP", "1,995 XP"],
+      ], { rowHeight: 88, left: 36, right: 34 });
+      rowsSheet(ctx, 90, 1060, W - 180, [
+        ["👟 Golden Shoe", "Most steps"], ["🔥 The Energetic", "Most exercise"],
+        ["📉 Biggest Loser", "Most % lost"], ["⭐ Milestone Master", "Most XP"],
+      ], { rowHeight: 72, left: 30, right: 30 });
+      txt(ctx, "live leaderboard · up to 6 people · 4 side awards", W / 2, 1470, { font: f(500, 30), color: C.goldText, align: "center" });
+      cta(ctx, 150, 1560, W - 300, 130, `COMMENT ${c.keyword}`);
+      txt(ctx, "tap my link — you're in even if you're new", W / 2, 1760, { font: f(500, 28), color: "hsl(38, 25%, 72%)", align: "center" });
+      wordmark(ctx, W, H - 70);
+    } },
+  { id: "z16-story-faq", name: "Story · Join / FAQ", w: 1080, h: 1920,
+    draw(ctx, W, H, c) {
+      woodBg(ctx, W, H, 197);
+      kicker(ctx, "JOIN · FAQ", W, 290);
+      block(ctx, "How do I get in?", W / 2, 390, W - 150, 88, C.cream, "center");
+      listSheet(ctx, 90, 660, W - 180, [
+        ["🆓", "Is it free?", "Yes — free to play."],
+        ["✋", "How do I join?", `Comment ${c.keyword} or tap the link.`],
+        ["🎟️", "Need an invite?", "Join the waitlist in bio."],
+        ["📱", "Works on phone?", "Install it like an app."],
+      ], { rowHeight: 200 });
+      cta(ctx, 150, 1600, W - 300, 130, `COMMENT ${c.keyword}`);
+      txt(ctx, "or tap the link in bio", W / 2, 1800, { font: f(500, 30), color: "hsl(38, 25%, 72%)", align: "center" });
+      wordmark(ctx, W, H - 70);
+    } },
+];
+
+// ---------------------------------------------------------------------------
+// The 16 videos
+// ---------------------------------------------------------------------------
+const VIDEOS = [
+  { id: "w1-01", slot: "W1 · Mon", title: "I turned my diet into an RPG",
+    hook: "i stopped tracking my food\nand started leveling up instead",
+    caption: "every calorie tracker I've tried died in a week. so I built one that pays me XP for logging. day 1 of 100 👇",
+    tags: "#fitnessph #weightlossjourney #gamification #buildinpublic #fitnessapp", end: "invite" },
+  { id: "w1-02", slot: "W1 · Wed", title: "The trophy case that guilt-trips me",
+    hook: "this is why I log my water\nat 11:47pm",
+    caption: "the empty slots do more for my consistency than any 5am routine ever did. Perfectionist, Iron Streak, Century Club — which one are you going for?",
+    tags: "#habits #consistency #fitnessmotivation #gamifiedfitness", end: "question" },
+  { id: "w1-03", slot: "W1 · Fri", title: "My friends are racing me for samgyup",
+    hook: "loser buys samgyup.\n30 days. go.",
+    caption: "30-day challenge, live leaderboard, and four side awards so the person who isn't winning still has something to win. tag the friend who'd lose 😭",
+    tags: "#fitnesschallenge #barkada #gymbuddy #samgyup #fitnessph", end: "tag" },
+  { id: "w1-04", slot: "W1 · Sun", title: "Invite drop #1",
+    hook: "10 invites.\nthat's it for this week.",
+    caption: "GGLvlup is invite-only while I fix the rough edges. 10 spots tonight — comment GG and I'll send yours. (if you miss it, the waitlist in bio gets first crack next week)",
+    tags: "#closedbeta #indieapp #buildinpublic #fitnessapp", end: "invite" },
+  { id: "w2-05", slot: "W2 · Mon", title: "Newcomer today. Mythic later.",
+    hook: "there are 11 ranks\nbetween you and this one",
+    caption: "Newcomer → Recruit → Adventurer → Pathfinder → Veteran → Champion → Elite → Hero → Legend → Ancient → Mythic. finish a 100-day run and you start the next one from where you left off, not from zero.",
+    tags: "#rpg #gamification #fitnessjourney #progressnotperfection", end: "question" },
+  { id: "w2-06", slot: "W2 · Wed", title: "One bad day won't kill the run",
+    hook: "I missed a day and my\nstreak survived. on purpose.",
+    caption: "every app punishes you for the day you needed grace the most. streak freezes exist so one bad Wednesday costs you the day, not the month.",
+    tags: "#consistency #mentalhealth #fitnessmotivation #habits", end: "question" },
+  { id: "w2-07", slot: "W2 · Fri", title: "Claiming a full quest board",
+    hook: "turn your sound on\nfor this one",
+    caption: "I spent an embarrassing amount of time on these sounds. worth it.",
+    tags: "#asmr #satisfying #uidesign #appdesign #buildinpublic", end: "invite" },
+  { id: "w2-08", slot: "W2 · Sun", title: "Invite drop #2 + proof",
+    hook: "someone from last week's drop\nis already on day 7",
+    caption: "week 1 of the closed beta: [N] people in, [N] days logged between them. 10 more invites tonight — comment GG. waitlist in bio if you miss it.",
+    tags: "#closedbeta #buildinpublic #indiehacker #fitnessapp", end: "invite" },
+  { id: "w3-09", slot: "W3 · Mon", title: "Day 1 vs Day 21 of my run",
+    hook: "3 weeks in.\nthis is the whole difference.",
+    caption: "21 days logged in a row, which is 20 more than any tracker has ever gotten out of me. the numbers are real and unflattering and I'm posting them anyway.",
+    tags: "#weightlossjourney #21days #progress #fitnessph", end: "invite" },
+  { id: "w3-10", slot: "W3 · Wed", title: "Why every tracker died in 5 days",
+    hook: "you didn't lack discipline.\nthe app gave you nothing back.",
+    caption: "MyFitnessPal never once told me I was doing well. it just… stored it. that's the bug I've been trying to fix for 6 months.",
+    tags: "#appdesign #productdesign #fitnessapp #buildinpublic #ux", end: "question" },
+  { id: "w3-11", slot: "W3 · Fri", title: "Send this link to your group chat",
+    hook: "one link and your whole\nbarkada is in",
+    caption: "the invite link works even for people who've never opened the app — they sign up and land straight in your challenge. up to 6 per group.",
+    tags: "#groupchallenge #barkadagoals #fitnesschallenge #officefitness", end: "tag" },
+  { id: "w3-12", slot: "W3 · Sun", title: "Invite drop #3 + share card",
+    hook: "you get one of these\nat the end",
+    caption: "every run generates a card you can actually post. 15 invites tonight — comment GG. (opening to the waitlist properly next week 👀)",
+    tags: "#closedbeta #fitnessapp #buildinpublic #progresspic", end: "invite" },
+  { id: "w4-13", slot: "W4 · Mon", title: "100 days, sealed and scored",
+    hook: "what happens\non day 100",
+    caption: "100 days, locked and scored, then you start the next run from a higher level. most people quit on day 4 because nothing was ever at stake.",
+    tags: "#100days #100dayschallenge #fitnessjourney #discipline", end: "invite" },
+  { id: "w4-14", slot: "W4 · Wed", title: "I built this instead of sleeping",
+    hook: "2am. fixing a level-up\nanimation nobody asked for.",
+    caption: "solo-built, no funding, no team. every trophy in that case exists because I wanted it to exist for myself first.",
+    tags: "#buildinpublic #indiehacker #solofounder #coding #reactjs", end: "question" },
+  { id: "w4-15", slot: "W4 · Fri", title: "Is it free? — the 5 FAQs",
+    hook: "5 questions I've been\nasked 40 times",
+    caption: "answering these properly once. anything I missed, ask below and I'll add it to the next one.",
+    tags: "#faq #fitnessapp #closedbeta #fitnessph", end: "invite" },
+  { id: "w4-16", slot: "W4 · Sun", title: "The doors open",
+    hook: "4 weeks of closed beta.\nhere's what happens now.",
+    caption: "[N] people, [N] days logged, [N] challenges, zero ads. if you've been waiting: link in bio. if you commented GG and I missed you, comment again and I'll get you in.",
+    tags: "#launch #buildinpublic #fitnessapp #fitnessph", end: "bio" },
+];
+
+function drawHookCard(ctx, W, H, v) {
+  woodBg(ctx, W, H, v.id.charCodeAt(3) * 13 + 5);
+  const size = v.hook.length > 46 ? 92 : 106;
+  const lines = wrap(ctx, v.hook, W - 180, f(700, size));
+  const lh = size * 1.14;
+  const start = H / 2 - (lines.length * lh) / 2 + lh / 2;
+  lines.forEach((l, i) => txt(ctx, l, W / 2, start + i * lh, { font: f(700, size), color: C.cream, align: "center" }));
+  txt(ctx, "GGLVLUP", W / 2, H - 150, { font: f(600, 30), color: C.goldText, align: "center", tracking: 8 });
+}
+const END_COPY = {
+  invite: ["COMMENT " + "{k}", "and I'll send you an invite"],
+  question: ["YOUR TURN", "tell me in the comments 👇"],
+  tag: ["TAG YOUR GC", "the loser buys"],
+  bio: ["LINK IN BIO", "the doors are open"],
+};
+function drawEndCard(ctx, W, H, v, c) {
+  woodBg(ctx, W, H, v.id.charCodeAt(4) * 29 + 3);
+  const copy = END_COPY[v.end] || END_COPY.invite;
+  const label = copy[0].replace("{k}", c.keyword);
+  cta(ctx, 130, H / 2 - 190, W - 260, 170, label);
+  txt(ctx, copy[1], W / 2, H / 2 + 60, { font: f(500, 44), color: C.cream, align: "center" });
+  txt(ctx, v.end === "invite" ? `${c.invites} spots · invite-only` : "GGLvlup · invite-only beta",
+      W / 2, H / 2 + 150, { font: f(500, 32), color: C.goldText, align: "center" });
+  wordmark(ctx, W, H - 150);
+}
+
+// ---------------------------------------------------------------------------
+// Rendering + downloads
+// ---------------------------------------------------------------------------
+const PREVIEW = 0.26;
+function render(canvas, w, h, drawFn, scale) {
+  const s = scale === undefined ? PREVIEW : scale;
+  canvas.width = Math.round(w * s); canvas.height = Math.round(h * s);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(s, 0, 0, s, 0, 0);
+  drawFn(ctx, w, h, CFG);
+}
+function download(name, w, h, drawFn) {
+  const c = document.createElement("canvas");
+  render(c, w, h, drawFn, 1);
+  return new Promise((res) => c.toBlob((b) => {
+    const url = URL.createObjectURL(b);
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => { URL.revokeObjectURL(url); res(); }, 300);
+  }, "image/png"));
+}
+function toast(msg) {
+  const el = document.getElementById("status");
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+function buildConfig() {
+  const host = document.getElementById("cfg");
+  FIELDS.forEach(([key, label]) => {
+    const l = document.createElement("label");
+    l.textContent = label;
+    const i = document.createElement("input");
+    i.value = CFG[key];
+    i.addEventListener("input", () => {
+      const n = Number(i.value);
+      CFG[key] = i.value !== "" && !Number.isNaN(n) && !STRING_KEYS.has(key) ? n : i.value;
+      redraw();
+    });
+    l.appendChild(i); host.appendChild(l);
+  });
+}
+function buildGrid(list, hostId) {
+  const host = document.getElementById(hostId);
+  list.forEach((p) => {
+    const card = document.createElement("div"); card.className = "card";
+    const cv = document.createElement("canvas"); cv.dataset.pubmat = p.id;
+    const name = document.createElement("div"); name.className = "name"; name.textContent = p.name;
+    const dim = document.createElement("div"); dim.className = "dim"; dim.textContent = `${p.w}×${p.h}`;
+    const btn = document.createElement("button"); btn.className = "small"; btn.textContent = "⬇ PNG";
+    btn.onclick = () => download(`gglvlup-${p.id}.png`, p.w, p.h, p.draw);
+    cv.onclick = btn.onclick;
+    card.append(cv, name, dim, btn); host.appendChild(card);
+  });
+}
+function buildVideos() {
+  const host = document.getElementById("videos");
+  VIDEOS.forEach((v) => {
+    const row = document.createElement("div"); row.className = "vid panel";
+    row.style.color = "var(--cream)";
+    row.style.background = "hsl(24 30% 19%)";
+    row.style.borderColor = "hsl(24 30% 30%)";
+    const cv = document.createElement("canvas"); cv.dataset.hook = v.id;
+    const body = document.createElement("div"); body.className = "body";
+    const head = document.createElement("div"); head.className = "row";
+    const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = v.slot;
+    const title = document.createElement("b"); title.textContent = v.title;
+    head.append(chip, title);
+    const hook = document.createElement("div"); hook.className = "hooktext"; hook.textContent = v.hook.replace("\n", " / ");
+    const btns = document.createElement("div"); btns.className = "row";
+    const mk = (label, fn) => { const b = document.createElement("button"); b.className = "small"; b.textContent = label; b.onclick = fn; return b; };
+    btns.append(
+      mk("⬇ Hook card", () => download(`gglvlup-${v.id}-hook.png`, 1080, 1920, (c, w, h) => drawHookCard(c, w, h, v))),
+      mk("⬇ End card", () => download(`gglvlup-${v.id}-end.png`, 1080, 1920, (c, w, h) => drawEndCard(c, w, h, v, CFG))),
+      mk("📋 Caption", () => { navigator.clipboard.writeText(`${v.caption}\n\n${v.tags}`); toast("Caption + tags copied"); }),
+    );
+    body.append(head, hook, btns);
+    row.append(cv, body); host.appendChild(row);
+  });
+}
+function redraw() {
+  [...PUBMATS, ...ZEROPACK].forEach((p) => {
+    const cv = document.querySelector(`canvas[data-pubmat="${p.id}"]`);
+    if (cv) render(cv, p.w, p.h, p.draw);
+  });
+  VIDEOS.forEach((v) => {
+    const cv = document.querySelector(`canvas[data-hook="${v.id}"]`);
+    if (cv) render(cv, 1080, 1920, (c, w, h) => drawHookCard(c, w, h, v), 0.11);
+  });
+}
+
+document.getElementById("dlPubmats").onclick = async () => {
+  toast("Rendering pubmats…");
+  for (const p of PUBMATS) await download(`gglvlup-${p.id}.png`, p.w, p.h, p.draw);
+  toast(`${PUBMATS.length} pubmats downloaded`);
+};
+document.getElementById("dlZero").onclick = async () => {
+  toast("Rendering zero-follower pack…");
+  for (const p of ZEROPACK) await download(`gglvlup-${p.id}.png`, p.w, p.h, p.draw);
+  toast(`${ZEROPACK.length} assets downloaded`);
+};
+document.getElementById("dlZeroCaps").onclick = () => {
+  const k = CFG.keyword, link = "[your link in bio]";
+  const body =
+`GGLvlup — zero-follower pack captions
+keyword: ${k}   handle: ${CFG.handle}
+
+${"=".repeat(60)}
+IG / FB BIO (≤150 chars)
+${"=".repeat(60)}
+🎮 Turn weight loss into a game — XP, levels, trophies & 30-day challenges. Track 1 min/day. Free.
+👇 Join: ${link}
+
+${"=".repeat(60)}
+CAROUSEL — "Why the scale isn't moving" (post all 5 slides)
+${"=".repeat(60)}
+The scale lies more than it tells the truth. Save this for your next "why won't it move?!" week 😅
+Weekly average > any single day. I track mine automatically in GGLvlup — comment ${k} or link in bio.
+#weightlossjourney #fitnessph #weightlosstips #fitnessmotivation #fitnesstips
+
+${"=".repeat(60)}
+JOIN MY CHALLENGE
+${"=".repeat(60)}
+Starting a 30-day challenge — live leaderboard, 4 side awards, up to 6 people. Loser ${CFG.reward}
+Comment ${k} or tap my link and you're in (even if you've never opened the app). Tag your gym buddy 👇
+#fitnesschallenge #barkada #gymbuddy #fitnessph #samgyup
+
+${"=".repeat(60)}
+FEATURE DEMO
+${"=".repeat(60)}
+A fitness tracker that plays like a game — every log pays you XP, and the empty trophy slots keep me honest.
+Comment ${k} for an invite.
+#gamification #fitnessapp #buildinpublic #fitnessph #weightlossjourney
+
+${"=".repeat(60)}
+PINNED INTRO POST
+${"=".repeat(60)}
+New here? GGLvlup turns weight, food & steps into levels, streaks and trophies — plus 30-day challenges with
+friends. One minute a day, and it pays you back the same day. Comment ${k} or tap the link in bio to join.
+#fitnessapp #fitnessph #weightlossjourney #gamifiedfitness
+`;
+  navigator.clipboard.writeText(body).then(() => toast("Bio + captions copied")).catch(() => {
+    const blob = new Blob([body], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "gglvlup-zeropack-captions.txt";
+    document.body.appendChild(a); a.click(); a.remove();
+    toast("captions downloaded");
+  });
+};
+document.getElementById("dlHooks").onclick = async () => {
+  toast("Rendering video cards…");
+  for (const v of VIDEOS) {
+    await download(`gglvlup-${v.id}-hook.png`, 1080, 1920, (c, w, h) => drawHookCard(c, w, h, v));
+    await download(`gglvlup-${v.id}-end.png`, 1080, 1920, (c, w, h) => drawEndCard(c, w, h, v, CFG));
+  }
+  toast("32 video cards downloaded");
+};
+document.getElementById("dlCaptions").onclick = () => {
+  const body = VIDEOS.map((v) =>
+    `${v.slot} — ${v.title}\nHOOK (first 1.5s): ${v.hook.replace("\n", " ")}\n\n${v.caption}\n\n${v.tags}\n\n${"-".repeat(60)}\n`
+  ).join("\n");
+  const blob = new Blob([`GGLvlup — captions pack\nkeyword: ${CFG.keyword}\n\n${"=".repeat(60)}\n\n${body}`], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "gglvlup-captions.txt";
+  document.body.appendChild(a); a.click(); a.remove();
+  toast("captions.txt downloaded");
+};
+
+buildConfig(); buildGrid(PUBMATS, "pubmats"); buildGrid(ZEROPACK, "zeropack"); buildVideos();
+// Wait for Fredoka so the first paint isn't in a fallback face.
+if (document.fonts && document.fonts.load) {
+  Promise.all([document.fonts.load('700 40px Fredoka'), document.fonts.load('500 40px Fredoka')])
+    .catch(() => {}).then(redraw);
+}
+redraw();
+</script>
+</body>
+</html>

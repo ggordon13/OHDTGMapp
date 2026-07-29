@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DailyLog, exerciseOptions } from "@/lib/mockData";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,6 +27,9 @@ interface DailyTrackerProps {
 
 const PAGE_SIZE = 7;
 
+/** Columns the user can type into — exactly what the merge below has to protect. */
+const EDITABLE_KEYS = ["weight", "calories", "protein", "water", "exercise", "steps"] as const;
+
 const PagerButton = ({ onClick, disabled, children }: { onClick: () => void; disabled: boolean; children: React.ReactNode }) => (
   <button
     type="button"
@@ -51,9 +54,51 @@ const DailyTracker = ({
   const [editedLogs, setEditedLogs] = useState<DailyLog[]>(logs);
   const [page, setPage] = useState(Math.max(0, Math.floor((logs.length - 1) / PAGE_SIZE)));
   const todayRowRef = useRef<HTMLTableRowElement>(null);
+  /** The saved rows we last merged from — how we tell an unsaved edit apart
+   *  from a value that simply hasn't changed. */
+  const mergedFrom = useRef<DailyLog[]>(logs);
 
+  // Fingerprint of what's actually saved. The parent hands us a fresh array on
+  // most renders (the free-plan window is a `.slice()`), so keying the merge on
+  // the array's identity would re-run it forever.
+  const savedSignature = useMemo(
+    () =>
+      logs
+        .map((l) => [l.date, l.weight, l.calories, l.protein, l.water, l.exercise, l.steps].join(","))
+        .join("|"),
+    [logs],
+  );
+
+  // Adopt saves made elsewhere — Today's Data, the daily check-in — without
+  // discarding edits typed here but not yet saved.
+  //
+  // This used to key on `logs.length`, which only changes when a new day
+  // arrives. Saving calories from Today's Data leaves the row count identical,
+  // so the table never picked the value up: it kept rendering the stale row
+  // and, worse, "Save Progress" wrote that stale row straight back, wiping the
+  // fields that had just been saved.
   useEffect(() => {
-    setEditedLogs(logs);
+    const previous = new Map(mergedFrom.current.map((l) => [l.date, l]));
+    setEditedLogs((current) => {
+      const own = new Map(current.map((l) => [l.date, l]));
+      return logs.map((incoming) => {
+        const mine = own.get(incoming.date);
+        const before = previous.get(incoming.date);
+        if (!mine || !before) return incoming; // a day we haven't rendered before
+        const merged = { ...incoming };
+        for (const key of EDITABLE_KEYS) {
+          // Differs from what was saved last time we looked → unsaved edit, keep it.
+          if (mine[key] !== before[key]) (merged as Record<string, unknown>)[key] = mine[key];
+        }
+        return merged;
+      });
+    });
+    mergedFrom.current = logs;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedSignature]);
+
+  // Jump to the newest page only when the range actually grows (a new day).
+  useEffect(() => {
     setPage(Math.max(0, Math.floor((logs.length - 1) / PAGE_SIZE)));
   }, [logs.length]);
 
@@ -69,15 +114,16 @@ const DailyTracker = ({
   const handleChange = (index: number, field: keyof DailyLog, value: string) => {
     if (locked) return;
     const globalIdx = startIdx + index;
-    const updated = [...editedLogs];
     const numFields: (keyof DailyLog)[] = ["weight", "calories", "protein", "water", "steps"];
+    const parsed = numFields.includes(field) ? (value === "" ? null : Number(value)) : value;
 
-    if (numFields.includes(field)) {
-      (updated[globalIdx] as any)[field] = value === "" ? null : Number(value);
-    } else {
-      (updated[globalIdx] as any)[field] = value;
-    }
-    setEditedLogs(updated);
+    // Replace the row rather than mutating it. These row objects arrive from
+    // the parent's memoised day range, so editing one in place also edited the
+    // copy that quests, streaks and trophies are scored from — uncommitted
+    // keystrokes were silently feeding the gamification maths.
+    setEditedLogs((current) =>
+      current.map((row, i) => (i === globalIdx ? { ...row, [field]: parsed } : row)),
+    );
   };
 
   const handleSave = () => {
