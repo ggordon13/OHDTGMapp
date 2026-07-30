@@ -1,0 +1,116 @@
+import { useEffect, useRef } from "react";
+import gsap from "gsap";
+import { ArrowRight, Check } from "lucide-react";
+import GameButton from "@/components/game/GameButton";
+import { MEALS, type MealId } from "@/lib/foodGame/foods";
+import { sfx } from "@/lib/sfx";
+import { cn } from "@/lib/utils";
+
+interface MealPickerScreenProps {
+  selected: MealId[];
+  onToggle: (mealId: MealId) => void;
+  onConfirm: () => void;
+}
+
+const bannerClass: Record<string, string> = {
+  gold: "from-[hsl(40,90%,58%)] to-[hsl(36,85%,46%)]",
+  leaf: "from-[hsl(68,46%,50%)] to-[hsl(70,50%,38%)]",
+  navy: "from-[hsl(222,55%,46%)] to-[hsl(224,60%,32%)]",
+  purple: "from-[hsl(268,42%,60%)] to-[hsl(268,44%,46%)]",
+  teal: "from-[hsl(178,48%,44%)] to-[hsl(178,54%,32%)]",
+};
+
+/**
+ * Level select. Everything is chosen up front so the player can skip the meals
+ * they didn't eat, and so the run has a visible finish line ("Meal 2 of 4")
+ * instead of dragging on unpredictably.
+ */
+const MealPickerScreen = ({ selected, onToggle, onConfirm }: MealPickerScreenProps) => {
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const ctx = gsap.context(() => {
+      gsap.from("[data-meal]", {
+        y: 40,
+        opacity: 0,
+        scale: 0.9,
+        duration: 0.5,
+        stagger: 0.07,
+        ease: "back.out(2)",
+      });
+    }, rootRef);
+    return () => ctx.revert();
+  }, []);
+
+  const toggle = (mealId: MealId) => {
+    sfx.claim();
+    onToggle(mealId);
+  };
+
+  return (
+    <div ref={rootRef} className="space-y-7 p-6 sm:p-8">
+      <div className="text-center">
+        <h3 className="font-display text-2xl font-bold text-[hsl(26,50%,20%)] sm:text-3xl">What did you eat today?</h3>
+        <p className="mt-1 text-sm font-bold text-[hsl(26,30%,42%)]">
+          Pick every meal you had — you'll build them one at a time.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {MEALS.map((meal) => {
+          const isOn = selected.includes(meal.id);
+          return (
+            <button
+              key={meal.id}
+              type="button"
+              data-meal
+              onClick={() => toggle(meal.id)}
+              aria-pressed={isOn}
+              className={cn(
+                "group relative flex flex-col items-center gap-2 rounded-2xl border-[3px] bg-gradient-to-b p-4 text-center text-white",
+                "transition-[transform,box-shadow,filter] duration-150 hover:-translate-y-1 hover:brightness-110 active:translate-y-[2px]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40,90%,58%)] focus-visible:ring-offset-2",
+                bannerClass[meal.color],
+                isOn
+                  ? "border-[hsl(42,95%,68%)] shadow-[0_5px_0_hsl(22,45%,16%),0_0_0_3px_hsl(42,95%,68%,0.5),0_10px_20px_rgba(0,0,0,0.4)]"
+                  : "border-[hsl(22,45%,16%)] opacity-80 shadow-[0_5px_0_hsl(22,45%,16%),0_8px_16px_rgba(0,0,0,0.3)]",
+              )}
+            >
+              {isOn && (
+                <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[hsl(33,75%,28%)] bg-[hsl(42,95%,68%)] shadow-[0_2px_0_hsl(33,75%,28%)]">
+                  <Check className="h-4 w-4 text-[hsl(26,50%,18%)]" strokeWidth={4} />
+                </span>
+              )}
+              <span className="text-4xl leading-none transition-transform duration-200 group-hover:scale-125 sm:text-5xl">
+                {meal.sprite}
+              </span>
+              <span className="font-display text-sm font-bold uppercase tracking-wide [text-shadow:0_1.5px_0_rgba(0,0,0,0.3)]">
+                {meal.label}
+              </span>
+              <span className="text-[10px] font-bold leading-tight opacity-90">{meal.tagline}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-col items-center gap-2">
+        <GameButton
+          color="gold"
+          size="lg"
+          className="px-10"
+          disabled={selected.length === 0}
+          onClick={() => {
+            sfx.claimAll();
+            onConfirm();
+          }}
+        >
+          {selected.length === 0 ? "Pick at least one" : `Start — ${selected.length} meal${selected.length === 1 ? "" : "s"}`}
+          <ArrowRight className="h-5 w-5" />
+        </GameButton>
+      </div>
+    </div>
+  );
+};
+
+export default MealPickerScreen;
