@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, BookOpen, ShieldCheck } from "lucide-react";
+import { Scale, Utensils, Beef, Droplets, Footprints, LogOut, BookOpen, ShieldCheck, Gamepad2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -46,6 +46,7 @@ import GameButton from "@/components/game/GameButton";
 import PremiumAccessManager from "@/components/PremiumAccessManager";
 import PremiumRequests from "@/components/PremiumRequests";
 import AdminChallenges from "@/components/AdminChallenges";
+import FoodGameModal from "@/components/foodgame/FoodGameModal";
 import DataAnalytics from "@/components/DataAnalytics";
 import GetPremiumButton from "@/components/GetPremiumButton";
 import StartTrialButton from "@/components/StartTrialButton";
@@ -87,6 +88,7 @@ const Index = () => {
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showAdmin, setShowAdmin] = useState(true); // admin panels visible by default
+  const [showFoodGame, setShowFoodGame] = useState(false); // staff-only, in testing
   const [showDay1Modal, setShowDay1Modal] = useState(false);
   const [showFreeLimit, setShowFreeLimit] = useState(false);
   const [showChallengeComplete, setShowChallengeComplete] = useState(false);
@@ -615,6 +617,21 @@ const Index = () => {
       <FireflyCanvas />
       <Confetti trigger={confettiTrigger} />
       <CelebrationModal event={blockingModalOpen ? null : (celebrations[0] ?? null)} onDismiss={dismissCelebration} />
+      {/* Food Track mini-game. Staff-gated while it's in testing — the button
+          that opens it is behind the same `isStaff` check in the toolbar. */}
+      {isStaff && (
+        <FoodGameModal
+          open={showFoodGame}
+          onOpenChange={setShowFoodGame}
+          goals={{ calories: goals.dailyCalories, protein: goals.dailyProtein }}
+          onSave={
+            todayEntry
+              ? async ({ kcal, protein }) =>
+                  handleSaveToday({ ...todayEntry, calories: kcal, protein: Math.round(protein) })
+              : undefined
+          }
+        />
+      )}
       {profile?.pending_challenge_start_date && (
         <Day1ChangeModal
           open={showDay1Modal}
@@ -741,6 +758,18 @@ const Index = () => {
               onOpenThemes={() => setShowThemes(true)}
               onUpdateProfile={() => navigate("/setup", { state: { intentional: true } })}
             />
+            {/* Food Track mini-game — staff only while it's in testing. */}
+            {isStaff && (
+              <GameButton
+                color="purple"
+                size="sm"
+                onClick={() => setShowFoodGame(true)}
+                title="Play the Food Track logging mini-game (admin testing)"
+              >
+                <Gamepad2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Food Game</span>
+              </GameButton>
+            )}
             {isStaff && (
               <GameButton
                 color="red"
