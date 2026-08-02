@@ -2,11 +2,11 @@ import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { DailyLog } from "@/lib/mockData";
-import { getWeightMilestones } from "@/lib/gamification";
-import { Flag, TrendingDown, Maximize2, X } from "lucide-react";
+import { getWeeklyWeightAverages, getWeightMilestones } from "@/lib/gamification";
+import { CalendarDays, CalendarRange, Flag, TrendingDown, Maximize2, X } from "lucide-react";
 import GamePanel from "@/components/game/GamePanel";
 import GameProgress from "@/components/game/GameProgress";
-import { cn } from "@/lib/utils";
+import { cn, parseDateInputValue } from "@/lib/utils";
 
 interface WeightChartProps {
   logs: DailyLog[];
@@ -15,6 +15,13 @@ interface WeightChartProps {
 }
 
 const LINE = "hsl(268, 45%, 52%)";
+
+/** "Jul 8 – Jul 14", or a single date when the week holds one weigh-in. */
+const rangeLabel = (first: string, last: string) => {
+  const fmt = (iso: string) =>
+    parseDateInputValue(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return first === last ? fmt(first) : `${fmt(first)} – ${fmt(last)}`;
+};
 
 const MiniStat = ({ label, value, highlight, delta }: { label: string; value: string; highlight?: boolean; delta?: string }) => (
   <div className={`game-tag px-2.5 py-1.5 ${highlight ? "ring-2 ring-inset ring-[hsl(268,45%,55%)]/40" : ""}`}>
@@ -26,12 +33,29 @@ const MiniStat = ({ label, value, highlight, delta }: { label: string; value: st
   </div>
 );
 
+type TrendMode = "daily" | "weekly";
+
 const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
   const [zoomed, setZoomed] = useState(false);
+  const [mode, setMode] = useState<TrendMode>("daily");
 
   const weighed = logs.filter((l) => l.weight !== null) as (DailyLog & { weight: number })[];
-  const data = weighed.map((l) => ({ day: `Day ${l.day}`, date: l.date, weight: l.weight }));
+  const data = weighed.map((l) => ({ day: `Day ${l.day}`, date: l.date, weight: l.weight, days: 1 }));
   const latestWeight = weighed.length > 0 ? weighed[weighed.length - 1].weight : null;
+
+  // Weekly view: one point per week, averaging that week's weigh-ins.
+  const weeklyData = getWeeklyWeightAverages(logs).map((w) => ({
+    day: `Wk ${w.week}`,
+    date: `${rangeLabel(w.firstDate, w.lastDate)} · ${w.days} ${w.days === 1 ? "log" : "logs"}`,
+    weight: w.weight,
+    days: w.days,
+  }));
+
+  const weekly = mode === "weekly";
+  const series = weekly ? weeklyData : data;
+  const countLabel = weekly
+    ? `${weeklyData.length} ${weeklyData.length === 1 ? "week" : "weeks"}`
+    : `Last ${data.length} days`;
 
   // Weight-loss (or gain) journey progress from the starting weight to the goal.
   const hasJourney = startWeight != null && startWeight !== targetWeight;
@@ -54,12 +78,12 @@ const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
     startWeight != null && latestWeight != null ? Math.round((latestWeight - startWeight) * 10) / 10 : null;
   const changeText = changeVal != null && changeVal !== 0 ? `${changeVal > 0 ? "+" : ""}${changeVal} kg` : undefined;
 
-  const hasData = data.length > 0;
+  const hasData = series.length > 0;
 
   /** The chart itself — reused at panel size and (bigger) inside the zoom modal. */
   const chart = (gradId: string, big: boolean) => (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 5 }}>
+      <AreaChart data={series} margin={{ top: 8, right: 12, left: 0, bottom: 5 }}>
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={LINE} stopOpacity={0.38} />
@@ -72,7 +96,7 @@ const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
           tick={{ fontSize: big ? 12 : 11, fontWeight: 700, fill: "hsl(27, 24%, 42%)" }}
           tickLine={false}
           axisLine={false}
-          interval={big ? Math.floor(data.length / 15) : Math.floor(data.length / 7)}
+          interval={weekly ? 0 : big ? Math.floor(data.length / 15) : Math.floor(data.length / 7)}
         />
         <YAxis
           tick={{ fontSize: big ? 12 : 11, fontWeight: 700, fill: "hsl(27, 24%, 42%)" }}
@@ -94,10 +118,10 @@ const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
             boxShadow: "0 6px 14px rgba(40,20,6,0.3)",
           }}
           labelStyle={{ color: "hsl(27, 24%, 40%)", fontWeight: 700 }}
-          formatter={(v: number) => [`${v} kg`, "Weight"]}
+          formatter={(v: number) => [`${v} kg`, weekly ? "Weekly average" : "Weight"]}
           labelFormatter={(label: string, payload) => {
-            const iso = payload?.[0]?.payload?.date as string | undefined;
-            return iso ? `${label} · ${iso}` : label;
+            const detail = payload?.[0]?.payload?.date as string | undefined;
+            return detail ? `${label} · ${detail}` : label;
           }}
         />
         {startWeight != null && (
@@ -122,7 +146,8 @@ const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
           stroke={LINE}
           strokeWidth={3}
           fill={`url(#${gradId})`}
-          dot={false}
+          // Weekly has few points, so mark each one; daily would be a solid smear.
+          dot={weekly ? { r: big ? 4 : 3.5, fill: LINE, strokeWidth: 0 } : false}
           activeDot={{ r: big ? 6 : 5, fill: LINE, stroke: "hsl(40, 48%, 94%)", strokeWidth: 2.5 }}
         />
       </AreaChart>
@@ -154,6 +179,34 @@ const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
         </div>
       )}
 
+      {/* Daily / weekly-average switch */}
+      <div role="tablist" aria-label="Weight trend view" className="grid grid-cols-2 gap-1 rounded-xl border-2 border-[hsl(33,28%,58%)] bg-[hsl(37,40%,82%)] p-1">
+        {([
+          ["daily", "Daily", CalendarDays],
+          ["weekly", "Weekly avg", CalendarRange],
+        ] as const).map(([key, label, Icon]) => {
+          const active = mode === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setMode(key)}
+              className={cn(
+                "flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 font-display text-xs font-bold uppercase tracking-wide transition",
+                active
+                  ? "border-2 border-[hsl(268,45%,28%)] bg-gradient-to-b from-[hsl(268,45%,62%)] to-[hsl(268,44%,46%)] text-white shadow-[0_2px_0_hsl(268,45%,28%)]"
+                  : "border-2 border-transparent text-muted-foreground hover:bg-[hsl(40,48%,92%)]",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
       <div
         className={cn(
           opts.chartHeight,
@@ -164,6 +217,14 @@ const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
       >
         {chart(opts.gradId, opts.big)}
       </div>
+
+      {weekly && (
+        <p className="text-center text-[11px] font-semibold text-muted-foreground">
+          {weeklyData.length < 2
+            ? "Log a second week to see the weekly trend line."
+            : "Each point is that week's average weigh-in — steadier than day-to-day noise."}
+        </p>
+      )}
     </div>
   );
 
@@ -175,7 +236,7 @@ const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
         color="purple"
         right={
           <div className="flex items-center gap-2">
-            <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">Last {data.length} days</span>
+            <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">{countLabel}</span>
             {hasData && (
               <button
                 type="button"
@@ -202,7 +263,7 @@ const WeightChart = ({ logs, targetWeight, startWeight }: WeightChartProps) => {
                   <TrendingDown className="h-5 w-5 text-[hsl(268,45%,52%)]" /> Weight Trend
                 </Dialog.Title>
                 <Dialog.Description className="mt-0.5 text-sm font-semibold text-muted-foreground">
-                  Last {data.length} days · hover any point for its date and weight.
+                  {countLabel} · hover any point for its {weekly ? "week and average" : "date and weight"}.
                 </Dialog.Description>
               </div>
               <Dialog.Close className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-card-foreground focus:outline-none">

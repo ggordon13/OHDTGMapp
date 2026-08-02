@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Award, Lock, X } from "lucide-react";
+import { Award, ChevronDown, Lock, X } from "lucide-react";
 import { Badge } from "@/lib/gamification";
 import GamePanel from "@/components/game/GamePanel";
 import GameButton from "@/components/game/GameButton";
 import TrophyHex from "@/components/game/TrophyHex";
 import { pop, sparkle } from "@/lib/fx";
+import { cn } from "@/lib/utils";
 
 type BadgeWithState = Badge & { unlocked: boolean };
 
@@ -13,6 +14,13 @@ interface BadgeShelfProps {
   badges: BadgeWithState[];
   /** Which 100-day run this shelf belongs to; shown once the user has restarted. */
   runNumber?: number;
+  /**
+   * Collapsed state. Only meaningful alongside `onToggleCollapsed` — pass
+   * neither for the always-open desktop shelf.
+   */
+  collapsed?: boolean;
+  /** Supplying this makes the panel collapsible (the phone layout does). */
+  onToggleCollapsed?: () => void;
 }
 
 /** Hexagonal badge. `size` scales the face for the modal's list rows. */
@@ -41,33 +49,59 @@ const BadgeHex = ({ badge, size = "h-14 w-14 text-2xl" }: { badge: BadgeWithStat
   );
 };
 
-const BadgeShelf = ({ badges, runNumber }: BadgeShelfProps) => {
+const BadgeShelf = ({ badges, runNumber, collapsed = false, onToggleCollapsed }: BadgeShelfProps) => {
   const [showLocked, setShowLocked] = useState(false);
   const unlocked = badges.filter((b) => b.unlocked);
   const locked = badges.filter((b) => !b.unlocked);
+  const isCollapsed = onToggleCollapsed != null && collapsed;
 
   return (
     <GamePanel
       title="Trophy Case"
       icon={<Award className="h-4 w-4" />}
       color="gold"
+      className={isCollapsed ? "h-full" : undefined}
+      onTitleClick={onToggleCollapsed}
+      collapsed={isCollapsed}
+      // The collapsed tile is its own full-width control, so the corner chips
+      // would only collide with it.
       right={
-        <div className="flex items-center gap-1.5">
-          {runNumber != null && runNumber > 1 && (
-            <span
-              className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground"
-              title="Your trophy case resets each 100-day run — earlier runs live in your finisher archive."
-            >
-              Run {runNumber}
+        isCollapsed ? undefined : (
+          <div className="flex items-center gap-1.5">
+            {runNumber != null && runNumber > 1 && (
+              <span
+                className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground"
+                title="Your trophy case resets each 100-day run — earlier runs live in your finisher archive."
+              >
+                Run {runNumber}
+              </span>
+            )}
+            <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+              {unlocked.length}/{badges.length} unlocked
             </span>
-          )}
-          <span className="game-tag px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-            {unlocked.length}/{badges.length} unlocked
-          </span>
-        </div>
+          </div>
+        )
       }
     >
-      <div className="space-y-4">
+      {isCollapsed && (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-expanded={false}
+          className="flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-[hsl(33,75%,28%)] bg-gradient-to-b from-[hsl(40,90%,58%)] to-[hsl(36,85%,46%)] px-3 py-3 font-display text-sm font-bold uppercase tracking-wide text-[hsl(26,50%,18%)] shadow-[0_3px_0_hsl(33,75%,28%)] transition hover:brightness-110 active:translate-y-[2px] active:shadow-[0_1px_0_hsl(33,75%,28%)]"
+        >
+          <span className="flex items-center gap-1.5">
+            <Award className="h-4 w-4" />
+            Trophies
+            <ChevronDown className="h-4 w-4 -rotate-90" strokeWidth={3} />
+          </span>
+          <span className="rounded-full bg-white/85 px-2 py-0.5 text-[11px] font-bold tabular-nums text-[hsl(33,75%,28%)]">
+            {unlocked.length}/{badges.length}
+          </span>
+        </button>
+      )}
+
+      <div className={cn("space-y-4", isCollapsed && "hidden")}>
         {unlocked.length === 0 ? (
           <p className="text-sm font-semibold text-muted-foreground">
             No trophies yet — log your days and hit your targets to start unlocking them.
