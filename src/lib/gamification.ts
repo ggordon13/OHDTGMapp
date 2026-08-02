@@ -665,6 +665,62 @@ export function getEarnedBadges(
 // ---------------------------------------------------------------------------
 
 /**
+ * Which week of the run a day belongs to, following the same shape as
+ * `chunkIntoWeeks`: Weeks 1–14 are 7 days each, Week 15 is the 2-day tail
+ * (Days 99–100), and days logged past Day 100 chunk in sevens again.
+ *
+ * Unlike the positional chunker this works on a partial range, which matters
+ * because free users only ever see a trailing window of their history.
+ */
+export function weekIndexForDay(day: number): number {
+  if (day <= CHALLENGE_DAYS) return Math.floor((day - 1) / DAYS_PER_WEEK) + 1;
+  const weeksInRun = Math.ceil(CHALLENGE_DAYS / DAYS_PER_WEEK);
+  return weeksInRun + Math.floor((day - CHALLENGE_DAYS - 1) / DAYS_PER_WEEK) + 1;
+}
+
+/** One week's worth of weigh-ins, averaged. */
+export interface WeeklyWeight {
+  week: number;
+  /** Mean of every weight logged that week, to one decimal place. */
+  weight: number;
+  /** How many weigh-ins the average is built from. */
+  days: number;
+  firstDate: string;
+  lastDate: string;
+}
+
+/**
+ * Average weight per week, oldest first. Weeks with no weigh-in are skipped
+ * rather than plotted as a gap — an absent week is missing data, not a flat
+ * line, and interpolating it would invent a trend the user never logged.
+ */
+export function getWeeklyWeightAverages(logs: DailyLog[]): WeeklyWeight[] {
+  const buckets = new Map<number, { sum: number; days: number; first: string; last: string }>();
+  for (const log of logs) {
+    if (log.weight == null) continue;
+    const week = weekIndexForDay(log.day);
+    const bucket = buckets.get(week);
+    if (!bucket) {
+      buckets.set(week, { sum: log.weight, days: 1, first: log.date, last: log.date });
+      continue;
+    }
+    bucket.sum += log.weight;
+    bucket.days += 1;
+    if (log.date < bucket.first) bucket.first = log.date;
+    if (log.date > bucket.last) bucket.last = log.date;
+  }
+  return [...buckets.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([week, b]) => ({
+      week,
+      weight: Math.round((b.sum / b.days) * 10) / 10,
+      days: b.days,
+      firstDate: b.first,
+      lastDate: b.last,
+    }));
+}
+
+/**
  * The 1kg milestone crossings between a starting weight and a target. Supports
  * both weight loss (start > target) and gain (start < target). Excludes the
  * starting weight itself; includes the target.

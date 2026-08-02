@@ -26,6 +26,7 @@ import InstallButton from "@/components/InstallButton";
 import NotificationsButton from "@/components/NotificationsButton";
 import SettingsMenu from "@/components/SettingsMenu";
 import { useTheme } from "@/hooks/useTheme";
+import { useIsMobile } from "@/hooks/use-mobile";
 import DailyCheckIn from "@/components/DailyCheckIn";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import { revealPanels } from "@/lib/fx";
@@ -41,7 +42,7 @@ import {
   getNewlyCrossedMilestone,
   isDayComplete,
 } from "@/lib/gamification";
-import { formatDateInputValue, parseDateInputValue } from "@/lib/utils";
+import { formatDateInputValue, parseDateInputValue, cn } from "@/lib/utils";
 import GameButton from "@/components/game/GameButton";
 import PremiumAccessManager from "@/components/PremiumAccessManager";
 import PremiumRequests from "@/components/PremiumRequests";
@@ -102,6 +103,10 @@ const Index = () => {
   const [guideIsOnboarding, setGuideIsOnboarding] = useState(false);
   const [showThemes, setShowThemes] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  // On phones the trophy case rides in the stat grid's spare cell, collapsed by
+  // default; expanding it lets it span both columns so the hexes get room.
+  const isMobile = useIsMobile();
+  const [trophiesCollapsed, setTrophiesCollapsed] = useState(true);
 
   // A shared challenge link sent a not-yet-signed-in visitor through auth; now
   // that they've landed on the dashboard, bounce them to finish joining.
@@ -840,9 +845,13 @@ const Index = () => {
         <div className="grid gap-6 lg:grid-cols-12">
           {/* Left column (desktop): Trophy Case → Quests → Analytics & Export */}
           <div className="contents lg:block lg:col-span-4 lg:space-y-6 xl:col-span-3">
-            <div data-reveal className="order-2 min-w-0">
-              <BadgeShelf badges={badges} runNumber={profile?.current_run ?? 1} />
-            </div>
+            {/* On phones this moves into the stat grid below — rendered in one
+                place or the other so there's only ever a single instance. */}
+            {!isMobile && (
+              <div data-reveal className="order-2 min-w-0">
+                <BadgeShelf badges={badges} runNumber={profile?.current_run ?? 1} />
+              </div>
+            )}
             <div data-reveal className="order-3 min-w-0">
               <QuestBoard
                 dailyQuests={dailyQuests}
@@ -915,18 +924,35 @@ const Index = () => {
                 icon={Footprints}
                 caption="Daily goal"
               />
+              {/* Five stat cards leave one cell spare on a 2-up phone grid —
+                  the trophy case fills it, and spans the row once opened. */}
+              {isMobile && (
+                <div data-reveal className={cn("min-w-0", !trophiesCollapsed && "col-span-2")}>
+                  <BadgeShelf
+                    badges={badges}
+                    runNumber={profile?.current_run ?? 1}
+                    collapsed={trophiesCollapsed}
+                    onToggleCollapsed={() => setTrophiesCollapsed((v) => !v)}
+                  />
+                </div>
+              )}
             </motion.div>
 
+            {/* Stacked (below 2xl) the order is Challenge → Weekly Achievements
+                → Weight Trend, so the thing with a deadline leads. The wrapper
+                goes `contents` there so all three sit in one grid and can be
+                ordered independently; at 2xl it becomes a column again and the
+                side-by-side layout returns. */}
             <div className="order-4 grid min-w-0 gap-6 2xl:grid-cols-5">
-              <div data-reveal className="min-w-0 2xl:col-span-3">
+              <div data-reveal className="order-2 min-w-0 2xl:order-none 2xl:col-span-3">
                 <WeeklyAchievements logs={visibleDayRange} goals={weeklyGoals} scoringDate={scoringDate} />
               </div>
               {/* Challenge takes the Weight Trend column; Weight Trend sits below it. */}
-              <div className="min-w-0 space-y-6 2xl:col-span-2">
-                <div data-reveal>
+              <div className="contents min-w-0 2xl:block 2xl:space-y-6 2xl:col-span-2">
+                <div data-reveal className="order-1 min-w-0 2xl:order-none">
                   <ChallengePanel challenge={challenge} />
                 </div>
-                <div data-reveal>
+                <div data-reveal className="order-3 min-w-0 2xl:order-none">
                   <WeightChart logs={visibleLogs} targetWeight={goals.targetWeight} startWeight={startWeight} />
                 </div>
               </div>

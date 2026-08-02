@@ -9,6 +9,9 @@ import {
   getWeightMilestones,
   getNewlyCrossedMilestone,
   getDailyQuests,
+  getWeeklyWeightAverages,
+  weekIndexForDay,
+  chunkIntoWeeks,
 } from "@/lib/gamification";
 
 const day = (over: Partial<DailyLog>): DailyLog => ({
@@ -136,5 +139,57 @@ describe("daily quests", () => {
   it("withholds the show-up quest before anything is logged", () => {
     expect(loggedQuest(null)?.completed).toBe(false);
     expect(loggedQuest(day({ calories: 1800 }))?.completed).toBe(false); // no weight yet
+  });
+});
+
+describe("weekly weight averages", () => {
+  const weighIn = (d: number, weight: number) =>
+    day({ day: d, date: `2026-01-${String(d).padStart(2, "0")}`, weight });
+
+  it("buckets days into the same weeks as the run chunker", () => {
+    // Weeks 1-14 are 7 days; Week 15 is the 2-day tail (Days 99-100).
+    const logs = Array.from({ length: 107 }, (_, i) => day({ day: i + 1 }));
+    chunkIntoWeeks(logs).forEach((week, i) => {
+      for (const d of week) expect(weekIndexForDay(d.day)).toBe(i + 1);
+    });
+  });
+
+  it("marks the boundaries of the short final week", () => {
+    expect(weekIndexForDay(98)).toBe(14);
+    expect(weekIndexForDay(99)).toBe(15);
+    expect(weekIndexForDay(100)).toBe(15);
+    expect(weekIndexForDay(101)).toBe(16);
+  });
+
+  it("averages each week's weigh-ins to one decimal", () => {
+    const weeks = getWeeklyWeightAverages([
+      weighIn(1, 90), weighIn(2, 89), weighIn(3, 88.5),
+      weighIn(8, 88), weighIn(9, 87),
+    ]);
+    expect(weeks).toHaveLength(2);
+    expect(weeks[0]).toMatchObject({ week: 1, weight: 89.2, days: 3, firstDate: "2026-01-01", lastDate: "2026-01-03" });
+    expect(weeks[1]).toMatchObject({ week: 2, weight: 87.5, days: 2 });
+  });
+
+  it("ignores days with no weigh-in and skips empty weeks entirely", () => {
+    const weeks = getWeeklyWeightAverages([
+      weighIn(1, 90), day({ day: 2, weight: null }),
+      // Week 2 logged nothing at all.
+      weighIn(15, 86),
+    ]);
+    expect(weeks.map((w) => w.week)).toEqual([1, 3]);
+    expect(weeks[0].days).toBe(1);
+  });
+
+  it("works on a trailing window that doesn't start at Day 1", () => {
+    // Free users only see their most recent days — the week numbers must still
+    // be the run's, not the window's.
+    const weeks = getWeeklyWeightAverages([weighIn(22, 84), weighIn(23, 83)]);
+    expect(weeks).toHaveLength(1);
+    expect(weeks[0].week).toBe(4);
+  });
+
+  it("returns nothing when no weight was ever logged", () => {
+    expect(getWeeklyWeightAverages([day({ day: 1 }), day({ day: 2 })])).toEqual([]);
   });
 });
