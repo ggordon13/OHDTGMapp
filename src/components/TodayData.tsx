@@ -18,6 +18,12 @@ interface TodayDataProps {
   statusBadge?: ReactNode;
   /** Action pinned to the top-right of the panel (e.g. the quick guide). */
   headerAction?: ReactNode;
+  /**
+   * Rendered at the top of the body, above the hint and fields — for entry
+   * points that need more room than the header's absolutely-positioned
+   * corner slot can give them (e.g. the Food Track game).
+   */
+  aside?: ReactNode;
   /** Rendered below the fields (e.g. the free-plan premium notice). */
   footer?: ReactNode;
   /** When true, today is beyond the free plan's cap — fields are read-only. */
@@ -41,7 +47,7 @@ const toFormValue = (v: string | number | null | undefined) => (v == null ? "" :
 const seedValue = (entry: DailyLog, key: FieldKey): string =>
   key === "exercise" ? entry.exercise || "None" : toFormValue(entry[key]);
 
-const TodayData = ({ entry, onSave, statusBadge, headerAction, footer, locked = false }: TodayDataProps) => {
+const TodayData = ({ entry, onSave, statusBadge, headerAction, aside, footer, locked = false }: TodayDataProps) => {
   const [form, setForm] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<FieldKey | null>(null);
   const doneRef = useRef<HTMLDivElement>(null);
@@ -123,6 +129,7 @@ const TodayData = ({ entry, onSave, statusBadge, headerAction, footer, locked = 
       }
     >
       <div className="space-y-4">
+        {aside}
         {complete ? (
           <div ref={doneRef} className="flex items-center gap-2 rounded-lg border-2 border-[hsl(146,45%,40%)]/40 bg-[hsl(146,46%,52%)]/12 px-3 py-2">
             <span className="text-lg">🎉</span>
