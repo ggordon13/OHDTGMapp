@@ -214,7 +214,8 @@ export const COOK_METHODS: CookMethod[] = [
 // Portions
 // ---------------------------------------------------------------------------
 
-export type PortionId = "small" | "regular" | "large" | "huge";
+/** "custom" means the player weighed it — the grams come from them, not a multiplier. */
+export type PortionId = "small" | "regular" | "large" | "huge" | "custom";
 
 export interface Portion {
   id: PortionId;
@@ -222,6 +223,9 @@ export interface Portion {
   sprite: string;
   mult: number;
 }
+
+/** The scale option. Kept out of PORTIONS because it has no multiplier. */
+export const CUSTOM_PORTION = { id: "custom" as const, label: "I weighed it", sprite: "⚖️" };
 
 export const PORTIONS: Portion[] = [
   { id: "small", label: "Just a taste", sprite: "🤏", mult: 0.6 },
@@ -262,6 +266,84 @@ export function lookupPortion(id: PortionId): Portion {
   return PORTIONS.find((p) => p.id === id) ?? PORTIONS[1];
 }
 
+// ---------------------------------------------------------------------------
+// Serving notes
+//
+// The note ("1 cup cooked", "3 strips") has to move with the portion buttons —
+// a Beast-mode row reading "2 cups cooked" next to 316 g is the whole point.
+// Portion multipliers are 0.6 / 1 / 1.5 / 2, so scaling any whole-number
+// serving lands on a half or a fifth and every value below is exact.
+// ---------------------------------------------------------------------------
+
+const FRACTIONS: [number, string][] = [
+  [0.2, "⅕"], [0.25, "¼"], [1 / 3, "⅓"], [0.4, "⅖"], [0.5, "½"],
+  [0.6, "⅗"], [2 / 3, "⅔"], [0.75, "¾"], [0.8, "⅘"],
+];
+
+/** Words that describe the serving's size rather than name it. */
+const SIZE_WORDS = new Set(["large", "small", "medium", "tall", "big", "mini", "whole"]);
+
+/** Singular → plural for every unit this catalogue uses. */
+const PLURALS: Record<string, string> = {
+  bag: "bags", bar: "bars", block: "blocks", bottle: "bottles", bowl: "bowls",
+  can: "cans", chop: "chops", cookie: "cookies", cup: "cups", drumstick: "drumsticks",
+  egg: "eggs", fillet: "fillets", fries: "fries", glass: "glasses", handful: "handfuls",
+  medium: "medium", mug: "mugs", omelette: "omelettes", pancake: "pancakes",
+  patty: "patties", piece: "pieces", portion: "portions", scoop: "scoops",
+  shrimp: "shrimp", slice: "slices", steak: "steaks", strip: "strips",
+  white: "whites", wing: "wings", wrap: "wraps",
+};
+const SINGULARS: Record<string, string> = Object.fromEntries(
+  Object.entries(PLURALS).map(([one, many]) => [many, one]),
+);
+
+const pluralise = (word: string) => PLURALS[word] ?? (SINGULARS[word] ? word : `${word}s`);
+const singularise = (word: string) => SINGULARS[word] ?? word;
+
+/** "1½", "⅗", "2" — a count a human would actually say. */
+function formatQuantity(value: number): string {
+  const whole = Math.floor(value + 1e-9);
+  const rest = value - whole;
+  const fraction = FRACTIONS.find(([v]) => Math.abs(rest - v) < 0.001)?.[1];
+  if (fraction) return whole > 0 ? `${whole}${fraction}` : fraction;
+  if (Math.abs(rest) < 0.001) return String(whole);
+  return String(Math.round(value * 10) / 10);
+}
+
+/**
+ * Scale a serving note by a portion multiplier: "1 cup cooked" × 1.5 becomes
+ * "1½ cups cooked", "3 strips" × 0.6 becomes "1⅘ strips". Notes with no leading
+ * count ("small handful") are treated as one; ones with no unit at all
+ * ("skipped") are left alone.
+ */
+export function scaleServingNote(note: string, factor: number): string {
+  if (factor === 1 || !note) return note;
+  if (note === "skipped") return note;
+
+  const match = /^(\d+(?:\.\d+)?)\s+(.*)$/.exec(note);
+  const quantity = match ? Number(match[1]) : 1;
+  const rest = match ? match[2] : note;
+  const scaled = quantity * factor;
+  if (!Number.isFinite(scaled) || scaled <= 0) return note;
+
+  // Re-conjugate the noun that names the unit, skipping any size adjective.
+  const words = rest.split(" ");
+  let head = words.findIndex((w) => !SIZE_WORDS.has(w.toLowerCase()) && /^[a-z]+$/i.test(w));
+  if (head === -1) head = words.findIndex((w) => /^[a-z]+$/i.test(w));
+  if (head !== -1) {
+    const word = words[head].toLowerCase();
+    words[head] = scaled > 1 ? pluralise(word) : singularise(word);
+  }
+
+  return `${formatQuantity(scaled)} ${words.join(" ")}`;
+}
+
+/** The serving note for a plated item, scaled to the chosen portion. */
+export function servingNoteFor(food: FoodItem, portionId: PortionId): string {
+  if (portionId === "custom") return "you weighed it";
+  return scaleServingNote(food.servingNote, lookupPortion(portionId).mult);
+}
+
 /** One line of the finished diary. */
 export interface DiaryEntry {
   /** Unique within a run — `${mealId}:${foodId}`. */
@@ -287,10 +369,17 @@ export interface Macros {
  * Calories and protein for one plated item: scale the per-100 g values by the
  * portioned weight, then apply the cooking method's added-fat multiplier.
  */
-export function computeMacros(food: FoodItem, portionId: PortionId, methodId?: string): Macros & { grams: number } {
+export function computeMacros(
+  food: FoodItem,
+  portionId: PortionId,
+  methodId?: string,
+  /** Only read for the "custom" portion — the weight the player typed in. */
+  customGrams?: number,
+): Macros & { grams: number } {
   const portion = lookupPortion(portionId);
   const method = lookupMethod(methodId);
-  const grams = Math.round(food.serving * portion.mult);
+  const weighed = portionId === "custom" && customGrams != null && customGrams > 0;
+  const grams = weighed ? Math.round(customGrams) : Math.round(food.serving * portion.mult);
   const kcal = Math.round((food.kcal100 * grams) / 100 * (method?.kcalMult ?? 1));
   const protein = Math.round(((food.protein100 * grams) / 100) * (method?.proteinMult ?? 1) * 10) / 10;
   return { grams, kcal, protein };

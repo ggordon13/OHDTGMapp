@@ -3,7 +3,14 @@ import gsap from "gsap";
 import { ArrowRight } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
 import FoodSprite from "./FoodSprite";
-import { PORTIONS, computeMacros, lookupMethod, type PortionId } from "@/lib/foodGame/foods";
+import {
+  CUSTOM_PORTION,
+  PORTIONS,
+  computeMacros,
+  lookupMethod,
+  servingNoteFor,
+  type PortionId,
+} from "@/lib/foodGame/foods";
 import { draftEntries, plateItems, stepPrompt, type MealDraft } from "@/lib/foodGame/flow";
 import { pulse } from "@/lib/fx";
 import { sfx } from "@/lib/sfx";
@@ -11,9 +18,20 @@ import { cn } from "@/lib/utils";
 
 interface PlateScreenProps {
   draft: MealDraft;
-  onSetPortion: (foodId: string, portionId: PortionId) => void;
+  onSetPortion: (foodId: string, portionId: PortionId, customGrams?: number) => void;
   onConfirm: () => void;
 }
+
+/** Shared look for the portion buttons, so the scale sits flush with the rest. */
+const portionButtonClass = (active: boolean) =>
+  cn(
+    "flex w-[3.25rem] flex-col items-center gap-0.5 rounded-xl border-2 px-1 py-1.5 transition-[transform,box-shadow,filter] duration-150",
+    "hover:-translate-y-0.5 hover:brightness-105 active:translate-y-[1px]",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40,90%,58%)]",
+    active
+      ? "border-[hsl(33,75%,28%)] bg-gradient-to-b from-[hsl(40,90%,60%)] to-[hsl(36,85%,46%)] text-[hsl(26,50%,18%)] shadow-[0_3px_0_hsl(33,75%,28%)]"
+      : "border-[hsl(28,30%,55%)] bg-[hsl(40,40%,90%)] text-[hsl(26,35%,38%)] shadow-[0_3px_0_hsl(28,30%,55%)]",
+  );
 
 /**
  * "Size it up" — one row per food on the plate with four chunky portion
@@ -50,9 +68,9 @@ const PlateScreen = ({ draft, onSetPortion, onConfirm }: PlateScreenProps) => {
     pulse(totalRef.current);
   }, [totals.kcal, totals.protein]);
 
-  const pick = (foodId: string, portionId: PortionId) => {
+  const pick = (foodId: string, portionId: PortionId, customGrams?: number) => {
     sfx.claim();
-    onSetPortion(foodId, portionId);
+    onSetPortion(foodId, portionId, customGrams);
   };
 
   return (
@@ -65,8 +83,10 @@ const PlateScreen = ({ draft, onSetPortion, onConfirm }: PlateScreenProps) => {
       <div className="space-y-3">
         {items.map(({ food, methodId }) => {
           const portionId = draft.portions[food.id] ?? "regular";
-          const { grams, kcal, protein } = computeMacros(food, portionId, methodId);
+          const weighed = draft.customGrams?.[food.id];
+          const { grams, kcal, protein } = computeMacros(food, portionId, methodId, weighed);
           const method = lookupMethod(methodId);
+          const isCustom = portionId === "custom";
 
           return (
             <div
@@ -84,12 +104,12 @@ const PlateScreen = ({ draft, onSetPortion, onConfirm }: PlateScreenProps) => {
                     {method && <span className="ml-1.5 font-body text-xs font-bold text-[hsl(26,30%,45%)]">· {method.label}</span>}
                   </div>
                   <div className="text-[11px] font-bold text-[hsl(26,30%,45%)]">
-                    {grams} g — {food.servingNote}
+                    {grams} g — {servingNoteFor(food, portionId)}
                   </div>
                 </div>
               </div>
 
-              <div className="flex shrink-0 gap-1.5">
+              <div className="flex shrink-0 flex-wrap items-center justify-center gap-1.5">
                 {PORTIONS.map((p) => (
                   <button
                     key={p.id}
@@ -97,19 +117,48 @@ const PlateScreen = ({ draft, onSetPortion, onConfirm }: PlateScreenProps) => {
                     onClick={() => pick(food.id, p.id)}
                     aria-pressed={portionId === p.id}
                     title={p.label}
-                    className={cn(
-                      "flex w-[3.25rem] flex-col items-center gap-0.5 rounded-xl border-2 px-1 py-1.5 transition-[transform,box-shadow,filter] duration-150",
-                      "hover:-translate-y-0.5 hover:brightness-105 active:translate-y-[1px]",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40,90%,58%)]",
-                      portionId === p.id
-                        ? "border-[hsl(33,75%,28%)] bg-gradient-to-b from-[hsl(40,90%,60%)] to-[hsl(36,85%,46%)] text-[hsl(26,50%,18%)] shadow-[0_3px_0_hsl(33,75%,28%)]"
-                        : "border-[hsl(28,30%,55%)] bg-[hsl(40,40%,90%)] text-[hsl(26,35%,38%)] shadow-[0_3px_0_hsl(28,30%,55%)]",
-                    )}
+                    className={portionButtonClass(portionId === p.id)}
                   >
                     <span className="text-base leading-none">{p.sprite}</span>
                     <span className="font-display text-[9px] font-bold uppercase leading-none">{p.label.split(" ")[0]}</span>
                   </button>
                 ))}
+
+                {/* Scale option: seeds the input with whatever weight is already
+                    on screen, so switching to it never zeroes the row out. */}
+                <button
+                  type="button"
+                  onClick={() => pick(food.id, "custom", weighed ?? grams)}
+                  aria-pressed={isCustom}
+                  title={CUSTOM_PORTION.label}
+                  className={portionButtonClass(isCustom)}
+                >
+                  <span className="text-base leading-none">{CUSTOM_PORTION.sprite}</span>
+                  <span className="font-display text-[9px] font-bold uppercase leading-none">Weighed</span>
+                </button>
+
+                {isCustom && (
+                  <label className="flex items-center gap-1 rounded-xl border-2 border-[hsl(33,75%,28%)] bg-[hsl(40,50%,96%)] px-2 py-1">
+                    <span className="sr-only">Weight in grams for {food.label}</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={5000}
+                      autoFocus
+                      defaultValue={weighed ?? grams}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        // Ignore empty/invalid while typing; the last good value stands.
+                        if (Number.isFinite(next) && next > 0) {
+                          onSetPortion(food.id, "custom", Math.min(5000, Math.round(next)));
+                        }
+                      }}
+                      className="w-16 bg-transparent font-display text-sm font-bold text-[hsl(26,50%,20%)] focus:outline-none"
+                    />
+                    <span className="font-display text-xs font-bold text-[hsl(26,35%,40%)]">g</span>
+                  </label>
+                )}
               </div>
 
               <div className="flex shrink-0 items-center justify-end gap-2 sm:w-32">

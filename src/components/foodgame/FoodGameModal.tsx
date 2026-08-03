@@ -210,12 +210,27 @@ const FoodGameModal = ({ open, onOpenChange, goals, onSave }: FoodGameModalProps
     commit(next);
   };
 
-  const setPortion = (foodId: string, portionId: PortionId) => {
+  /**
+   * Portion and weighed-grams move together: picking "I weighed it" seeds the
+   * input with whatever was on screen, and typing keeps the portion on custom.
+   * Both live in one update so neither clobbers the other.
+   */
+  const setPortion = (foodId: string, portionId: PortionId, customGrams?: number) => {
     if (!draft) return;
-    setDrafts((d) => ({
-      ...d,
-      [draft.mealId]: { ...draft, portions: { ...draft.portions, [foodId]: portionId } },
-    }));
+    setDrafts((d) => {
+      const current = d[draft.mealId] ?? draft;
+      return {
+        ...d,
+        [draft.mealId]: {
+          ...current,
+          portions: { ...current.portions, [foodId]: portionId },
+          customGrams:
+            customGrams == null
+              ? current.customGrams
+              : { ...current.customGrams, [foodId]: customGrams },
+        },
+      };
+    });
   };
 
   // ---- chrome --------------------------------------------------------------
