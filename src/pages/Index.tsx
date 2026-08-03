@@ -89,7 +89,7 @@ const Index = () => {
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showAdmin, setShowAdmin] = useState(true); // admin panels visible by default
-  const [showFoodGame, setShowFoodGame] = useState(false); // staff-only, in testing
+  const [showFoodGame, setShowFoodGame] = useState(false);
   const [showDay1Modal, setShowDay1Modal] = useState(false);
   const [showFreeLimit, setShowFreeLimit] = useState(false);
   const [showChallengeComplete, setShowChallengeComplete] = useState(false);
@@ -622,21 +622,20 @@ const Index = () => {
       <FireflyCanvas />
       <Confetti trigger={confettiTrigger} />
       <CelebrationModal event={blockingModalOpen ? null : (celebrations[0] ?? null)} onDismiss={dismissCelebration} />
-      {/* Food Track mini-game. Staff-gated while it's in testing — the button
-          that opens it is behind the same `isStaff` check in the toolbar. */}
-      {isStaff && (
-        <FoodGameModal
-          open={showFoodGame}
-          onOpenChange={setShowFoodGame}
-          goals={{ calories: goals.dailyCalories, protein: goals.dailyProtein }}
-          onSave={
-            todayEntry
-              ? async ({ kcal, protein }) =>
-                  handleSaveToday({ ...todayEntry, calories: kcal, protein: Math.round(protein) })
-              : undefined
-          }
-        />
-      )}
+      {/* Food Track mini-game — open to everyone; launched from Today's Data.
+          Saving is offered only when today is actually writable, so the game
+          can't back-door a value past the same lock that greys out the fields. */}
+      <FoodGameModal
+        open={showFoodGame}
+        onOpenChange={setShowFoodGame}
+        goals={{ calories: goals.dailyCalories, protein: goals.dailyProtein }}
+        onSave={
+          todayEntry && !runLocked
+            ? async ({ kcal, protein }) =>
+                handleSaveToday({ ...todayEntry, calories: kcal, protein: Math.round(protein) })
+            : undefined
+        }
+      />
       {profile?.pending_challenge_start_date && (
         <Day1ChangeModal
           open={showDay1Modal}
@@ -763,18 +762,6 @@ const Index = () => {
               onOpenThemes={() => setShowThemes(true)}
               onUpdateProfile={() => navigate("/setup", { state: { intentional: true } })}
             />
-            {/* Food Track mini-game — staff only while it's in testing. */}
-            {isStaff && (
-              <GameButton
-                color="purple"
-                size="sm"
-                onClick={() => setShowFoodGame(true)}
-                title="Play the Food Track logging mini-game (admin testing)"
-              >
-                <Gamepad2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Food Game</span>
-              </GameButton>
-            )}
             {isStaff && (
               <GameButton
                 color="red"
@@ -831,6 +818,22 @@ const Index = () => {
                   <BookOpen className="h-4 w-4" />
                   <span className="hidden sm:inline">Quick Guide</span>
                 </GameButton>
+              }
+              aside={
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border-2 border-[hsl(268,42%,60%)]/35 bg-[hsl(268,42%,60%)]/10 px-3 py-2">
+                  <GameButton
+                    color="purple"
+                    size="sm"
+                    onClick={() => setShowFoodGame(true)}
+                    title="Build today's food diary as a mini-game"
+                  >
+                    <Gamepad2 className="h-4 w-4" />
+                    Food Track Beta
+                  </GameButton>
+                  <p className="min-w-0 flex-1 text-xs font-bold text-[hsl(268,40%,42%)]">
+                    Don't feel like doing the math? Play through your meals and it fills in Calories and Protein for you.
+                  </p>
+                </div>
               }
               footer={freeFooter}
               locked={runLocked}
