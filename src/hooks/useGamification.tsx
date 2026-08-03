@@ -31,6 +31,11 @@ interface UseGamificationArgs {
 
 const claimKey = (period: string, questKey: string) => `${period}::${questKey}`;
 
+interface RpcResult {
+  data: number | null;
+  error: { message: string } | null;
+}
+
 /**
  * XP is server-authoritative: the client can no longer write total_xp or insert
  * quest_claims / achievements (see 20260740000000_security_hardening.sql). These
@@ -38,11 +43,12 @@ const claimKey = (period: string, questKey: string) => `${period}::${questKey}`;
  * actually banked — 0 when the reward was already held.
  *
  * Typed loosely because the generated Supabase types lag behind new migrations.
+ * It has to stay a *call on* `supabase` — pulling `supabase.rpc` out into a bare
+ * const detaches it from its receiver, and supabase-js throws on the undefined
+ * `this` before the request is ever built.
  */
-const rpc = supabase.rpc as unknown as (
-  fn: string,
-  args?: Record<string, unknown>,
-) => Promise<{ data: number | null; error: { message: string } | null }>;
+const rpc = (fn: string, args?: Record<string, unknown>): Promise<RpcResult> =>
+  supabase.rpc(fn as never, args as never) as unknown as Promise<RpcResult>;
 
 /** A queued full-screen celebration: a trophy unlock, a level-up, or a rank-up. */
 export type Celebration =
