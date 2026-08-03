@@ -31,6 +31,19 @@ interface UseGamificationArgs {
 
 const claimKey = (period: string, questKey: string) => `${period}::${questKey}`;
 
+/**
+ * XP is server-authoritative: the client can no longer write total_xp or insert
+ * quest_claims / achievements (see 20260740000000_security_hardening.sql). These
+ * RPCs recompute eligibility and the XP value on the server and return what was
+ * actually banked — 0 when the reward was already held.
+ *
+ * Typed loosely because the generated Supabase types lag behind new migrations.
+ */
+const rpc = supabase.rpc as unknown as (
+  fn: string,
+  args?: Record<string, unknown>,
+) => Promise<{ data: number | null; error: { message: string } | null }>;
+
 /** A queued full-screen celebration: a trophy unlock, a level-up, or a rank-up. */
 export type Celebration =
   | { id: string; type: "badge"; badge: Badge }
@@ -101,10 +114,11 @@ export function useGamification({
     };
   }, [userId, runIndex]);
 
-  // Single funnel for all XP awards; writes the absolute new total so sequential
-  // awaited awards accumulate correctly without racing on a stale DB read.
-  const awardXp = useCallback(
-    async (amount: number) => {
+  // Mirrors a server-side award into local state and fires the celebrations.
+  // The XP itself was already banked by the RPC that returned `amount` — this
+  // never writes to the database (those columns are revoked from clients).
+  const applyXp = useCallback(
+    (amount: number) => {
       if (!userId || amount <= 0) return;
       const prev = xpRef.current;
       const next = prev + amount;
@@ -123,10 +137,6 @@ export function useGamification({
           track("rank_up", { rank: newRank.key, level: newLevel });
         }
       }
-      await supabase
-        .from("profiles")
-        .update({ total_xp: next, level: newLevel })
-        .eq("user_id", userId);
     },
     [userId, pushCelebration],
   );
@@ -140,16 +150,14 @@ export function useGamification({
       setClaimingKey(quest.key);
       setClaims((prev) => new Set(prev).add(key)); // optimistic
       try {
-        const { error } = await supabase.from("quest_claims").insert({
-          user_id: userId,
-          quest_key: quest.key,
-          period,
-          xp_awarded: quest.xp,
-        });
+        // The server re-derives eligibility and the XP value from the logs; the
+        // quest's client-side xp is display only.
+        const { data, error } = await rpc("claim_quest", { p_quest_key: quest.key, p_period: period });
         if (error) throw error;
-        await awardXp(quest.xp);
-        track("quest_claimed", { quest: quest.key, xp: quest.xp });
-        toast.success(`+${quest.xp} XP · ${quest.title}`);
+        const banked = data ?? 0;
+        applyXp(banked);
+        track("quest_claimed", { quest: quest.key, xp: banked });
+        toast.success(`+${banked} XP · ${quest.title}`);
       } catch (error) {
         console.error("claimQuest failed", error);
         setClaims((prev) => {
@@ -162,7 +170,7 @@ export function useGamification({
         setClaimingKey(null);
       }
     },
-    [userId, claims, claimingKey, awardXp],
+    [userId, claims, claimingKey, applyXp],
   );
 
   // Claim every completed-but-unclaimed quest in one shot (daily + weekly). One
@@ -184,19 +192,29 @@ export function useGamification({
         return n;
       });
       try {
-        const { error } = await supabase.from("quest_claims").insert(
-          pending.map(({ quest, period }) => ({
-            user_id: userId,
-            quest_key: quest.key,
-            period,
-            xp_awarded: quest.xp,
-          })),
-        );
-        if (error) throw error;
-        const total = pending.reduce((s, { quest }) => s + quest.xp, 0);
-        await awardXp(total);
-        track("quests_claimed_all", { count: pending.length, xp: total });
-        toast.success(`+${total} XP · ${pending.length} quest${pending.length === 1 ? "" : "s"} claimed`);
+        // One RPC per quest (each validates its own eligibility), but a single
+        // applyXp at the end so a multi-level jump still celebrates once.
+        let total = 0;
+        let failed = 0;
+        for (const { quest, period } of pending) {
+          const { data, error } = await rpc("claim_quest", { p_quest_key: quest.key, p_period: period });
+          if (error) {
+            failed++;
+            // Roll this one back locally; the rest of the batch still stands.
+            setClaims((prev) => {
+              const n = new Set(prev);
+              n.delete(claimKey(period, quest.key));
+              return n;
+            });
+            continue;
+          }
+          total += data ?? 0;
+        }
+        if (total === 0 && failed > 0) throw new Error("no quests could be claimed");
+        applyXp(total);
+        const claimed = pending.length - failed;
+        track("quests_claimed_all", { count: claimed, xp: total });
+        toast.success(`+${total} XP · ${claimed} quest${claimed === 1 ? "" : "s"} claimed`);
       } catch (error) {
         console.error("claimAll failed", error);
         setClaims((prev) => {
@@ -209,7 +227,7 @@ export function useGamification({
         setClaimingKey(null);
       }
     },
-    [userId, claims, claimingKey, awardXp],
+    [userId, claims, claimingKey, applyXp],
   );
 
   // Auto-unlock any newly earned badges. Idempotent: the persisted set + an
@@ -232,17 +250,15 @@ export function useGamification({
     toGrant.forEach((b) => grantingRef.current.add(b.key));
     (async () => {
       for (const b of toGrant) {
-        const { error } = await supabase.from("achievements").insert({
-          user_id: userId,
-          achievement_key: b.key,
-          run_index: runIndex,
-          tier: b.tier,
-          xp_awarded: b.xp,
+        const { data, error } = await rpc("grant_achievement", {
+          p_key: b.key,
+          p_tier: b.tier,
+          p_run: runIndex,
         });
         if (!error) {
           // Queue the trophy celebration first, then any level-up it causes.
           pushCelebration({ type: "badge", badge: b });
-          await awardXp(b.xp);
+          applyXp(data ?? 0);
         }
       }
       setEarnedBadgeKeys((prev) => {
@@ -260,7 +276,7 @@ export function useGamification({
     earnedBadgeKeys,
     runIndex,
     scoringDate,
-    awardXp,
+    applyXp,
     pushCelebration,
   ]);
 
@@ -273,18 +289,12 @@ export function useGamification({
     if (!userId || !profile || !achievementsLoaded) return;
     let active = true;
     (async () => {
-      const [{ data: qc }, { data: ach }] = await Promise.all([
-        supabase.from("quest_claims").select("xp_awarded").eq("user_id", userId),
-        supabase.from("achievements").select("xp_awarded").eq("user_id", userId),
-      ]);
-      if (!active) return;
-      const floor =
-        (qc ?? []).reduce((s, r) => s + (r.xp_awarded ?? 0), 0) +
-        (ach ?? []).reduce((s, r) => s + (r.xp_awarded ?? 0), 0);
-      if (floor > xpRef.current) {
-        xpRef.current = floor;
-        setXp(floor);
-        await supabase.from("profiles").update({ total_xp: floor, level: levelFromXp(floor) }).eq("user_id", userId);
+      // The server does the sum and the write; it only ever raises the total.
+      const { data, error } = await rpc("sync_my_xp");
+      if (!active || error || data == null) return;
+      if (data > xpRef.current) {
+        xpRef.current = data;
+        setXp(data);
       }
     })();
     return () => {
@@ -333,14 +343,12 @@ export function useGamification({
 
       toGrant.forEach((b) => grantingRef.current.add(b.key));
       for (const b of toGrant) {
-        const { error } = await supabase.from("achievements").insert({
-          user_id: userId,
-          achievement_key: b.key,
-          run_index: runIndex,
-          tier: b.tier,
-          xp_awarded: b.xp,
+        const { data, error } = await rpc("grant_achievement", {
+          p_key: b.key,
+          p_tier: b.tier,
+          p_run: runIndex,
         });
-        if (!error) await awardXp(b.xp);
+        if (!error) applyXp(data ?? 0);
       }
       setEarnedBadgeKeys((prev) => {
         const n = new Set(prev);
@@ -349,17 +357,19 @@ export function useGamification({
       });
       return derived;
     },
-    [userId, profile, dayRange, weeklyGoals, earnedBadgeKeys, runIndex, awardXp],
+    [userId, profile, dayRange, weeklyGoals, earnedBadgeKeys, runIndex, applyXp],
   );
 
   const celebrateMilestone = useCallback(
     async (weight: number) => {
       if (!userId) return;
-      await supabase.from("profiles").update({ last_celebrated_weight: weight }).eq("user_id", userId);
-      await awardXp(30);
+      // The server verifies the crossing against the user's own logs and goal
+      // direction, records last_celebrated_weight, and banks the bonus.
+      const { data } = await rpc("award_milestone_xp", { p_weight: weight });
+      applyXp(data ?? 0);
       await refetchProfile();
     },
-    [userId, awardXp, refetchProfile],
+    [userId, applyXp, refetchProfile],
   );
 
   const isClaimed = useCallback((period: string, questKey: string) => claims.has(claimKey(period, questKey)), [claims]);
