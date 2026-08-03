@@ -14,21 +14,20 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const WEBHOOK_SECRET = (Deno.env.get("WHOP_WEBHOOK_SECRET") ?? "").trim().replace(/^["']|["']$/g, "");
-// Escape hatch for wiring up: processes events even when the signature doesn't
-// verify. Anyone who finds the URL can then grant themselves premium — set it
-// only while testing, and unset it the moment signatures work.
 // Quotes get included when the value is pasted into the dashboard, so strip them.
-const ALLOW_UNVERIFIED = ["true", "1", "yes"].includes(
-  (Deno.env.get("WHOP_WEBHOOK_ALLOW_UNVERIFIED") ?? "").trim().replace(/^["']|["']$/g, "").toLowerCase(),
-);
+const WEBHOOK_SECRET = (Deno.env.get("WHOP_WEBHOOK_SECRET") ?? "").trim().replace(/^["']|["']$/g, "");
+// NOTE: there used to be a WHOP_WEBHOOK_ALLOW_UNVERIFIED escape hatch here that
+// processed events with an unverifiable signature. It was a standing "anyone who
+// finds this URL grants themselves premium" hole, and signatures are confirmed
+// working (see the scheme note below), so it is gone for good. An unverified
+// event is now always a 401 — no exceptions, no env var to get left switched on.
 const WHOP_API_KEY = Deno.env.get("WHOP_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 // Printed on every cold start: proves which build is live and what env it sees.
 console.log(
-  `whop-webhook boot: build=2026-07-25-buyerlog secret=${WEBHOOK_SECRET ? `set(len ${WEBHOOK_SECRET.length}, prefix ${WEBHOOK_SECRET.slice(0, 3)})` : "MISSING"} allowUnverified=${ALLOW_UNVERIFIED}`,
+  `whop-webhook boot: build=2026-08-04-verified-only secret=${WEBHOOK_SECRET ? `set(len ${WEBHOOK_SECRET.length})` : "MISSING"}`,
 );
 
 // deno-lint-ignore no-explicit-any
@@ -247,17 +246,13 @@ Deno.serve(async (req) => {
     secret: WEBHOOK_SECRET,
   });
 
-  if (verification.valid) {
-    console.log(`whop signature ok (scheme: ${verification.scheme})`);
-  } else {
-    console.error(
-      `whop signature rejected (allowUnverified=${ALLOW_UNVERIFIED}): ${verification.reason}` +
-        `${verification.debug ? ` — ${verification.debug}` : ""}`,
-    );
-    console.error("whop headers:", JSON.stringify(Object.fromEntries(req.headers.entries())));
-    if (!ALLOW_UNVERIFIED) return new Response("Invalid signature", { status: 401 });
-    console.warn("WHOP_WEBHOOK_ALLOW_UNVERIFIED is on — processing an UNVERIFIED event. Unset this once signatures work.");
+  if (!verification.valid) {
+    // `reason` is safe to log; `debug` carries expected-signature prefixes, and
+    // the raw headers carry the caller's signature — neither belongs in logs.
+    console.error(`whop signature rejected: ${verification.reason}`);
+    return new Response("Invalid signature", { status: 401 });
   }
+  console.log(`whop signature ok (scheme: ${verification.scheme})`);
 
   let event: Json;
   try {
