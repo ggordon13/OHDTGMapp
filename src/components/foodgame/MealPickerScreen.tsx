@@ -31,17 +31,24 @@ const MealPickerScreen = ({ selected, onToggle, onConfirm }: MealPickerScreenPro
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const ctx = gsap.context(() => {
-      // Transforms don't reserve space, so the tiles' travel has to stay under
-      // the gap to the confirm button below (space-y-8 = 32px) — otherwise a
-      // staggered tile visibly crosses it on the way in.
+      // Scale-and-fade only, deliberately no y. Transforms don't reserve
+      // layout space, so a staggered tile travelling vertically renders
+      // outside its own box and crosses the confirm button below it — with
+      // five tiles landing 0.06s apart, any frame in that window looks like a
+      // broken staircase. Scaling grows from the tile's centre, so it can
+      // never leave the box no matter where the stagger is caught.
+      //
+      // clearProps must be "all", not just "transform": GSAP leaves the
+      // animated opacity inline at 1 when it finishes, which outranks the
+      // `opacity-80` class that dims unselected tiles and would flatten the
+      // selected/unselected distinction for the rest of the screen's life.
       gsap.from("[data-meal]", {
-        y: 18,
         opacity: 0,
-        scale: 0.94,
+        scale: 0.9,
         duration: 0.45,
         stagger: 0.06,
-        ease: "back.out(1.7)",
-        clearProps: "transform",
+        ease: "back.out(1.8)",
+        clearProps: "all",
       });
     }, rootRef);
     return () => ctx.revert();

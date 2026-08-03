@@ -5,6 +5,8 @@ import {
   PROTEIN_GROUPS,
   computeMacros,
   lookupFood,
+  scaleServingNote,
+  servingNoteFor,
   staplesForMeal,
   totalMacros,
   type DiaryEntry,
@@ -182,5 +184,88 @@ describe("meal step machine", () => {
   it("only offers breakfast carbs at breakfast", () => {
     expect(staplesForMeal("breakfast").map((s) => s.id)).toContain("oats");
     expect(staplesForMeal("dinner").map((s) => s.id)).not.toContain("oats");
+  });
+});
+
+describe("serving notes", () => {
+  it("scales the count and re-conjugates the unit", () => {
+    expect(scaleServingNote("1 cup cooked", 1.5)).toBe("1½ cups cooked");
+    expect(scaleServingNote("1 cup cooked", 2)).toBe("2 cups cooked");
+    expect(scaleServingNote("1 thigh", 2)).toBe("2 thighs");
+    expect(scaleServingNote("1 glass", 2)).toBe("2 glasses");
+  });
+
+  it("singularises when the portion drops below one", () => {
+    expect(scaleServingNote("2 slices", 0.6)).toBe("1⅕ slices");
+    expect(scaleServingNote("2 slices", 0.5)).toBe("1 slice");
+    expect(scaleServingNote("3 strips", 0.6)).toBe("1⅘ strips");
+    expect(scaleServingNote("1 steak", 0.6)).toBe("⅗ steak");
+  });
+
+  it("keeps the size adjective and conjugates the noun after it", () => {
+    expect(scaleServingNote("2 large eggs", 1.5)).toBe("3 large eggs");
+    expect(scaleServingNote("1 large wrap", 2)).toBe("2 large wraps");
+    expect(scaleServingNote("1 bowl (dry)", 2)).toBe("2 bowls (dry)");
+  });
+
+  it("leaves notes it can't count alone", () => {
+    expect(scaleServingNote("skipped", 2)).toBe("skipped");
+    expect(scaleServingNote("1 cup", 1)).toBe("1 cup");
+  });
+
+  it("moves in step with the grams for every portion", () => {
+    const rice = lookupFood("rice-white")!;
+    const seen = (["small", "regular", "large", "huge"] as const).map((id) => ({
+      grams: computeMacros(rice, id).grams,
+      note: servingNoteFor(rice, id),
+    }));
+    expect(seen).toEqual([
+      { grams: 95, note: "⅗ cup cooked" },
+      { grams: 158, note: "1 cup cooked" },
+      { grams: 237, note: "1½ cups cooked" },
+      { grams: 316, note: "2 cups cooked" },
+    ]);
+  });
+
+  it("hands the weight back to the player once they've weighed it", () => {
+    expect(servingNoteFor(lookupFood("rice-white")!, "custom")).toBe("you weighed it");
+  });
+});
+
+describe("weighed portions", () => {
+  const ribeye = lookupFood("beef-ribeye")!;
+
+  it("uses the typed weight instead of a multiplier", () => {
+    const { grams, kcal } = computeMacros(ribeye, "custom", undefined, 250);
+    expect(grams).toBe(250);
+    expect(kcal).toBe(Math.round((ribeye.kcal100 * 250) / 100));
+  });
+
+  it("still applies the cooking method's added fat", () => {
+    const plain = computeMacros(ribeye, "custom", undefined, 200);
+    const fried = computeMacros(ribeye, "custom", "panfried", 200);
+    expect(fried.grams).toBe(plain.grams);
+    expect(fried.kcal).toBeGreaterThan(plain.kcal);
+  });
+
+  it("falls back to the regular serving when no weight was given", () => {
+    expect(computeMacros(ribeye, "custom").grams).toBe(ribeye.serving);
+    expect(computeMacros(ribeye, "custom", undefined, 0).grams).toBe(ribeye.serving);
+  });
+
+  it("carries the weighed grams into the diary entry", () => {
+    const draft: MealDraft = {
+      ...emptyDraft("dinner"),
+      stapleId: NONE_STAPLE,
+      proteinGroupIds: ["beef"],
+      cuts: { beef: "beef-ribeye" },
+      methods: { beef: "grilled" },
+      sideIds: [NONE_SIDE],
+      portions: { "beef-ribeye": "custom" },
+      customGrams: { "beef-ribeye": 312 },
+    };
+    const entry = draftEntries(draft).find((e) => e.foodId === "beef-ribeye")!;
+    expect(entry.portionId).toBe("custom");
+    expect(entry.grams).toBe(312);
   });
 });

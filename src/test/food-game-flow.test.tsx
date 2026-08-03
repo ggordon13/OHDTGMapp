@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
+import gsap from "gsap";
 import FoodGameModal from "@/components/foodgame/FoodGameModal";
-import { computeMacros, lookupFood } from "@/lib/foodGame/foods";
+import { MEALS, computeMacros, lookupFood } from "@/lib/foodGame/foods";
 
 /**
  * Drives the real modal the way a player would — clicking through the title
@@ -38,6 +39,38 @@ describe("Food Track playthrough", () => {
     render(<FoodGameModal open onOpenChange={onOpenChange} />);
     click(/Exit/i);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  describe("meal tiles settle cleanly after the entrance animation", () => {
+    /** Run every in-flight GSAP tween to its end, applying clearProps. */
+    const finishAnimations = () => gsap.globalTimeline.progress(1, true);
+
+    const tiles = () => MEALS.map((m) => screen.getByRole("button", { name: new RegExp(m.label, "i") }));
+
+    it("leaves no inline styles that outrank the tiles' own classes", () => {
+      render(<FoodGameModal open onOpenChange={vi.fn()} />);
+      click(/Start Game/i);
+      finishAnimations();
+
+      // A leftover inline opacity:1 would defeat the `opacity-80` dimming and
+      // erase the selected/unselected distinction for the rest of the screen.
+      for (const tile of tiles()) {
+        expect(tile.style.opacity, tile.textContent ?? "").toBe("");
+        expect(tile.style.transform, tile.textContent ?? "").toBe("");
+      }
+    });
+
+    it("keeps unselected tiles dimmed and lights up the chosen one", () => {
+      render(<FoodGameModal open onOpenChange={vi.fn()} />);
+      click(/Start Game/i);
+      finishAnimations();
+
+      click(/Lunch/i);
+      const [breakfast, lunch] = tiles();
+      expect(lunch.className).not.toMatch(/(^|\s)opacity-80(\s|$)/);
+      expect(breakfast.className).toMatch(/(^|\s)opacity-80(\s|$)/);
+      expect(lunch.style.opacity).toBe("");
+    });
   });
 
   it("blocks the meal picker until at least one meal is chosen", () => {

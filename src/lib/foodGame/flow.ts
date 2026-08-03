@@ -55,10 +55,12 @@ export interface MealDraft {
   itemIds?: string[];
   /** foodId → portion size. Defaults to "regular" until the player changes it. */
   portions: Record<string, PortionId>;
+  /** foodId → weight the player typed in; only read when the portion is "custom". */
+  customGrams: Record<string, number>;
 }
 
 export function emptyDraft(mealId: MealId): MealDraft {
-  return { mealId, cuts: {}, methods: {}, portions: {} };
+  return { mealId, cuts: {}, methods: {}, portions: {}, customGrams: {} };
 }
 
 /** Snacks and drinks are a flat multi-pick, not a build-a-plate. */
@@ -180,7 +182,7 @@ export function plateItems(draft: MealDraft): { food: FoodItem; methodId?: strin
 export function draftEntries(draft: MealDraft): DiaryEntry[] {
   return plateItems(draft).map(({ food, methodId }) => {
     const portionId = draft.portions[food.id] ?? "regular";
-    const { grams, kcal, protein } = computeMacros(food, portionId, methodId);
+    const { grams, kcal, protein } = computeMacros(food, portionId, methodId, draft.customGrams?.[food.id]);
     return {
       key: `${draft.mealId}:${food.id}`,
       mealId: draft.mealId,
