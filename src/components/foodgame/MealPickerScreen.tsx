@@ -31,13 +31,17 @@ const MealPickerScreen = ({ selected, onToggle, onConfirm }: MealPickerScreenPro
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const ctx = gsap.context(() => {
+      // Transforms don't reserve space, so the tiles' travel has to stay under
+      // the gap to the confirm button below (space-y-8 = 32px) — otherwise a
+      // staggered tile visibly crosses it on the way in.
       gsap.from("[data-meal]", {
-        y: 40,
+        y: 18,
         opacity: 0,
-        scale: 0.9,
-        duration: 0.5,
-        stagger: 0.07,
-        ease: "back.out(2)",
+        scale: 0.94,
+        duration: 0.45,
+        stagger: 0.06,
+        ease: "back.out(1.7)",
+        clearProps: "transform",
       });
     }, rootRef);
     return () => ctx.revert();
@@ -49,7 +53,7 @@ const MealPickerScreen = ({ selected, onToggle, onConfirm }: MealPickerScreenPro
   };
 
   return (
-    <div ref={rootRef} className="space-y-7 p-6 sm:p-8">
+    <div ref={rootRef} className="space-y-8 p-6 sm:p-8">
       <div className="text-center">
         <h3 className="font-display text-2xl font-bold text-[hsl(26,50%,20%)] sm:text-3xl">What did you eat today?</h3>
         <p className="mt-1 text-sm font-bold text-[hsl(26,30%,42%)]">
@@ -68,7 +72,9 @@ const MealPickerScreen = ({ selected, onToggle, onConfirm }: MealPickerScreenPro
               onClick={() => toggle(meal.id)}
               aria-pressed={isOn}
               className={cn(
-                "group relative flex flex-col items-center gap-2 rounded-2xl border-[3px] bg-gradient-to-b p-4 text-center text-white",
+                // h-full + justify-start keeps all five tiles identical in a row
+                // whatever the tagline wraps to.
+                "group relative flex h-full flex-col items-center justify-start gap-2 rounded-2xl border-[3px] bg-gradient-to-b p-4 text-center text-white",
                 "transition-[transform,box-shadow,filter] duration-150 hover:-translate-y-1 hover:brightness-110 active:translate-y-[2px]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40,90%,58%)] focus-visible:ring-offset-2",
                 bannerClass[meal.color],

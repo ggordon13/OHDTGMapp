@@ -58,19 +58,22 @@ const WelcomeScreen = ({ onStart, onExit }: WelcomeScreenProps) => {
           GGLVLUP presents
         </span>
 
-        <h2 className="flex flex-wrap justify-center gap-x-1 sm:gap-x-2" aria-label={TITLE}>
-          {TITLE.split("").map((ch, i) => (
-            <span
-              key={`${ch}-${i}`}
-              data-letter={ch === " " ? undefined : true}
-              aria-hidden="true"
-              className={
-                ch === " "
-                  ? "w-3 sm:w-5"
-                  : "font-display text-5xl font-bold uppercase text-[hsl(42,95%,68%)] [text-shadow:0_3px_0_hsl(24,60%,22%),0_6px_0_hsl(22,60%,14%),0_10px_20px_rgba(0,0,0,0.6)] sm:text-7xl"
-              }
-            >
-              {ch === " " ? "" : ch}
+        {/* Letters are animated individually, but each word is its own nowrap
+            group so a narrow phone breaks between words instead of mid-word.
+            The size tracks the viewport so "FOOD TRACK" stays on one line. */}
+        <h2 className="flex flex-wrap items-baseline justify-center gap-x-3 sm:gap-x-5" aria-label={TITLE}>
+          {TITLE.split(" ").map((word, wordIndex) => (
+            <span key={`${word}-${wordIndex}`} className="flex flex-nowrap gap-x-1 sm:gap-x-2">
+              {word.split("").map((ch, i) => (
+                <span
+                  key={`${ch}-${i}`}
+                  data-letter
+                  aria-hidden="true"
+                  className="font-display text-[clamp(1.9rem,9.5vw,3rem)] font-bold uppercase leading-none text-[hsl(42,95%,68%)] [text-shadow:0_3px_0_hsl(24,60%,22%),0_6px_0_hsl(22,60%,14%),0_10px_20px_rgba(0,0,0,0.6)] sm:text-7xl"
+                >
+                  {ch}
+                </span>
+              ))}
             </span>
           ))}
         </h2>
