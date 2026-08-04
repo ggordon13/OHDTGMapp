@@ -1,7 +1,7 @@
 import LegalLayout from "@/components/LegalLayout";
 
 /** Support / privacy contact. Change this to your own address. */
-export const CONTACT_EMAIL = "gordongaming13@gmail.com";
+export const CONTACT_EMAIL = "gglvlup.fit@gmail.com";
 
 const Privacy = () => (
   <LegalLayout title="Privacy Policy" updated="July 2026">
