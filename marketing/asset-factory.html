@@ -75,6 +75,11 @@
   .status { position: fixed; right: 1rem; bottom: 1rem; background: hsl(70 50% 34%); color: #fff; padding: 0.5rem 0.9rem; border-radius: 10px; font-weight: 600; box-shadow: 0 4px 0 hsl(70 50% 18%); opacity: 0; transition: opacity 160ms; pointer-events: none; }
   .status.show { opacity: 1; }
   ol.steps { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem; }
+  .vfield { display: flex; flex-direction: column; gap: 0.15rem; }
+  .vlab { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: hsl(38 25% 60%); }
+  .vin { font: inherit; font-size: 0.85rem; padding: 0.32rem 0.5rem; border: 2px solid hsl(24 25% 34%); border-radius: 6px; background: hsl(24 28% 14%); color: var(--cream); width: 100%; resize: vertical; }
+  .vin:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+  select.vin option { color: #111; }
 </style>
 </head>
 <body>
@@ -92,6 +97,16 @@
   <div class="panel">
     <h2 style="color:hsl(24 42% 16%)">1 · Set your numbers</h2>
     <div class="cfg" id="cfg"></div>
+    <div class="row" style="align-items:flex-end">
+      <label class="vfield" style="color:hsl(24 42% 16%)">
+        <span class="vlab" style="color:hsl(26 20% 40%)">Logo (optional)</span>
+        <input type="file" id="logoInput" accept="image/*" style="font-size:0.8rem;color:hsl(24 42% 16%)" />
+      </label>
+      <span style="font-size:0.8rem;color:hsl(26 20% 40%);max-width:44ch">
+        Load your <b>logo.png</b> once — it's saved on this device and used on the profile avatar &amp; video outros.
+        Until then a gold “GG” badge stands in.
+      </span>
+    </div>
     <div class="row">
       <button class="gold" id="dlPubmats">⬇ Download all pubmats</button>
       <button id="dlHooks">⬇ Download all hook + end cards (32)</button>
@@ -145,6 +160,26 @@
     </ol>
   </div>
 
+  <section style="display:flex;flex-direction:column;gap:0.9rem">
+    <h2>5 · Reels — animated clips (no screen recording)</h2>
+    <p class="muted">
+      Each clip plays your <strong>hook (1.5s) → an animated app scene → the end-card CTA (2s)</strong>, recorded live
+      in your browser. Hit 🎬 on any video below, or record all 16. <span id="recFmt"></span>
+      Exports are <strong>WebM</strong> — TikTok takes it directly; for Instagram, drop it into CapCut once and export MP4.
+      Add trending audio <em>in-app</em> after posting.
+    </p>
+    <div class="row">
+      <button class="gold" id="recAll">🎬 Record all 16 clips</button>
+      <label style="display:flex;flex-direction:column;gap:0.2rem;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">
+        Seconds each
+        <input id="clipSecs" value="9" style="width:5rem;font:inherit;font-size:0.95rem;padding:0.35rem 0.55rem;border:2px solid hsl(33 30% 55%);border-radius:8px;background:hsl(40 48% 96%);color:var(--ink)" />
+      </label>
+      <span id="recStatus" class="muted"></span>
+    </div>
+    <canvas id="stage" style="width:216px;height:auto;align-self:center;border-radius:12px;background:#000;border:2px solid hsl(33 30% 40%)"></canvas>
+    <p class="muted" style="font-size:0.8rem;text-align:center">Recording renders here in real time — leave the tab focused while it captures.</p>
+  </section>
+
 </div>
 <div class="status" id="status"></div>
 
@@ -164,14 +199,15 @@ const CFG = {
   dropTime: "8PM",
   reward: "buys samgyup 🍖",
   handle: "@gglvlup",
+  tagline: "Gamify your fitness journey · Level up your life",
 };
 const FIELDS = [
   ["keyword", "CTA keyword"], ["invites", "Invites this drop"], ["users", "Users so far"],
   ["daysLogged", "Days logged (total)"], ["challenges", "Challenges run"],
   ["dayA", "Compare: day A"], ["dayB", "Compare: day B"], ["streak", "Streak shown"], ["dropTime", "Drop time"],
-  ["reward", "Challenge stake"], ["handle", "Your @handle"],
+  ["reward", "Challenge stake"], ["handle", "Your @handle"], ["tagline", "Tagline"],
 ];
-const STRING_KEYS = new Set(["keyword", "dropTime", "reward", "handle"]);
+const STRING_KEYS = new Set(["keyword", "dropTime", "reward", "handle", "tagline"]);
 
 // --- Brand -----------------------------------------------------------------
 const C = {
@@ -345,6 +381,39 @@ function hcover(ctx, W, H, emoji, label) {
   ctx.lineWidth = 10; ctx.strokeStyle = C.goldRim; ctx.stroke();
   txt(ctx, emoji, W / 2, H / 2 - 30, { font: f(400, 300), color: C.ink, align: "center" });
   txt(ctx, label, W / 2, H / 2 + 210, { font: f(700, 46), color: C.ink, align: "center", tracking: 2 });
+}
+
+// --- Real logo (loaded by the user; kept clean so canvas exports don't taint) --
+let LOGO_OK = false;
+const LOGO = new Image();
+/** Draw the loaded logo centred at (cx,cy), contained in a `size` box — or a
+ *  gold "GG" badge fallback until a logo is loaded. */
+function drawLogo(ctx, cx, cy, size) {
+  if (LOGO_OK && LOGO.naturalWidth) {
+    const ar = LOGO.naturalWidth / LOGO.naturalHeight;
+    let w = size, h = size / ar;
+    if (h > size) { h = size; w = size * ar; }
+    ctx.drawImage(LOGO, cx - w / 2, cy - h / 2, w, h);
+  } else {
+    medallion(ctx, cx, cy, size * 0.46, { text: "GG" });
+  }
+}
+/** Downscale the picked image to a small, clean data URL (safe for export),
+ *  swap it in, and optionally persist it on this device. */
+function setLogo(dataURL, persist) {
+  const img = new Image();
+  img.onload = () => {
+    const max = 640, ar = img.width / img.height;
+    let w = img.width, h = img.height;
+    if (Math.max(w, h) > max) { if (w >= h) { w = max; h = Math.round(max / ar); } else { h = max; w = Math.round(max * ar); } }
+    const oc = document.createElement("canvas"); oc.width = w; oc.height = h;
+    oc.getContext("2d").drawImage(img, 0, 0, w, h);
+    let small; try { small = oc.toDataURL("image/png"); } catch (e) { small = dataURL; }
+    LOGO.onload = () => { LOGO_OK = true; if (typeof redraw === "function") redraw(); };
+    LOGO.src = small;
+    if (persist) { try { localStorage.setItem("gglvlup_logo", small); } catch (e) { /* over quota — session only */ } }
+  };
+  img.src = dataURL;
 }
 
 // ---------------------------------------------------------------------------
@@ -642,10 +711,9 @@ const ZEROPACK = [
   // (d) Profile / bio kit — avatar, 3 highlight covers, pinned intro post
   { id: "z09-avatar", name: "Profile avatar (1080²)", w: 1080, h: 1080,
     draw(ctx, W, H) {
+      // Kept minimal + centred so it survives Instagram's circle crop.
       woodBg(ctx, W, H, 3);
-      medallion(ctx, W / 2, H / 2 - 60, 250, { text: "GG" });
-      txt(ctx, "GGLVLUP", W / 2, H / 2 + 300, { font: f(700, 90), color: C.goldText, align: "center", tracking: 6 });
-      txt(ctx, "LEVEL UP YOUR LIFE", W / 2, H / 2 + 382, { font: f(600, 34), color: "hsl(38, 25%, 72%)", align: "center", tracking: 5 });
+      drawLogo(ctx, W / 2, H / 2, 720);
     } },
   { id: "z10-cover-how", name: "Highlight · How it works", w: 1080, h: 1080,
     draw(ctx, W, H) { hcover(ctx, W, H, "📖", "HOW IT WORKS"); } },
@@ -658,6 +726,7 @@ const ZEROPACK = [
       woodBg(ctx, W, H, 181);
       kicker(ctx, "START HERE 👋", W, 120);
       block(ctx, "A fitness tracker\nthat plays like a game.", W / 2, 180, W - 150, 88, C.cream, "center");
+      block(ctx, c.tagline, W / 2, 380, W - 180, 30, C.goldText, "center", 500);
       listSheet(ctx, 80, 470, W - 160, [
         ["📊", "Log weight, food & steps", "one minute a day"],
         ["⭐", "Earn XP, levels & trophies", "get paid back the same day"],
@@ -723,6 +792,18 @@ const ZEROPACK = [
 // The 16 videos
 // ---------------------------------------------------------------------------
 const VIDEOS = [
+  { id: "overall-start", slot: "★ Overall", title: "Starting overall reel",
+    secs: 21, timeline: ["logday", "claim", "levelrank", "chalovertake", "chalawards", "cta"],
+    hook: "watch me run a full day\nin GGLvlup",
+    caption: "the whole loop in one clip: log today → claim quests → level up → climb the challenge leaderboard from #3 to #1. this is why I actually open it every day. comment GG and I'll send you an invite 👇",
+    tags: "#gamifiedfitness #fitnessapp #weightlossjourney #fitnessph #buildinpublic",
+    end: "invite" },
+  { id: "overall-challenge", slot: "★ Challenge", title: "Challenge reel",
+    secs: 15, timeline: ["chalovertake", "chalawards", "cta"],
+    hook: "my barkada is racing me\nfor 30 days straight",
+    caption: "live leaderboard, 4 side awards, up to 6 people. loser buys samgyup 🍖 comment GG or tap my link and you're in — even if you're new. tag the friend who'd lose 😭",
+    tags: "#fitnesschallenge #barkada #gymbuddy #fitnessph #samgyup",
+    end: "tag" },
   { id: "w1-01", slot: "W1 · Mon", title: "I turned my diet into an RPG",
     hook: "i stopped tracking my food\nand started leveling up instead",
     caption: "every calorie tracker I've tried died in a week. so I built one that pays me XP for logging. day 1 of 100 👇",
@@ -816,6 +897,389 @@ function drawEndCard(ctx, W, H, v, c) {
 }
 
 // ---------------------------------------------------------------------------
+// Reels — animated clips: hook (1.5s) → app scene → end-card CTA (2s),
+// rendered on canvas and recorded via MediaRecorder. No screen recording needed.
+// ---------------------------------------------------------------------------
+const CLIP = { secs: 9, hookMs: 1500, endMs: 2000 };
+const eOut = (t) => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
+const cl01 = (t) => Math.max(0, Math.min(1, t));
+
+function scLevelUp(ctx, W, H, p) {
+  woodBg(ctx, W, H, 7);
+  txt(ctx, "LEVEL UP!", W / 2, H * 0.26, { font: f(700, 96 * cl01(eOut(p / 0.35))), color: C.goldText, align: "center", tracking: 4 });
+  const r = 200 * eOut(cl01(p / 0.4));
+  if (r > 6) medallion(ctx, W / 2, H * 0.5, r, { lvl: 5 + (p > 0.45 ? 1 : 0) });
+  const bx = 170, by = H * 0.74, bw = W - 340, bh = 62;
+  rr(ctx, bx, by, bw, bh, bh / 2); ctx.fillStyle = "hsl(37,30%,80%)"; ctx.fill();
+  rr(ctx, bx, by, bw * cl01((p - 0.25) / 0.6), bh, bh / 2); ctx.fillStyle = vgrad(ctx, by, bh, C.goldFace, C.goldDeep); ctx.fill();
+  ctx.lineWidth = 4; ctx.strokeStyle = C.goldRim; rr(ctx, bx, by, bw, bh, bh / 2); ctx.stroke();
+  txt(ctx, "every log = XP", W / 2, by + bh + 62, { font: f(600, 42), color: C.cream, align: "center" });
+}
+function scTrophy(ctx, W, H, p) {
+  woodBg(ctx, W, H, 57);
+  kicker(ctx, "TROPHY CASE", W, H * 0.16);
+  const items = [["🌱", 1], ["🔥", 1], ["💧", 1], ["💯", 0], ["👟", 1], ["🥩", 0]];
+  const gx = 150, gy = H * 0.28, tile = (W - 300 - 40) / 3;
+  items.forEach((it, i) => {
+    const rev = cl01((p - i * 0.09) / 0.3); if (rev <= 0) return;
+    const x = gx + (i % 3) * (tile + 20), y = gy + Math.floor(i / 3) * (tile + 20);
+    ctx.globalAlpha = rev;
+    rr(ctx, x, y, tile, tile, 22); ctx.fillStyle = it[1] ? C.parch : "hsl(30,18%,74%)"; ctx.fill();
+    ctx.lineWidth = 5; ctx.strokeStyle = it[1] ? C.goldRim : "hsl(30,12%,52%)"; ctx.stroke();
+    ctx.globalAlpha = (it[1] ? 1 : 0.4) * rev;
+    txt(ctx, it[0], x + tile / 2, y + tile / 2, { font: f(400, tile * 0.5), color: C.ink, align: "center" });
+    ctx.globalAlpha = 1;
+  });
+  txt(ctx, "which one first?", W / 2, H * 0.82, { font: f(600, 48), color: C.goldText, align: "center" });
+}
+function scLeaderboard(ctx, W, H, p) {
+  woodBg(ctx, W, H, 61);
+  kicker(ctx, "30-DAY CHALLENGE", W, H * 0.15);
+  const rows = [["🥇  Mika", 2480], ["🥈  Gords", 2310], ["🥉  JP", 1995], ["4    Ryan", 1640]];
+  const x = 130, w = W - 260, y0 = H * 0.26, rh = 150;
+  parchment(ctx, x, y0, w, rows.length * rh + 40);
+  rows.forEach((r, i) => {
+    const sl = eOut(cl01((p - i * 0.11) / 0.4)); if (sl <= 0) return;
+    const cy = y0 + 40 + rh / 2 + i * rh;
+    ctx.globalAlpha = sl;
+    txt(ctx, r[0], x + 40 + (1 - sl) * -70, cy, { font: f(700, 54), color: C.ink });
+    txt(ctx, Math.round(r[1] * cl01((p - i * 0.11) / 0.6)).toLocaleString() + " XP", x + w - 40, cy, { font: f(700, 50), color: C.teal, align: "right" });
+    ctx.globalAlpha = 1;
+  });
+}
+function scStreak(ctx, W, H, p) {
+  woodBg(ctx, W, H, 97);
+  const n = Math.round(21 * eOut(cl01(p / 0.6)));
+  const bx = 120, by = H * 0.4, bw = W - 240, bh = 190;
+  rr(ctx, bx, by + 9, bw, bh, 30); ctx.fillStyle = C.redRim; ctx.fill();
+  rr(ctx, bx, by, bw, bh, 30); ctx.fillStyle = vgrad(ctx, by, bh, C.redFace, C.redDeep); ctx.fill();
+  ctx.lineWidth = 5; ctx.strokeStyle = C.redRim; ctx.stroke();
+  txt(ctx, `🔥 ${n}-DAY STREAK`, W / 2, by + bh / 2, { font: f(700, 82), color: "#fff", align: "center", tracking: 2 });
+  if (p > 0.65) txt(ctx, "one bad day won't kill it", W / 2, by + bh + 100, { font: f(600, 46), color: C.goldText, align: "center" });
+}
+function scRankLadder(ctx, W, H, p) {
+  woodBg(ctx, W, H, 31);
+  kicker(ctx, "11 RANKS · NEVER RESET", W, H * 0.11);
+  let y = H * 0.2;
+  RANKS.forEach((r, i) => {
+    const rev = eOut(cl01((p - i * 0.1) / 0.35)); if (rev <= 0) return;
+    ctx.globalAlpha = rev;
+    plate(ctx, 180, y, 520, 84, r[2], r[3], r[4], r[0].toUpperCase(), 38);
+    txt(ctx, r[1], W - 180, y + 42, { font: f(700, 44), color: C.goldText, align: "right" });
+    ctx.globalAlpha = 1; y += 118;
+  });
+}
+function scQuest(ctx, W, H, p) {
+  woodBg(ctx, W, H, 43);
+  kicker(ctx, "CLAIM YOUR QUESTS", W, H * 0.15);
+  const rows = [["Calorie budget", "+20"], ["Hit your protein", "+20"], ["Stay hydrated", "+15"], ["Get your steps", "+15"], ["Move your body", "+15"], ["Full log bonus", "+25"]];
+  const x = 120, w = W - 240, y0 = H * 0.26, rh = 138;
+  parchment(ctx, x, y0, w, rows.length * rh + 40);
+  rows.forEach((r, i) => {
+    const done = cl01((p - i * 0.12) / 0.2) > 0.5;
+    const cy = y0 + 40 + rh / 2 + i * rh;
+    txt(ctx, (done ? "✅  " : "⬜  ") + r[0], x + 40, cy, { font: f(600, 44), color: C.ink });
+    if (done) txt(ctx, r[1] + " XP", x + w - 40, cy, { font: f(700, 44), color: C.teal, align: "right" });
+  });
+}
+function scDayCompare(ctx, W, H, p, c) {
+  woodBg(ctx, W, H, 83);
+  kicker(ctx, `DAY ${c.dayA} → DAY ${c.dayB}`, W, H * 0.15);
+  const cols = [["DAY " + c.dayA, [["Level", "1"], ["Streak", "0"], ["Trophies", "1"]]],
+                ["DAY " + c.dayB, [["Level", "6"], ["Streak", String(c.streak)], ["Trophies", "7"]]]];
+  const colW = (W - 260) / 2, y0 = H * 0.26;
+  cols.forEach((col, i) => {
+    ctx.globalAlpha = i === 1 ? cl01((p - 0.3) / 0.2) : 1;
+    const x = 100 + i * (colW + 60);
+    parchment(ctx, x, y0, colW, 560);
+    txt(ctx, col[0], x + colW / 2, y0 + 70, { font: f(700, 46), color: i ? C.teal : C.inkSoft, align: "center", tracking: 2 });
+    col[1].forEach((r, j) => {
+      const cy = y0 + 180 + j * 120;
+      txt(ctx, r[0], x + 40, cy, { font: f(500, 36), color: C.inkSoft });
+      txt(ctx, r[1], x + colW - 40, cy, { font: f(700, 48), color: i ? C.ink : C.inkSoft, align: "right" });
+    });
+    ctx.globalAlpha = 1;
+  });
+}
+function scGeneric(ctx, W, H, p, c) {
+  woodBg(ctx, W, H, 3);
+  const s = 560 * eOut(cl01(p / 0.4));
+  if (s > 20) drawLogo(ctx, W / 2, H * 0.4, s);
+  txt(ctx, "GAMIFIED FITNESS TRACKER", W / 2, H * 0.66, { font: f(700, 54), color: C.goldText, align: "center", tracking: 3 });
+  block(ctx, (c && c.tagline) || "Level up your life", W / 2, H * 0.71, W - 200, 44, "hsl(38,25%,74%)", "center", 500);
+}
+// --- Demo scenes for the "overall" reel (each ~one beat of the app loop) ----
+function scLogDay(ctx, W, H, p) {
+  woodBg(ctx, W, H, 211);
+  plate(ctx, W / 2 - 300, H * 0.12, 600, 92, C.leafFace, C.leafDeep, C.leafRim, "TODAY'S DATA", 42);
+  const rows = [["⚖️ Weight", "75 kg"], ["🍚 Calories", "1,850"], ["🥩 Protein", "150 g"], ["💧 Water", "8"], ["👟 Steps", "10,240"], ["🏋️ Exercise", "Gym"]];
+  const x = 110, w = W - 220, y0 = H * 0.23, rh = 175;
+  parchment(ctx, x, y0, w, rows.length * rh + 40);
+  rows.forEach((r, i) => {
+    // Each field fills in sequence; within its window it types, then confirms.
+    const t = cl01((p - i * 0.12) / 0.18);
+    const done = t > 0.62, typing = t > 0 && !done;
+    const cy = y0 + 40 + rh / 2 + i * rh;
+    if (i) { ctx.strokeStyle = "hsl(33,28%,78%)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 34, cy - rh / 2); ctx.lineTo(x + w - 34, cy - rh / 2); ctx.stroke(); }
+    txt(ctx, r[0], x + 40, cy, { font: f(600, 46), color: C.ink });
+    const bx = x + w - 340, bw = 290, bh = 88;
+    rr(ctx, bx, cy - bh / 2, bw, bh, bh / 2);
+    ctx.fillStyle = done ? vgrad(ctx, cy - bh / 2, bh, C.leafFace, C.leafDeep) : "hsl(40,50%,96%)"; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = done ? C.leafRim : (typing ? "hsl(40,88%,55%)" : C.parchRim); ctx.stroke();
+    if (done) {
+      txt(ctx, `✓ ${r[1]}`, bx + bw / 2, cy, { font: f(700, 42), color: "#fff", align: "center" });
+    } else if (typing) {
+      const chars = Math.ceil(cl01(t / 0.6) * r[1].length);
+      const caret = Math.floor(p * 16) % 2 === 0 ? "|" : "";
+      txt(ctx, r[1].slice(0, chars) + caret, bx + 28, cy, { font: f(700, 42), color: C.ink });
+    }
+  });
+  txt(ctx, p > 0.85 ? "6 / 6 saved · nice work! 🎉" : "typing today's numbers…", W / 2, H * 0.9, { font: f(600, 46), color: p > 0.85 ? C.goldText : C.cream, align: "center" });
+}
+/** A confetti burst at (cx,cy); `age` 0→1 is its life. Deterministic per seed. */
+function confetti(ctx, cx, cy, age, seed, count) {
+  if (age <= 0 || age >= 1) return;
+  const r = rng(seed || 9);
+  const cols = [C.goldFace, C.leafFace, C.redFace, "hsl(178,52%,44%)", "hsl(276,62%,64%)"];
+  const N = count || 24;
+  for (let i = 0; i < N; i++) {
+    const ang = r() * Math.PI * 2, spd = 140 + r() * 300;
+    const px = cx + Math.cos(ang) * spd * age;
+    const py = cy + Math.sin(ang) * spd * age + 1100 * age * age * 0.45; // gravity
+    const s = 12 + r() * 16;
+    ctx.globalAlpha = (1 - age) * 0.95;
+    ctx.fillStyle = cols[i % cols.length];
+    ctx.save(); ctx.translate(px, py); ctx.rotate(ang + age * 9);
+    ctx.fillRect(-s / 2, -s / 2, s, s * 0.55);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+function scClaim(ctx, W, H, p) {
+  woodBg(ctx, W, H, 223);
+  plate(ctx, W / 2 - 240, H * 0.11, 480, 90, C.redFace, C.redDeep, C.redRim, "QUESTS", 42);
+  const rows = [["Calorie budget", 20], ["Hit your protein", 20], ["Stay hydrated", 15], ["Get your steps", 15], ["Move your body", 15], ["Full log bonus", 25]];
+  const x = 110, w = W - 220, y0 = H * 0.22, rh = 170;
+  parchment(ctx, x, y0, w, rows.length * rh + 40);
+  let gained = 0;
+  rows.forEach((r, i) => {
+    const claimP = i * 0.11 + 0.06, claimed = p >= claimP;
+    const cy = y0 + 40 + rh / 2 + i * rh;
+    if (i) { ctx.strokeStyle = "hsl(33,28%,78%)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 34, cy - rh / 2); ctx.lineTo(x + w - 34, cy - rh / 2); ctx.stroke(); }
+    txt(ctx, r[0], x + 40, cy, { font: f(600, 46), color: C.ink });
+    const bx = x + w - 280, bw = 230, bh = 80;
+    if (claimed) {
+      gained += r[1];
+      // Seal pops in (scales from 1.3→1), like the app's claim stamp.
+      const sc = 1 + (1 - cl01((p - claimP) / 0.1)) * 0.3;
+      ctx.save(); ctx.translate(bx + bw / 2, cy); ctx.scale(sc, sc); ctx.translate(-(bx + bw / 2), -cy);
+      rr(ctx, bx, cy - bh / 2, bw, bh, bh / 2); ctx.fillStyle = vgrad(ctx, cy - bh / 2, bh, C.leafFace, C.leafDeep); ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = C.leafRim; ctx.stroke();
+      txt(ctx, `✓ +${r[1]}`, bx + bw / 2, cy, { font: f(700, 40), color: "#fff", align: "center" });
+      ctx.restore();
+      confetti(ctx, bx + bw / 2, cy, (p - claimP) / 0.22, 1000 + i * 131);
+    } else {
+      rr(ctx, bx, cy - bh / 2 + 6, bw, bh, bh / 2); ctx.fillStyle = C.redRim; ctx.fill();
+      rr(ctx, bx, cy - bh / 2, bw, bh, bh / 2); ctx.fillStyle = vgrad(ctx, cy - bh / 2, bh, C.redFace, C.redDeep); ctx.fill();
+      txt(ctx, `Claim +${r[1]}`, bx + bw / 2, cy, { font: f(700, 34), color: "#fff", align: "center" });
+    }
+  });
+  txt(ctx, `+${gained} XP`, W / 2, H * 0.9, { font: f(700, 76), color: C.goldText, align: "center", tracking: 2 });
+  // Grand finale burst once everything's claimed.
+  const fin = (p - 0.78) / 0.22;
+  confetti(ctx, W / 2, H * 0.5, fin, 7001, 48);
+  confetti(ctx, W * 0.28, H * 0.44, fin, 7002, 30);
+  confetti(ctx, W * 0.72, H * 0.44, fin, 7003, 30);
+}
+function scLevelRank(ctx, W, H, p) {
+  woodBg(ctx, W, H, 233);
+  if (p > 0.4) txt(ctx, "LEVEL UP!", W / 2, H * 0.13, { font: f(700, 88 * cl01((p - 0.4) / 0.2)), color: C.goldText, align: "center", tracking: 4 });
+  const mr = 160 * eOut(cl01(p / 0.5));
+  if (mr > 6) medallion(ctx, W / 2, H * 0.3, mr, { lvl: p < 0.45 ? 23 : 24 });
+  const bx = 160, by = H * 0.5, bw = W - 320, bh = 66;
+  rr(ctx, bx, by, bw, bh, bh / 2); ctx.fillStyle = "hsl(37,30%,80%)"; ctx.fill();
+  rr(ctx, bx, by, bw * (p < 0.45 ? cl01(p / 0.45) : 0.3), bh, bh / 2); ctx.fillStyle = vgrad(ctx, by, bh, C.goldFace, C.goldDeep); ctx.fill();
+  ctx.lineWidth = 4; ctx.strokeStyle = C.goldRim; rr(ctx, bx, by, bw, bh, bh / 2); ctx.stroke();
+  // Post-level-up: 2,400 is the real 24→25 gap (cumXP 30,000-27,600); 720 = 30% (matches the bar).
+  txt(ctx, p < 0.45 ? "almost to Level 24…" : "Level 24 · 720 / 2,400 XP to Lv 25", W / 2, by + bh + 58, { font: f(600, 40), color: C.cream, align: "center" });
+  if (p > 0.55) {
+    const rp = eOut(cl01((p - 0.55) / 0.4));
+    ctx.globalAlpha = rp;
+    txt(ctx, "NEW RANK", W / 2, H * 0.65, { font: f(700, 44), color: C.goldText, align: "center", tracking: 5 });
+    plate(ctx, W / 2 - 320, H * 0.68 + (1 - rp) * 40, 640, 116, "hsl(276,62%,64%)", "hsl(268,58%,42%)", "hsl(272,60%,24%)", "LEGEND", 54);
+    ctx.globalAlpha = 1;
+  }
+}
+function scCta(ctx, W, H, p, c) {
+  woodBg(ctx, W, H, 3);
+  const s = 520 * eOut(cl01(p / 0.35));
+  if (s > 20) drawLogo(ctx, W / 2, H * 0.33, s);
+  txt(ctx, "GAMIFIED FITNESS TRACKER", W / 2, H * 0.55, { font: f(700, 52), color: C.goldText, align: "center", tracking: 3 });
+  block(ctx, (c && c.tagline) || "Level up your life", W / 2, H * 0.59, W - 200, 42, "hsl(38,25%,80%)", "center", 500);
+  if (p > 0.3) cta(ctx, 150, H * 0.73, W - 300, 140, `COMMENT ${(c && c.keyword) || "GG"}`);
+  txt(ctx, "or tap the link in bio", W / 2, H * 0.86, { font: f(500, 36), color: "hsl(38,25%,72%)", align: "center" });
+  wordmark(ctx, W, H - 110);
+}
+
+// --- Challenge reel scenes (named leaderboard + special awards) -------------
+const CHAL_BOARD = [
+  ["🥇", "Kurovtsa", 2480, true], ["🥈", "Trsute", 2310, false], ["🥉", "Acri", 1995, false],
+  ["4", "Alrhescha", 1760, false], ["5", "DL-sama", 1540, false],
+];
+function scChalBoard(ctx, W, H, p) {
+  woodBg(ctx, W, H, 301);
+  plate(ctx, W / 2 - 320, H * 0.1, 640, 92, "hsl(222,55%,46%)", "hsl(224,60%,32%)", "hsl(226,60%,18%)", "30-DAY CHALLENGE", 40);
+  const x = 100, w = W - 200, y0 = H * 0.23, rh = 176;
+  parchment(ctx, x, y0, w, CHAL_BOARD.length * rh + 40);
+  CHAL_BOARD.forEach((r, i) => {
+    const sl = eOut(cl01((p - i * 0.1) / 0.4)); if (sl <= 0) return;
+    const cy = y0 + 40 + rh / 2 + i * rh;
+    ctx.globalAlpha = sl;
+    if (r[3]) {
+      rr(ctx, x + 16, cy - rh / 2 + 10, w - 32, rh - 20, 18);
+      ctx.fillStyle = "hsla(42,90%,58%,0.18)"; ctx.fill();
+      ctx.lineWidth = 4; ctx.strokeStyle = "hsl(42,90%,50%)"; ctx.stroke();
+    } else if (i) {
+      ctx.strokeStyle = "hsl(33,28%,78%)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + 34, cy - rh / 2); ctx.lineTo(x + w - 34, cy - rh / 2); ctx.stroke();
+    }
+    txt(ctx, r[0], x + 56, cy, { font: f(700, 54), color: C.ink, align: "center" });
+    txt(ctx, r[1], x + 140 - (1 - sl) * 60, cy, { font: f(700, 52), color: C.ink });
+    if (r[3]) {
+      const px = x + 470, pw = 108, ph = 52;
+      rr(ctx, px, cy - ph / 2, pw, ph, ph / 2); ctx.fillStyle = vgrad(ctx, cy - ph / 2, ph, C.goldFace, C.goldDeep); ctx.fill();
+      txt(ctx, "YOU", px + pw / 2, cy, { font: f(700, 32), color: C.ink, align: "center", tracking: 2 });
+    }
+    const val = Math.round(r[2] * cl01((p - i * 0.1) / 0.6));
+    txt(ctx, val.toLocaleString() + " XP", x + w - 40, cy, { font: f(700, 50), color: C.teal, align: "right" });
+    ctx.globalAlpha = 1;
+  });
+}
+function scChalAwards(ctx, W, H, p) {
+  woodBg(ctx, W, H, 311);
+  plate(ctx, W / 2 - 280, H * 0.1, 560, 90, C.goldFace, C.goldDeep, C.goldRim, "SPECIAL AWARDS", 38);
+  const awards = [["👟 Golden Shoe", "Acri"], ["🔥 The Energetic", "Alrhescha"], ["📉 Biggest Loser", "Kurovtsa"], ["⭐ Milestone Master", "Trsute"]];
+  const x = 100, w = W - 200, y0 = H * 0.25, rh = 190;
+  parchment(ctx, x, y0, w, awards.length * rh + 40);
+  awards.forEach((a, i) => {
+    const rev = eOut(cl01((p - i * 0.14) / 0.4)); if (rev <= 0) return;
+    const cy = y0 + 40 + rh / 2 + i * rh;
+    ctx.globalAlpha = rev;
+    if (i) { ctx.strokeStyle = "hsl(33,28%,78%)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 34, cy - rh / 2); ctx.lineTo(x + w - 34, cy - rh / 2); ctx.stroke(); }
+    txt(ctx, a[0], x + 40, cy, { font: f(700, 46), color: C.ink });
+    const you = a[1] === "Kurovtsa";
+    txt(ctx, you ? `${a[1]} 🏅` : a[1], x + w - 40, cy, { font: f(700, 48), color: you ? C.goldRim : C.teal, align: "right" });
+    ctx.globalAlpha = 1;
+  });
+  txt(ctx, "4 side awards · everyone can win something", W / 2, H * 0.92, { font: f(500, 38), color: C.goldText, align: "center" });
+}
+
+// Animated overtake: you (Kurovtsa) climb from rank 3 to rank 1 as your XP rises.
+const CHAL_PLAYERS = [
+  { name: "Kurovtsa", sr: 3, er: 1, sx: 1995, ex: 2480, you: true },
+  { name: "Trsute", sr: 1, er: 2, sx: 2310, ex: 2310 },
+  { name: "Acri", sr: 2, er: 3, sx: 2100, ex: 2100 },
+  { name: "Alrhescha", sr: 4, er: 4, sx: 1760, ex: 1760 },
+  { name: "DL-sama", sr: 5, er: 5, sx: 1540, ex: 1540 },
+];
+function scChalOvertake(ctx, W, H, p) {
+  woodBg(ctx, W, H, 301);
+  plate(ctx, W / 2 - 320, H * 0.1, 640, 92, "hsl(222,55%,46%)", "hsl(224,60%,32%)", "hsl(226,60%,18%)", "30-DAY CHALLENGE", 40);
+  const e = eOut(p);
+  const list = CHAL_PLAYERS.map((pl) => ({ ...pl, pos: pl.sr + (pl.er - pl.sr) * e, xp: Math.round(pl.sx + (pl.ex - pl.sx) * e) }));
+  // Live medal from current positions, so ranks stay unique through the swaps.
+  [...list].sort((a, b) => a.pos - b.pos).forEach((pl, idx) => (pl.rank = idx + 1));
+  const x = 100, w = W - 200, y0 = H * 0.23, rh = 176;
+  parchment(ctx, x, y0, w, list.length * rh + 40);
+  // Draw the "you" row last so it stays on top during a cross.
+  [...list].sort((a, b) => (a.you ? 1 : 0) - (b.you ? 1 : 0)).forEach((pl) => {
+    const cy = y0 + 40 + rh / 2 + (pl.pos - 1) * rh;
+    if (pl.you) {
+      rr(ctx, x + 16, cy - rh / 2 + 10, w - 32, rh - 20, 18);
+      ctx.fillStyle = "hsla(42,90%,58%,0.2)"; ctx.fill();
+      ctx.lineWidth = 4; ctx.strokeStyle = "hsl(42,90%,50%)"; ctx.stroke();
+    }
+    const medal = pl.rank === 1 ? "🥇" : pl.rank === 2 ? "🥈" : pl.rank === 3 ? "🥉" : String(pl.rank);
+    txt(ctx, medal, x + 56, cy, { font: f(700, 54), color: C.ink, align: "center" });
+    txt(ctx, pl.name, x + 140, cy, { font: f(700, 52), color: C.ink });
+    if (pl.you) {
+      const px = x + 470, pw = 108, ph = 52;
+      rr(ctx, px, cy - ph / 2, pw, ph, ph / 2); ctx.fillStyle = vgrad(ctx, cy - ph / 2, ph, C.goldFace, C.goldDeep); ctx.fill();
+      txt(ctx, "YOU", px + pw / 2, cy, { font: f(700, 32), color: C.ink, align: "center", tracking: 2 });
+    }
+    txt(ctx, pl.xp.toLocaleString() + " XP", x + w - 40, cy, { font: f(700, 50), color: C.teal, align: "right" });
+  });
+  if (e > 0.82) { ctx.globalAlpha = cl01((e - 0.82) / 0.18); txt(ctx, "🔥 you took the lead!", W / 2, H * 0.9, { font: f(700, 54), color: C.goldText, align: "center" }); ctx.globalAlpha = 1; }
+}
+
+const SCENES = { levelup: scLevelUp, trophy: scTrophy, leaderboard: scLeaderboard, streak: scStreak, rankladder: scRankLadder, quest: scQuest, daycompare: scDayCompare, generic: scGeneric,
+  logday: scLogDay, claim: scClaim, levelrank: scLevelRank, cta: scCta, chalboard: scChalBoard, chalovertake: scChalOvertake, chalawards: scChalAwards };
+const SCENE_BY_ID = {
+  "w1-01": "levelup", "w1-02": "trophy", "w1-03": "leaderboard", "w1-04": "generic",
+  "w2-05": "rankladder", "w2-06": "streak", "w2-07": "quest", "w2-08": "leaderboard",
+  "w3-09": "daycompare", "w3-10": "generic", "w3-11": "leaderboard", "w3-12": "generic",
+  "w4-13": "generic", "w4-14": "generic", "w4-15": "generic", "w4-16": "generic",
+};
+
+const clipTotalMs = (v) => Math.max(5000, ((v && v.secs) ? v.secs : CLIP.secs) * 1000);
+function fadeAt(ctx, W, H, elapsed, t) {
+  const d = Math.abs(elapsed - t);
+  if (d < 120) { ctx.fillStyle = `rgba(0,0,0,${(1 - d / 120) * 0.5})`; ctx.fillRect(0, 0, W, H); }
+}
+function drawClipFrame(ctx, W, H, v, elapsed, c) {
+  const total = clipTotalMs(v), mid0 = CLIP.hookMs;
+  // Multi-scene reel: hook, then the timeline scenes fill the rest in sequence.
+  if (v.timeline) {
+    if (elapsed < mid0) { drawHookCard(ctx, W, H, v); fadeAt(ctx, W, H, elapsed, mid0); return; }
+    const seg = (total - mid0) / v.timeline.length;
+    const idx = Math.min(v.timeline.length - 1, Math.floor((elapsed - mid0) / seg));
+    (SCENES[v.timeline[idx]] || SCENES.generic)(ctx, W, H, ((elapsed - mid0) - idx * seg) / seg, c);
+    fadeAt(ctx, W, H, elapsed, mid0);
+    for (let i = 1; i < v.timeline.length; i++) fadeAt(ctx, W, H, elapsed, mid0 + i * seg);
+    return;
+  }
+  const mid1 = total - CLIP.endMs;
+  if (elapsed < mid0) drawHookCard(ctx, W, H, v);
+  else if (elapsed < mid1) (SCENES[SCENE_BY_ID[v.id]] || SCENES.generic)(ctx, W, H, (elapsed - mid0) / (mid1 - mid0), c);
+  else drawEndCard(ctx, W, H, v, c);
+  fadeAt(ctx, W, H, elapsed, mid0); fadeAt(ctx, W, H, elapsed, mid1);
+}
+function pickMime() {
+  if (!window.MediaRecorder) return null;
+  for (const m of ["video/mp4;codecs=h264", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"])
+    if (MediaRecorder.isTypeSupported(m)) return m;
+  return "video/webm";
+}
+async function recordClip(v) {
+  const stage = document.getElementById("stage");
+  stage.width = 1080; stage.height = 1920;
+  const ctx = stage.getContext("2d");
+  const mime = pickMime();
+  if (!mime) { toast("Recording isn't supported in this browser — try Chrome"); return; }
+  const rec = new MediaRecorder(stage.captureStream(30), { mimeType: mime, videoBitsPerSecond: 9000000 });
+  const chunks = []; rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  const stopped = new Promise((r) => (rec.onstop = r));
+  rec.start();
+  const t0 = performance.now(), total = clipTotalMs(v);
+  await new Promise((res) => {
+    function frame(now) {
+      const el = now - t0;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      drawClipFrame(ctx, 1080, 1920, v, Math.min(el, total - 1), CFG);
+      if (el >= total) { res(); return; }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  });
+  rec.stop(); await stopped;
+  const ext = mime.includes("mp4") ? "mp4" : "webm";
+  const url = URL.createObjectURL(new Blob(chunks, { type: mime }));
+  const a = document.createElement("a"); a.href = url; a.download = `gglvlup-${v.id}-reel.${ext}`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+// ---------------------------------------------------------------------------
 // Rendering + downloads
 // ---------------------------------------------------------------------------
 const PREVIEW = 0.26;
@@ -880,19 +1344,47 @@ function buildVideos() {
     row.style.borderColor = "hsl(24 30% 30%)";
     const cv = document.createElement("canvas"); cv.dataset.hook = v.id;
     const body = document.createElement("div"); body.className = "body";
+
     const head = document.createElement("div"); head.className = "row";
     const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = v.slot;
-    const title = document.createElement("b"); title.textContent = v.title;
+    const title = document.createElement("input"); title.className = "vin"; title.value = v.title; title.style.flex = "1";
+    title.addEventListener("input", () => { v.title = title.value; });
     head.append(chip, title);
-    const hook = document.createElement("div"); hook.className = "hooktext"; hook.textContent = v.hook.replace("\n", " / ");
+
+    // Re-render this video's hook-card preview when its hook text changes.
+    const reHook = () => render(cv, 1080, 1920, (c, w, h) => drawHookCard(c, w, h, v), 0.11);
+    const field = (label, val, multiline, onInput) => {
+      const wrapEl = document.createElement("label"); wrapEl.className = "vfield";
+      const lab = document.createElement("span"); lab.className = "vlab"; lab.textContent = label;
+      const inp = document.createElement(multiline ? "textarea" : "input");
+      inp.className = "vin"; inp.value = val; if (multiline) inp.rows = 2;
+      inp.addEventListener("input", () => onInput(inp.value));
+      wrapEl.append(lab, inp); return wrapEl;
+    };
+
+    const hookField = field("Hook — shown at start & end (Enter = new line)", v.hook, true, (val) => { v.hook = val; reHook(); });
+    const capField = field("Caption", v.caption, true, (val) => { v.caption = val; });
+    const tagField = field("Hashtags", v.tags, false, (val) => { v.tags = val; });
+
+    const endWrap = document.createElement("label"); endWrap.className = "vfield";
+    const endLab = document.createElement("span"); endLab.className = "vlab"; endLab.textContent = "End-card CTA";
+    const endSel = document.createElement("select"); endSel.className = "vin";
+    [["invite", "Comment for invite"], ["question", "Ask a question"], ["tag", "Tag a friend"], ["bio", "Link in bio"]].forEach(([o, lbl]) => {
+      const op = document.createElement("option"); op.value = o; op.textContent = lbl; if (o === v.end) op.selected = true; endSel.append(op);
+    });
+    endSel.addEventListener("change", () => { v.end = endSel.value; });
+    endWrap.append(endLab, endSel);
+
     const btns = document.createElement("div"); btns.className = "row";
     const mk = (label, fn) => { const b = document.createElement("button"); b.className = "small"; b.textContent = label; b.onclick = fn; return b; };
     btns.append(
+      mk("🎬 Clip", async () => { toast("Recording clip…"); await recordClip(v); toast("Clip downloaded"); }),
       mk("⬇ Hook card", () => download(`gglvlup-${v.id}-hook.png`, 1080, 1920, (c, w, h) => drawHookCard(c, w, h, v))),
       mk("⬇ End card", () => download(`gglvlup-${v.id}-end.png`, 1080, 1920, (c, w, h) => drawEndCard(c, w, h, v, CFG))),
       mk("📋 Caption", () => { navigator.clipboard.writeText(`${v.caption}\n\n${v.tags}`); toast("Caption + tags copied"); }),
     );
-    body.append(head, hook, btns);
+
+    body.append(head, hookField, capField, tagField, endWrap, btns);
     row.append(cv, body); host.appendChild(row);
   });
 }
@@ -967,11 +1459,12 @@ friends. One minute a day, and it pays you back the same day. Comment ${k} or ta
 };
 document.getElementById("dlHooks").onclick = async () => {
   toast("Rendering video cards…");
-  for (const v of VIDEOS) {
+  const plan = VIDEOS.filter((v) => !v.timeline);
+  for (const v of plan) {
     await download(`gglvlup-${v.id}-hook.png`, 1080, 1920, (c, w, h) => drawHookCard(c, w, h, v));
     await download(`gglvlup-${v.id}-end.png`, 1080, 1920, (c, w, h) => drawEndCard(c, w, h, v, CFG));
   }
-  toast("32 video cards downloaded");
+  toast(`${plan.length * 2} video cards downloaded`);
 };
 document.getElementById("dlCaptions").onclick = () => {
   const body = VIDEOS.map((v) =>
@@ -983,6 +1476,41 @@ document.getElementById("dlCaptions").onclick = () => {
   document.body.appendChild(a); a.click(); a.remove();
   toast("captions.txt downloaded");
 };
+
+// Logo picker — read as a clean data URL (no canvas taint), downscale, persist.
+(() => {
+  const inp = document.getElementById("logoInput");
+  if (inp) inp.addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const fr = new FileReader();
+    fr.onload = () => setLogo(fr.result, true);
+    fr.readAsDataURL(file);
+  });
+  try { const saved = localStorage.getItem("gglvlup_logo"); if (saved) setLogo(saved, false); } catch (e) { /* ignore */ }
+})();
+
+// Reel maker wiring
+(() => {
+  const mime = pickMime();
+  document.getElementById("recFmt").textContent = mime
+    ? (mime.includes("mp4") ? "Your browser exports MP4 ✓ — post anywhere." : "")
+    : "⚠ This browser can't record — use Chrome.";
+  document.getElementById("clipSecs").addEventListener("input", (e) => {
+    const n = Number(e.target.value);
+    if (n >= 5 && n <= 20) CLIP.secs = n;
+  });
+  document.getElementById("recAll").onclick = async () => {
+    const status = document.getElementById("recStatus");
+    const plan = VIDEOS.filter((v) => !v.timeline); // the 16-video plan (not the overall reel)
+    for (let i = 0; i < plan.length; i++) {
+      status.textContent = `Recording ${i + 1} / ${plan.length} — ${plan[i].slot}…`;
+      await recordClip(plan[i]);
+    }
+    status.textContent = `Done — ${plan.length} clips downloaded.`;
+    toast(`${plan.length} reels downloaded`);
+  };
+})();
 
 buildConfig(); buildGrid(PUBMATS, "pubmats"); buildGrid(ZEROPACK, "zeropack"); buildVideos();
 // Wait for Fredoka so the first paint isn't in a fallback face.
