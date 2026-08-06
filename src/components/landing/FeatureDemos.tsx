@@ -396,7 +396,7 @@ export const LeaderboardDemo = ({ playing }: DemoProps) => {
         {[
           { icon: "👟", label: "Golden Shoe" },
           { icon: "🔥", label: "The Energetic" },
-          { icon: "📉", label: "Biggest Loser" },
+          { icon: "📉", label: "Trend Setter" },
         ].map((award) => (
           <span key={award.label} className="game-tag px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">
             {award.icon} {award.label}

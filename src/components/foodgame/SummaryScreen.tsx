@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { Check, RotateCcw, Save, X } from "lucide-react";
+import { Check, Pencil, RotateCcw, Save, Share2, X } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
 import FoodSprite from "./FoodSprite";
+import { ACTION_BUTTON, ACTION_BUTTON_SM } from "./ui";
 import { MEALS, totalMacros, type DiaryEntry, type Macros } from "@/lib/foodGame/foods";
 import { confettiBurst, countUp, sparkle } from "@/lib/fx";
 import { sfx } from "@/lib/sfx";
@@ -14,7 +15,12 @@ interface SummaryScreenProps {
   goals?: { calories?: number | null; protein?: number | null };
   /** Writes the totals onto today's log. Omitted = no save button. */
   onSave?: (totals: Macros) => Promise<void> | void;
-  onPlayAgain: () => void;
+  /** Opens the shareable card for the day. */
+  onShare: () => void;
+  /** Back into the meals to change something — the summary isn't the end. */
+  onEdit: () => void;
+  /** Wipe the day and start over. */
+  onReset: () => void;
   onClose: () => void;
 }
 
@@ -53,12 +59,13 @@ const GoalBar = ({ label, value, goal, unit, color }: { label: string; value: nu
  * diary broken out by meal. This is the payoff the whole run builds toward, so
  * it fires confetti and the finish fanfare on entry.
  */
-const SummaryScreen = ({ entries, goals, onSave, onPlayAgain, onClose }: SummaryScreenProps) => {
+const SummaryScreen = ({ entries, goals, onSave, onShare, onEdit, onReset, onClose }: SummaryScreenProps) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const kcalRef = useRef<HTMLSpanElement>(null);
   const proteinRef = useRef<HTMLSpanElement>(null);
   const starsRef = useRef<HTMLDivElement>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const totals = totalMacros(entries);
   const stars = starsFor(entries);
@@ -210,22 +217,56 @@ const SummaryScreen = ({ entries, goals, onSave, onPlayAgain, onClose }: Summary
         })}
       </div>
 
-      <div className="flex flex-wrap justify-center gap-2 pt-1">
-        {onSave && (
-          <GameButton color="forest" size="lg" disabled={saveState !== "idle"} onClick={() => void save()}>
-            {saveState === "saved" ? <Check className="h-5 w-5" /> : <Save className="h-5 w-5" />}
-            {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved to today" : "Save to Today's Data"}
+      {/* Two rows, each of one width: the things you came here to do, then the
+          ways out. Uniform buttons within a row are what stop a five-action
+          footer reading as a pile of unrelated links. */}
+      <div className="space-y-2 pt-1">
+        <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
+          {onSave && (
+            <GameButton
+              color="forest"
+              size="lg"
+              className={ACTION_BUTTON}
+              disabled={saveState !== "idle"}
+              onClick={() => void save()}
+            >
+              {saveState === "saved" ? <Check className="h-5 w-5" /> : <Save className="h-5 w-5" />}
+              {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved to today" : "Save to Today's Data"}
+            </GameButton>
+          )}
+          <GameButton color="teal" size="lg" className={ACTION_BUTTON} onClick={onShare}>
+            <Share2 className="h-5 w-5" />
+            Share my day
           </GameButton>
-        )}
-        <GameButton color="teal" size="lg" onClick={onPlayAgain}>
-          <RotateCcw className="h-5 w-5" />
-          Play Again
-        </GameButton>
-        <GameButton color="wood" size="lg" onClick={onClose}>
-          <X className="h-5 w-5" />
-          Close
-        </GameButton>
+        </div>
+
+        <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
+          <GameButton color="wood" size="md" className={ACTION_BUTTON_SM} onClick={onEdit}>
+            <Pencil className="h-4 w-4" />
+            Keep editing
+          </GameButton>
+          <GameButton
+            color={confirmReset ? "red" : "wood"}
+            size="md"
+            className={ACTION_BUTTON_SM}
+            onClick={() => {
+              if (confirmReset) onReset();
+              else setConfirmReset(true);
+            }}
+          >
+            <RotateCcw className="h-4 w-4" />
+            {confirmReset ? "Tap to wipe" : "Start over"}
+          </GameButton>
+          <GameButton color="wood" size="md" className={ACTION_BUTTON_SM} onClick={onClose}>
+            <X className="h-4 w-4" />
+            Close
+          </GameButton>
+        </div>
       </div>
+
+      <p className="text-center text-xs font-bold text-[hsl(26,30%,45%)]">
+        Your diary is saved — close any time and pick it back up today.
+      </p>
     </div>
   );
 };

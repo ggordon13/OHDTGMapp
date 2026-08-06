@@ -1,14 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import gsap from "gsap";
 import FoodGameModal from "@/components/foodgame/FoodGameModal";
 import { MEALS, computeMacros, lookupFood } from "@/lib/foodGame/foods";
+import { loadRun } from "@/lib/foodGame/persist";
 
 /**
  * Drives the real modal the way a player would — clicking through the title
- * screen, a full breakfast build and the plate screen — to prove the step
- * machine and the UI agree, and that the run ends on a summary whose totals
- * match the catalogue maths.
+ * screen, a full breakfast build and the meal editor — to prove the step
+ * machine and the UI agree, that the run ends on a summary whose totals match
+ * the catalogue maths, and that a half-built day survives being closed.
  */
 
 const click = (name: RegExp | string) => fireEvent.click(screen.getByRole("button", { name }));
@@ -26,6 +27,10 @@ const playBreakfast = () => {
   click(/^Pan-Fried/i); // method
   click(/^No Sides/i); // exclusive skip
 };
+
+// Every test starts on a clean day. Without this a run saved by the previous
+// test is offered back as Continue, and the title screen has no Start Game.
+beforeEach(() => window.localStorage.clear());
 
 describe("Food Track playthrough", () => {
   it("opens on the title screen", () => {
@@ -45,7 +50,8 @@ describe("Food Track playthrough", () => {
     /** Run every in-flight GSAP tween to its end, applying clearProps. */
     const finishAnimations = () => gsap.globalTimeline.progress(1, true);
 
-    const tiles = () => MEALS.map((m) => screen.getByRole("button", { name: new RegExp(m.label, "i") }));
+    const tiles = () =>
+      MEALS.map((m) => screen.getAllByRole("button", { name: new RegExp(m.label, "i") })[0]);
 
     it("leaves no inline styles that outrank the tiles' own classes", () => {
       render(<FoodGameModal open onOpenChange={vi.fn()} />);
@@ -81,7 +87,7 @@ describe("Food Track playthrough", () => {
     expect(screen.getByRole("button", { name: /Start — 1 meal/i })).toBeEnabled();
   });
 
-  it("walks a meal question by question and lands on the plate screen", () => {
+  it("walks a meal question by question and lands on the meal editor", () => {
     render(<FoodGameModal open onOpenChange={vi.fn()} />);
     click(/Start Game/i);
     click(/Breakfast/i);
@@ -109,7 +115,7 @@ describe("Food Track playthrough", () => {
   it("reaches the summary with totals matching the catalogue maths", () => {
     render(<FoodGameModal open onOpenChange={vi.fn()} />);
     playBreakfast();
-    click(/Lock it in/i);
+    click(/Finish — see my day/i);
 
     expect(screen.getByText(/Level Complete/i)).toBeInTheDocument();
 
@@ -118,7 +124,8 @@ describe("Food Track playthrough", () => {
     const expectedKcal = toast.kcal + eggs.kcal;
 
     // The headline counts up from 0, so assert on the itemised diary instead.
-    expect(screen.getByText(new RegExp(`${expectedKcal} kcal`))).toBeInTheDocument();
+    // The day's total also rides in the header chip, hence getAllByText.
+    expect(screen.getAllByText(new RegExp(`${expectedKcal} kcal`)).length).toBeGreaterThan(0);
     expect(screen.getByText(/Toast —/)).toBeInTheDocument();
     expect(screen.getByText(/Whole Eggs \(Pan-Fried\) —/)).toBeInTheDocument();
   });
@@ -154,7 +161,7 @@ describe("Food Track playthrough", () => {
     expect(screen.getByRole("button", { name: /Continue \(1\)/i })).toBeInTheDocument();
   });
 
-  it("skipping every course rolls straight on to the summary", () => {
+  it("skipping every course leaves an empty meal that can still be filled in", () => {
     render(<FoodGameModal open onOpenChange={vi.fn()} />);
     click(/Start Game/i);
     click(/Dinner/i);
@@ -164,7 +171,12 @@ describe("Food Track playthrough", () => {
     click(/No protein — skip/i);
     click(/^No Sides/i);
 
-    expect(screen.getByText(/Level Complete/i)).toBeInTheDocument();
+    // The old flow ejected the player to the summary here, which is exactly
+    // where they can't add the course they skipped by mistake.
+    expect(screen.getByText(/Nothing logged for this meal yet/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Carbs/i })).toBeInTheDocument();
+
+    click(/Finish — see my day/i);
     expect(screen.getByText(/0 items logged/i)).toBeInTheDocument();
   });
 
@@ -179,13 +191,13 @@ describe("Food Track playthrough", () => {
     expect(screen.getByText(/What did you snack on\?/i)).toBeInTheDocument();
     click(/^Nuts/i);
     click(/Continue \(1\)/i);
-    click(/Lock it in/i);
+    click(/Next: Drinks/i);
 
     expect(screen.getByText(/Meal 2 of 2/i)).toBeInTheDocument();
     expect(screen.getByText(/What did you drink\?/i)).toBeInTheDocument();
     click(/^Protein Shake/i);
     click(/Continue \(1\)/i);
-    click(/Lock it in/i);
+    click(/Finish — see my day/i);
 
     expect(screen.getByText(/Level Complete/i)).toBeInTheDocument();
     expect(screen.getByText(/2 items logged across 2 meals/i)).toBeInTheDocument();
@@ -195,7 +207,7 @@ describe("Food Track playthrough", () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<FoodGameModal open onOpenChange={vi.fn()} onSave={onSave} />);
     playBreakfast();
-    click(/Lock it in/i);
+    click(/Finish — see my day/i);
     click(/Save to Today's Data/i);
 
     const toast = computeMacros(lookupFood("bread")!, "regular");
@@ -209,7 +221,117 @@ describe("Food Track playthrough", () => {
   it("omits the save button when there is nowhere to save", () => {
     render(<FoodGameModal open onOpenChange={vi.fn()} />);
     playBreakfast();
-    click(/Lock it in/i);
+    click(/Finish — see my day/i);
     expect(screen.queryByRole("button", { name: /Save to Today's Data/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("Food Track editing", () => {
+  it("adds a meal that wasn't in the run from the tab strip", () => {
+    render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    playBreakfast();
+    expect(screen.getByText(/Meal 1 of 1/i)).toBeInTheDocument();
+
+    // The Lunch tab is an "Add" affordance until the meal is in the run.
+    fireEvent.click(screen.getByRole("tab", { name: /Lunch.*Add/i }));
+
+    expect(screen.getByText(/Meal 2 of 2/i)).toBeInTheDocument();
+    expect(screen.getByText(/Pick your carbs/i)).toBeInTheDocument();
+  });
+
+  it("removes a plated item without disturbing the rest of the meal", () => {
+    render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    playBreakfast();
+
+    click(/Remove Toast/i);
+
+    expect(screen.queryByText(/^Toast$/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Whole Eggs/).length).toBeGreaterThan(0);
+
+    // The meal total is now the eggs alone — and so is the day's, so both the
+    // footer bar and the header chip read it back.
+    const eggs = computeMacros(lookupFood("egg-whole")!, "regular", "panfried");
+    expect(screen.getAllByText(`${eggs.kcal} kcal`).length).toBeGreaterThan(0);
+  });
+
+  it("re-opens a course from the editor and cancels back out unchanged", () => {
+    render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    playBreakfast();
+
+    click(/^Carbs/i);
+    expect(screen.getByText(/Pick your carbs/i)).toBeInTheDocument();
+
+    click(/Cancel/i);
+    expect(screen.getByText(/Size it up/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Toast/).length).toBeGreaterThan(0);
+  });
+
+  it("swaps a cooking method from the editor and re-prices the row", () => {
+    render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    playBreakfast();
+
+    // The method chip on the row is the control — its label is the method.
+    fireEvent.click(screen.getByTitle(/Change how the whole eggs was cooked/i));
+    click(/^Grilled/i);
+
+    const grilled = computeMacros(lookupFood("egg-whole")!, "regular", "grilled");
+    const row = screen.getAllByText(/Whole Eggs/)[0].closest("[data-plate-row]") as HTMLElement;
+    expect(within(row).getByText(String(grilled.kcal))).toBeInTheDocument();
+  });
+
+  it("offers a share button on the summary", () => {
+    render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    playBreakfast();
+    click(/Finish — see my day/i);
+    expect(screen.getByRole("button", { name: /Share my day/i })).toBeInTheDocument();
+  });
+});
+
+describe("Food Track persistence", () => {
+  it("saves the run as it is built and offers it back as Continue", () => {
+    const { unmount } = render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    playBreakfast();
+
+    const saved = loadRun();
+    expect(saved?.drafts.breakfast).toBeTruthy();
+    expect(saved?.activeMeal).toBe("breakfast");
+    unmount();
+
+    render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /Start Game/i })).not.toBeInTheDocument();
+    click(/Continue/i);
+
+    // Back on the meal, with the plate intact.
+    expect(screen.getByText(/Size it up/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Whole Eggs/).length).toBeGreaterThan(0);
+  });
+
+  it("ignores a run saved on an earlier day", () => {
+    const { unmount } = render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    playBreakfast();
+    unmount();
+
+    // Age the stored run by a day — the calendar stamp is the whole reset rule.
+    const key = "gglvlup:foodgame:run";
+    const stored = JSON.parse(window.localStorage.getItem(key)!);
+    window.localStorage.setItem(key, JSON.stringify({ ...stored, date: "2000-01-01" }));
+
+    expect(loadRun()).toBeNull();
+    render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /Start Game/i })).toBeInTheDocument();
+  });
+
+  it("Start Over wipes the day after a confirming second tap", () => {
+    const { unmount } = render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    playBreakfast();
+    unmount();
+
+    render(<FoodGameModal open onOpenChange={vi.fn()} />);
+    click(/Start Over/i);
+    expect(loadRun()).not.toBeNull(); // one tap only arms it
+
+    click(/Tap again to wipe/i);
+    expect(loadRun()).toBeNull();
+    expect(screen.getByRole("button", { name: /Start Game/i })).toBeInTheDocument();
   });
 });

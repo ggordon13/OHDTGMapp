@@ -2,12 +2,15 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ArrowRight, Check } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
+import { ACTION_BUTTON, MEAL_TILE } from "./ui";
 import { MEALS, type MealId } from "@/lib/foodGame/foods";
 import { sfx } from "@/lib/sfx";
 import { cn } from "@/lib/utils";
 
 interface MealPickerScreenProps {
   selected: MealId[];
+  /** True once the run is under way — the screen is then "edit my meals". */
+  started?: boolean;
   onToggle: (mealId: MealId) => void;
   onConfirm: () => void;
 }
@@ -21,11 +24,15 @@ const bannerClass: Record<string, string> = {
 };
 
 /**
- * Level select. Everything is chosen up front so the player can skip the meals
- * they didn't eat, and so the run has a visible finish line ("Meal 2 of 4")
- * instead of dragging on unpredictably.
+ * Level select — the opening pick of which meals to build, and afterwards the
+ * bulk editor for that same set.
+ *
+ * It is no longer a gate: the tab strip can add any meal at any point, so this
+ * screen exists to start the run pointed at something and to add or drop
+ * several meals at once. Toggling here acts on the run immediately, which is
+ * why unticking a meal you have already built takes its contents with it.
  */
-const MealPickerScreen = ({ selected, onToggle, onConfirm }: MealPickerScreenProps) => {
+const MealPickerScreen = ({ selected, started = false, onToggle, onConfirm }: MealPickerScreenProps) => {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,7 +71,7 @@ const MealPickerScreen = ({ selected, onToggle, onConfirm }: MealPickerScreenPro
       <div className="text-center">
         <h3 className="font-display text-2xl font-bold text-[hsl(26,50%,20%)] sm:text-3xl">What did you eat today?</h3>
         <p className="mt-1 text-sm font-bold text-[hsl(26,30%,42%)]">
-          Pick every meal you had — you'll build them one at a time.
+          Pick every meal you had — you can add or drop more at any time.
         </p>
       </div>
 
@@ -79,9 +86,11 @@ const MealPickerScreen = ({ selected, onToggle, onConfirm }: MealPickerScreenPro
               onClick={() => toggle(meal.id)}
               aria-pressed={isOn}
               className={cn(
-                // h-full + justify-start keeps all five tiles identical in a row
-                // whatever the tagline wraps to.
-                "group relative flex h-full flex-col items-center justify-start gap-2 rounded-2xl border-[3px] bg-gradient-to-b p-4 text-center text-white",
+                // A fixed height, not h-full: with a shared height the row is
+                // identical whether or not a tagline wraps, and the grid can't
+                // be stretched by whichever tile happens to hold the most text.
+                MEAL_TILE,
+                "group relative flex flex-col items-center justify-start gap-2 rounded-2xl border-[3px] bg-gradient-to-b p-4 text-center text-white",
                 "transition-[transform,box-shadow,filter] duration-150 hover:-translate-y-1 hover:brightness-110 active:translate-y-[2px]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40,90%,58%)] focus-visible:ring-offset-2",
                 bannerClass[meal.color],
@@ -111,14 +120,18 @@ const MealPickerScreen = ({ selected, onToggle, onConfirm }: MealPickerScreenPro
         <GameButton
           color="gold"
           size="lg"
-          className="px-10"
+          className={ACTION_BUTTON}
           disabled={selected.length === 0}
           onClick={() => {
             sfx.claimAll();
             onConfirm();
           }}
         >
-          {selected.length === 0 ? "Pick at least one" : `Start — ${selected.length} meal${selected.length === 1 ? "" : "s"}`}
+          {selected.length === 0
+            ? "Pick at least one"
+            : started
+              ? "Back to my meals"
+              : `Start — ${selected.length} meal${selected.length === 1 ? "" : "s"}`}
           <ArrowRight className="h-5 w-5" />
         </GameButton>
       </div>

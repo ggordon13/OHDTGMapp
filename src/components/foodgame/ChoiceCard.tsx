@@ -3,6 +3,7 @@ import gsap from "gsap";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import FoodSprite, { isCritter } from "./FoodSprite";
+import { CHOICE_TILE } from "./ui";
 
 interface ChoiceCardProps {
   label: string;
@@ -145,7 +146,11 @@ const ChoiceCard = ({
       onBlur={leave}
       aria-pressed={multi ? selected : undefined}
       className={cn(
-        "group relative flex flex-col items-center justify-end gap-2 rounded-2xl border-[3px] p-3 pt-4 text-center",
+        // Fixed height, contents pinned to the bottom: "Fries" and "Cooked
+        // Veggies · 130 g · 59 kcal · 3.6g P" are the same tile, and the grid
+        // rows line up instead of stepping with whichever label is longest.
+        CHOICE_TILE,
+        "group relative flex w-full flex-col items-center justify-end gap-2 rounded-2xl border-[3px] p-3 pt-4 text-center",
         "bg-gradient-to-b from-[hsl(42,62%,94%)] to-[hsl(38,48%,84%)]",
         "transition-[box-shadow,border-color,filter] duration-150 will-change-transform",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40,90%,58%)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(24,40%,22%)]",

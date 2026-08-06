@@ -1,19 +1,33 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { Play, X } from "lucide-react";
+import { Play, RotateCcw, Trophy, X } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
 import WelcomeScene from "./WelcomeScene";
+import { ACTION_BUTTON } from "./ui";
+
+/** What's waiting in an unfinished run, for the Continue pitch. */
+export interface ResumeInfo {
+  meals: number;
+  kcal: number;
+  /** The run already reached its summary — Continue lands straight back on it. */
+  finished: boolean;
+}
 
 interface WelcomeScreenProps {
+  /** A run saved earlier today, or null for a clean slate. */
+  resume?: ResumeInfo | null;
   onStart: () => void;
+  onContinue: () => void;
+  onReset: () => void;
   onExit: () => void;
 }
 
 const TITLE = "FOOD TRACK";
 
 /** Title screen: 3D food carousel behind a logo that slams together on load. */
-const WelcomeScreen = ({ onStart, onExit }: WelcomeScreenProps) => {
+const WelcomeScreen = ({ resume, onStart, onContinue, onReset, onExit }: WelcomeScreenProps) => {
   const rootRef = useRef<HTMLDivElement>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -86,15 +100,58 @@ const WelcomeScreen = ({ onStart, onExit }: WelcomeScreenProps) => {
           food is <em className="not-italic text-[hsl(42,95%,68%)]">not</em> happy about it.
         </p>
 
-        <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
-          <div data-cta>
-            <GameButton color="gold" size="lg" className="px-10 text-lg" onClick={onStart}>
-              <Play className="h-5 w-5" fill="currentColor" />
-              Start Game
+        {/* Today's diary picked up where it was left. The game is played across
+            a whole day of eating, not in one sitting, so an unfinished run is
+            the normal case — Continue leads, and starting over is the deliberate
+            choice you have to reach past it for. */}
+        {resume && (
+          <div
+            data-cta
+            className="mt-8 w-full max-w-sm rounded-2xl border-2 border-[hsl(42,60%,45%)] bg-[hsl(24,40%,18%)] px-4 py-3 text-center"
+          >
+            <p className="font-display text-sm font-bold text-[hsl(42,95%,72%)]">
+              {resume.finished ? "Today's diary is done" : "You have today's diary in progress"}
+            </p>
+            <p className="mt-0.5 text-xs font-bold text-[hsl(38,30%,68%)]">
+              {resume.meals} meal{resume.meals === 1 ? "" : "s"} · {resume.kcal.toLocaleString()} kcal so far
+            </p>
+          </div>
+        )}
+
+        <div className="mt-7 flex w-full max-w-sm flex-col items-center gap-3">
+          {resume && (
+            <div data-cta className="w-full">
+              <GameButton color="gold" size="lg" className={`${ACTION_BUTTON} text-lg`} onClick={onContinue}>
+                {resume.finished ? <Trophy className="h-5 w-5" /> : <Play className="h-5 w-5" fill="currentColor" />}
+                Continue
+              </GameButton>
+            </div>
+          )}
+
+          {/* Start Over throws away real work, so it asks once. A second tap
+              within the same screen is confirmation enough for a food diary —
+              a modal on top of a modal to protect one day's logging is worse. */}
+          <div data-cta className="w-full">
+            <GameButton
+              color={resume ? (confirmReset ? "red" : "wood") : "gold"}
+              size="lg"
+              className={`${ACTION_BUTTON} ${resume ? "" : "text-lg"}`}
+              onClick={() => {
+                if (!resume) {
+                  onStart();
+                  return;
+                }
+                if (confirmReset) onReset();
+                else setConfirmReset(true);
+              }}
+            >
+              {resume ? <RotateCcw className="h-5 w-5" /> : <Play className="h-5 w-5" fill="currentColor" />}
+              {resume ? (confirmReset ? "Tap again to wipe" : "Start Over") : "Start Game"}
             </GameButton>
           </div>
-          <div data-cta>
-            <GameButton color="wood" size="lg" onClick={onExit}>
+
+          <div data-cta className="w-full">
+            <GameButton color="wood" size="lg" className={ACTION_BUTTON} onClick={onExit}>
               <X className="h-5 w-5" />
               Exit
             </GameButton>
@@ -102,7 +159,7 @@ const WelcomeScreen = ({ onStart, onExit }: WelcomeScreenProps) => {
         </div>
 
         <p className="mt-8 text-xs font-bold text-[hsl(38,30%,60%)]">
-          Nutrition values from USDA FoodData Central (public domain)
+          {resume ? "Your diary resets on its own when the day ends." : "Nutrition values from USDA FoodData Central (public domain)"}
         </p>
       </div>
     </div>

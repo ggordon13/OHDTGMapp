@@ -64,7 +64,7 @@ export function emptyDraft(mealId: MealId): MealDraft {
 }
 
 /** Snacks and drinks are a flat multi-pick, not a build-a-plate. */
-const isPickerMeal = (mealId: MealId) => mealId === "snacks" || mealId === "drinks";
+export const isPickerMeal = (mealId: MealId) => mealId === "snacks" || mealId === "drinks";
 
 /** The catalogue a picker meal chooses from. */
 export function pickerOptions(mealId: MealId): FoodItem[] {
@@ -146,36 +146,134 @@ export function rewind(draft: MealDraft): MealDraft {
 }
 
 /**
+ * Which course a plated food came from. The meal editor groups its rows by
+ * this, and it is what tells a "remove" tap which answer to unpick — the food
+ * id alone isn't enough, since the same id can be a staple in one meal and a
+ * snack in another.
+ */
+export type Course = "staple" | "protein" | "side" | "item";
+
+export interface PlateItem {
+  food: FoodItem;
+  course: Course;
+  /** The protein family this cut belongs to. Only set for `course: "protein"`. */
+  groupId?: string;
+  methodId?: string;
+}
+
+/**
  * Every food in this meal that needs a portion, in plate order: carbs, then
  * proteins, then sides (or just the picks, for snacks/drinks).
  */
-export function plateItems(draft: MealDraft): { food: FoodItem; methodId?: string }[] {
+export function plateItems(draft: MealDraft): PlateItem[] {
   if (isPickerMeal(draft.mealId)) {
     return (draft.itemIds ?? [])
       .map((id) => lookupFood(id))
       .filter((f): f is FoodItem => !!f)
-      .map((food) => ({ food }));
+      .map((food) => ({ food, course: "item" as const }));
   }
 
-  const items: { food: FoodItem; methodId?: string }[] = [];
+  const items: PlateItem[] = [];
 
   if (draft.stapleId && draft.stapleId !== NONE_STAPLE) {
     const food = lookupFood(draft.stapleId);
-    if (food) items.push({ food });
+    if (food) items.push({ food, course: "staple" });
   }
 
   for (const groupId of draft.proteinGroupIds ?? []) {
     const food = lookupFood(draft.cuts[groupId] ?? "");
-    if (food) items.push({ food, methodId: draft.methods[groupId] });
+    if (food) items.push({ food, course: "protein", groupId, methodId: draft.methods[groupId] });
   }
 
   for (const sideId of draft.sideIds ?? []) {
     if (sideId === NONE_SIDE) continue;
     const food = lookupFood(sideId);
-    if (food) items.push({ food });
+    if (food) items.push({ food, course: "side" });
   }
 
   return items;
+}
+
+// ---------------------------------------------------------------------------
+// Editing an answered meal
+//
+// Once a meal has been walked through, the player lands on its editor rather
+// than being pushed onward, and everything below is what that screen acts
+// through. Each helper unpicks one answer while leaving the rest of the draft —
+// and crucially the step machine's invariants — intact, so `currentStep` keeps
+// working on the result exactly as it does on a freshly-built draft.
+//
+// Portions are deliberately *not* cleared on removal: they are keyed by food id
+// and only ever read for foods that are currently plated, so keeping them means
+// re-adding something you removed by mistake brings its size back with it.
+// ---------------------------------------------------------------------------
+
+/** Drop one plated food, unpicking whichever answer put it there. */
+export function removePlateItem(draft: MealDraft, item: PlateItem): MealDraft {
+  const next: MealDraft = { ...draft, cuts: { ...draft.cuts }, methods: { ...draft.methods } };
+
+  switch (item.course) {
+    case "item":
+      next.itemIds = (next.itemIds ?? []).filter((id) => id !== item.food.id);
+      break;
+    case "staple":
+      // "No carbs" rather than undefined — undefined would re-ask the question.
+      next.stapleId = NONE_STAPLE;
+      break;
+    case "protein":
+      if (item.groupId) {
+        next.proteinGroupIds = (next.proteinGroupIds ?? []).filter((id) => id !== item.groupId);
+        delete next.cuts[item.groupId];
+        delete next.methods[item.groupId];
+      }
+      break;
+    case "side":
+      next.sideIds = (next.sideIds ?? []).filter((id) => id !== item.food.id);
+      break;
+  }
+
+  return next;
+}
+
+/**
+ * Re-open one course for editing. Returns the step to ask, and the answers to
+ * seed the multi-select with so the screen opens on what is already chosen.
+ *
+ * The draft itself is untouched: an edit that is abandoned must leave the meal
+ * exactly as it was, which it can only do if nothing was cleared to ask.
+ */
+export function editStep(draft: MealDraft, course: Course): { step: Step; pending: string[] } {
+  const { mealId } = draft;
+  switch (course) {
+    case "item":
+      return { step: { kind: "picker", mealId }, pending: draft.itemIds ?? [] };
+    case "staple":
+      return { step: { kind: "staple", mealId }, pending: [] };
+    case "protein":
+      return { step: { kind: "protein", mealId }, pending: draft.proteinGroupIds ?? [] };
+    case "side":
+      return { step: { kind: "sides", mealId }, pending: draft.sideIds ?? [] };
+  }
+}
+
+/** Re-ask how one already-chosen protein was cooked. */
+export function editMethodStep(draft: MealDraft, groupId: string): Step | null {
+  const foodId = draft.cuts[groupId];
+  return foodId ? { kind: "method", mealId: draft.mealId, groupId, foodId } : null;
+}
+
+/** Re-ask which cut of an already-chosen protein family was eaten. */
+export function editCutStep(draft: MealDraft, groupId: string): Step {
+  return { kind: "cut", mealId: draft.mealId, groupId };
+}
+
+/**
+ * Whether the meal has been walked through far enough to show its editor: every
+ * question answered, so the only thing left is sizing and second thoughts.
+ */
+export function isMealBuilt(draft: MealDraft): boolean {
+  const kind = currentStep(draft).kind;
+  return kind === "plate" || kind === "done";
 }
 
 /** Turn a finished draft into diary lines with calories and protein filled in. */
@@ -224,7 +322,8 @@ export function stepPrompt(step: Step): { title: string; hint: string } {
         ? { title: "What did you drink?", hint: "Everything counts — even the sneaky ones." }
         : { title: "What did you snack on?", hint: "Be honest. The bar knows." };
     case "plate":
-      return { title: "Size it up", hint: "How much of each did you actually put away?" };
+      // Doubles as the meal editor's heading, so the hint names both jobs.
+      return { title: "Size it up", hint: "How much of each did you have? Change or remove anything below." };
     case "done":
       return { title: "Meal cleared!", hint: "" };
   }

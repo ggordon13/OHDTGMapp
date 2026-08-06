@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { DailyLog } from "@/lib/mockData";
 import { WeeklyGoals } from "@/lib/gamification";
 import { computeAnalytics } from "@/lib/analytics";
-import { exportAnalyticsCsv, exportAnalyticsPdf, type ExportMeta } from "@/lib/export";
+import { exportAnalyticsCsv, exportAnalyticsPdf, exportMyDataCsv, type ExportMeta } from "@/lib/export";
 import GamePanel from "@/components/game/GamePanel";
 import GameButton from "@/components/game/GameButton";
 
@@ -61,6 +61,28 @@ const DataAnalytics = ({ logs, goals, scoringDate, userName, canExport, lockedSl
     }
   };
 
+  /**
+   * Data portability, free on every plan. Premium buys the *analysis*; a copy of
+   * your own logs is never something to pay for (and under GDPR Art. 20 it can't
+   * be — portability has to be provided free of charge).
+   */
+  const handleDownloadMyData = () => {
+    try {
+      exportMyDataCsv(logs, meta);
+      toast.success("Downloaded your data 📄");
+    } catch (err) {
+      console.error("Data export failed", err);
+      toast.error("Sorry — the download failed. Please try again.");
+    }
+  };
+
+  const myDataButton = (
+    <GameButton color="wood" size="sm" onClick={handleDownloadMyData} title="Download every day you've logged, as CSV">
+      <FileDown className="h-4 w-4" />
+      Download my data
+    </GameButton>
+  );
+
   if (!canExport) {
     return (
       <GamePanel title="Analytics & Export" icon={<BarChart3 className="h-4 w-4" />} color="purple">
@@ -73,10 +95,16 @@ const DataAnalytics = ({ logs, goals, scoringDate, userName, canExport, lockedSl
               Progress analytics is a premium feature
             </p>
             <p className="mx-auto max-w-sm text-xs font-semibold text-muted-foreground">
-              Unlock full trend stats plus one-click CSV and PDF reports of your whole journey.
+              Unlock trend stats, the weekly breakdown and the one-click PDF report of your whole journey.
             </p>
           </div>
           {lockedSlot}
+          <div className="mt-2 space-y-1.5 border-t-2 border-dashed border-[hsl(33,28%,72%)] pt-3">
+            <p className="text-[11px] font-semibold text-muted-foreground">
+              Your own logs are always yours — no plan needed.
+            </p>
+            {myDataButton}
+          </div>
         </div>
       </GamePanel>
     );
@@ -120,12 +148,16 @@ const DataAnalytics = ({ logs, goals, scoringDate, userName, canExport, lockedSl
         <div className="flex flex-col gap-2 sm:flex-row">
           <GameButton color="leaf" size="sm" className="flex-1" onClick={() => handleExport("csv")}>
             <FileDown className="h-4 w-4" />
-            Export CSV
+            Report CSV
           </GameButton>
           <GameButton color="red" size="sm" className="flex-1" onClick={() => handleExport("pdf")}>
             <FileText className="h-4 w-4" />
-            Export PDF
+            Report PDF
           </GameButton>
+        </div>
+
+        <div className="flex justify-center border-t-2 border-dashed border-[hsl(33,28%,72%)] pt-3">
+          {myDataButton}
         </div>
       </div>
     </GamePanel>

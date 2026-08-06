@@ -16,9 +16,14 @@ import {
   NONE_STAPLE,
   currentStep,
   draftEntries,
+  editCutStep,
+  editMethodStep,
+  editStep,
   emptyDraft,
   hasAnyAnswer,
+  isMealBuilt,
   plateItems,
+  removePlateItem,
   rewind,
   type MealDraft,
 } from "@/lib/foodGame/flow";
@@ -267,5 +272,116 @@ describe("weighed portions", () => {
     const entry = draftEntries(draft).find((e) => e.foodId === "beef-ribeye")!;
     expect(entry.portionId).toBe("custom");
     expect(entry.grams).toBe(312);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Editing a built meal — the helpers behind the meal editor's Change / Remove
+// controls. Each one has to leave a draft the step machine can still read, so
+// every case below asserts on `currentStep` as well as on the contents.
+// ---------------------------------------------------------------------------
+
+describe("editing a built meal", () => {
+  /** Rice + grilled ribeye + fries, fully answered. */
+  const built = (): MealDraft => ({
+    ...emptyDraft("dinner"),
+    stapleId: "rice-white",
+    proteinGroupIds: ["beef", "fish"],
+    cuts: { beef: "beef-ribeye", fish: "fish-salmon" },
+    methods: { beef: "grilled", fish: "baked" },
+    sideIds: ["side-fries"],
+  });
+
+  it("counts a fully answered meal as built", () => {
+    expect(isMealBuilt(built())).toBe(true);
+    expect(isMealBuilt(emptyDraft("dinner"))).toBe(false);
+  });
+
+  it("counts a meal with every course skipped as built too", () => {
+    const skipped: MealDraft = {
+      ...emptyDraft("dinner"),
+      stapleId: NONE_STAPLE,
+      proteinGroupIds: [],
+      sideIds: [NONE_SIDE],
+    };
+    expect(isMealBuilt(skipped)).toBe(true);
+    expect(plateItems(skipped)).toHaveLength(0);
+  });
+
+  it("removing a protein takes its cut and method with it", () => {
+    const draft = built();
+    const beef = plateItems(draft).find((i) => i.food.id === "beef-ribeye")!;
+    const next = removePlateItem(draft, beef);
+
+    expect(next.proteinGroupIds).toEqual(["fish"]);
+    expect(next.cuts.beef).toBeUndefined();
+    expect(next.methods.beef).toBeUndefined();
+    // Still answered, so it stays on the editor rather than re-asking.
+    expect(currentStep(next).kind).toBe("plate");
+    expect(plateItems(next).map((i) => i.food.id)).toEqual(["rice-white", "fish-salmon", "side-fries"]);
+  });
+
+  it("removing the carbs answers 'no carbs' instead of un-asking the question", () => {
+    const draft = built();
+    const rice = plateItems(draft).find((i) => i.food.id === "rice-white")!;
+    const next = removePlateItem(draft, rice);
+
+    // undefined here would send the player back to a question they answered.
+    expect(next.stapleId).toBe(NONE_STAPLE);
+    expect(currentStep(next).kind).toBe("plate");
+  });
+
+  it("removing the last thing on the plate leaves an empty, still-built meal", () => {
+    let draft = built();
+    for (const item of plateItems(draft)) draft = removePlateItem(draft, item);
+    expect(plateItems(draft)).toHaveLength(0);
+    expect(currentStep(draft).kind).toBe("done");
+    expect(isMealBuilt(draft)).toBe(true);
+  });
+
+  it("keeps a removed food's portion, so putting it back restores its size", () => {
+    const draft: MealDraft = { ...built(), portions: { "side-fries": "huge" } };
+    const fries = plateItems(draft).find((i) => i.food.id === "side-fries")!;
+    const next = removePlateItem(draft, fries);
+    expect(next.portions["side-fries"]).toBe("huge");
+  });
+
+  it("re-opens a course seeded with what is already chosen, touching nothing", () => {
+    const draft = built();
+    const proteins = editStep(draft, "protein");
+    expect(proteins.step).toEqual({ kind: "protein", mealId: "dinner" });
+    expect(proteins.pending).toEqual(["beef", "fish"]);
+
+    expect(editStep(draft, "side").pending).toEqual(["side-fries"]);
+    expect(editStep(draft, "staple").step.kind).toBe("staple");
+
+    // An abandoned edit has to be a no-op, which it only is if nothing was
+    // cleared to ask the question in the first place.
+    expect(draft).toEqual(built());
+  });
+
+  it("re-opens a picker meal's own catalogue", () => {
+    const snacks: MealDraft = { ...emptyDraft("snacks"), itemIds: ["snack-nuts"] };
+    const { step, pending } = editStep(snacks, "item");
+    expect(step).toEqual({ kind: "picker", mealId: "snacks" });
+    expect(pending).toEqual(["snack-nuts"]);
+  });
+
+  it("re-asks a cut or a method for one protein family only", () => {
+    const draft = built();
+    expect(editCutStep(draft, "fish")).toEqual({ kind: "cut", mealId: "dinner", groupId: "fish" });
+    expect(editMethodStep(draft, "fish")).toEqual({
+      kind: "method",
+      mealId: "dinner",
+      groupId: "fish",
+      foodId: "fish-salmon",
+    });
+    // Nothing to re-cook when no cut has been chosen yet.
+    expect(editMethodStep(draft, "pork")).toBeNull();
+  });
+
+  it("tags each plated food with the course that put it there", () => {
+    expect(plateItems(built()).map((i) => i.course)).toEqual(["staple", "protein", "protein", "side"]);
+    expect(plateItems({ ...emptyDraft("drinks"), itemIds: ["drink-water"] })[0].course).toBe("item");
   });
 });

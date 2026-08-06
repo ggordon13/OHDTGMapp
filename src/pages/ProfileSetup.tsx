@@ -9,6 +9,8 @@ import {
   recommendedTargetRange,
   calculateTargets,
   isValidUsername,
+  isAtOrBelowHealthyFloor,
+  MIN_SIGNUP_AGE,
   USERNAME_MAX_LENGTH,
   USERNAME_RULE_HINT,
   type GoalType,
@@ -43,6 +45,9 @@ const ProfileSetup = () => {
   const [dayOneDate, setDayOneDate] = useState(formatDateInputValue());
   const [saving, setSaving] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
+  // Explicit consent to store health data. Pre-ticked only for people who have
+  // already given it — a pre-ticked box is not consent for anyone else.
+  const [healthConsent, setHealthConsent] = useState(false);
 
   const isUpdate = !requiresProfileSetup(profile);
   // Any of these changing re-bases the challenge, so the user has to start
@@ -104,6 +109,8 @@ const ProfileSetup = () => {
     // A stored min/max band means they opted into the recommended range.
     setUseRecommended(profile.target_weight_min != null && profile.target_weight_max != null);
     if (profile.challenge_start_date) setDayOneDate(profile.challenge_start_date);
+    // Already consented on a previous visit — don't make them re-tick it.
+    if (profile.health_data_consent_at) setHealthConsent(true);
     setPrefilled(true);
   }, [profile, profileLoading, prefilled]);
 
@@ -134,8 +141,17 @@ const ProfileSetup = () => {
 
   const w = Number(currentWeight);
   const hasWeight = currentWeight !== "" && !Number.isNaN(w) && w > 0;
-  const range = hasWeight ? targetWeightRange(w, goalType) : null;
-  const recommended = hasWeight ? recommendedTargetRange(w, goalType) : null;
+  const h = heightCm === "" ? null : Number(heightCm);
+  // Height feeds the healthy-BMI floor, so a "lose" target can never be set
+  // below it — see targetWeightRange.
+  const range = hasWeight ? targetWeightRange(w, goalType, h) : null;
+  const recommended = hasWeight ? recommendedTargetRange(w, goalType, h) : null;
+  const belowHealthyFloor = hasWeight && isAtOrBelowHealthyFloor(w, h);
+
+  // Neutral age screen. We ask because BMR needs it; we act on it because a
+  // gamified weight-loss app is not something to hand a child.
+  const ageNum = age === "" ? null : Number(age);
+  const ageTooYoung = ageNum != null && !Number.isNaN(ageNum) && ageNum < MIN_SIGNUP_AGE;
 
   // Snap an out-of-range target back into the allowed band when the goal or
   // current weight changes, so the form can never hold an invalid value.
@@ -161,6 +177,16 @@ const ProfileSetup = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !preview) return;
+
+    if (ageTooYoung) {
+      toast.error(`Sorry — you need to be at least ${MIN_SIGNUP_AGE} to use GGLvlup.`);
+      return;
+    }
+
+    if (!healthConsent) {
+      toast.error("Please confirm you're happy for us to store the health data you enter.");
+      return;
+    }
 
     if (!usernameValid) {
       toast.error(`Please pick a valid nickname. ${USERNAME_RULE_HINT}`);
@@ -192,6 +218,9 @@ const ProfileSetup = () => {
     setSaving(true);
     const { error } = await supabase.from("profiles").update({
       username: usernameTrimmed,
+      // Explicit consent to process health data (GDPR Art. 9 / PH DPA sensitive
+      // personal information). Stamped once and never cleared by a later edit.
+      health_data_consent_at: profile?.health_data_consent_at ?? new Date().toISOString(),
       age: Number(age),
       height_cm: Number(heightCm),
       current_weight: w,
@@ -345,7 +374,21 @@ const ProfileSetup = () => {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="age" className={labelClass}>Age</Label>
-              <Input id="age" type="number" value={age} onChange={(e) => setAge(e.target.value)} required placeholder="25" />
+              <Input
+                id="age"
+                type="number"
+                min={MIN_SIGNUP_AGE}
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                required
+                placeholder="25"
+                aria-invalid={ageTooYoung}
+              />
+              {ageTooYoung && (
+                <p className="text-xs font-bold text-[hsl(6,62%,42%)]">
+                  You need to be at least {MIN_SIGNUP_AGE} to use GGLvlup.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="gender" className={labelClass}>Gender</Label>
@@ -417,6 +460,20 @@ const ProfileSetup = () => {
               })}
             </div>
           </div>
+
+          {/* Safety floor. The per-run percentage limits are relative, so across
+              successive runs they would happily ratchet someone below a healthy
+              weight; targetWeightRange clamps to BMI 18.5 and this explains why
+              the allowed range stopped where it did. */}
+          {belowHealthyFloor && goalType === "lose" && (
+            <div className="rounded-xl border-2 border-[hsl(6,62%,52%)]/50 bg-[hsl(6,62%,52%)]/10 px-3 py-2.5">
+              <p className="text-xs font-bold text-[hsl(6,62%,38%)]">
+                You're already at or below a healthy weight for your height, so we won't set a
+                weight-loss target. Switch to <strong>Maintain</strong> — and please talk to a
+                doctor or dietitian before losing more.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="tw" className={labelClass}>Target Weight (kg)</Label>
@@ -498,8 +555,43 @@ const ProfileSetup = () => {
             </div>
           )}
 
+          {/* Health data is a special category under GDPR Art. 9 and sensitive
+              personal information under the PH Data Privacy Act — both need
+              explicit, unbundled consent, which a Terms link cannot carry. */}
+          <label className="game-tag flex cursor-pointer items-start gap-2.5 px-3 py-3 text-left">
+            <Checkbox
+              checked={healthConsent}
+              onCheckedChange={(v) => setHealthConsent(v === true)}
+              className="mt-0.5 shrink-0"
+              aria-describedby="health-consent-text"
+            />
+            <span id="health-consent-text" className="text-xs font-semibold text-muted-foreground">
+              I agree to GGLvlup storing the health and fitness data I enter (weight, food, water,
+              steps and exercise) so it can run my dashboard, streaks and trophies. I can withdraw
+              this at any time by deleting my account.{" "}
+              <a href="/privacy" target="_blank" rel="noreferrer" className="font-bold underline">
+                Privacy Policy
+              </a>
+            </span>
+          </label>
+
           <div className="space-y-3 pt-1">
-            <GameButton type="submit" color="red" size="lg" className="w-full" disabled={saving || !usernameValid || usernameStatus === "taken" || !gender || !activityLevel || !targetValid}>
+            <GameButton
+              type="submit"
+              color="red"
+              size="lg"
+              className="w-full"
+              disabled={
+                saving ||
+                !healthConsent ||
+                ageTooYoung ||
+                !usernameValid ||
+                usernameStatus === "taken" ||
+                !gender ||
+                !activityLevel ||
+                !targetValid
+              }
+            >
               {saving ? "Saving..." : isUpdate ? "Save Changes" : "Start My 100-Day Challenge 🚀"}
             </GameButton>
             {isUpdate && (

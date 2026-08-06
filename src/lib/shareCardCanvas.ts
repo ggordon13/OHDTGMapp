@@ -9,6 +9,19 @@
 // All geometry is in CSS pixels; `scale` is the device-pixel multiplier.
 // ---------------------------------------------------------------------------
 
+import {
+  FONT,
+  circle,
+  drawText,
+  ellipsize,
+  fitFont,
+  prepareCardAssets,
+  roundRectPath,
+  textWidth,
+  vGradient,
+  type CardAssets,
+  type Ctx,
+} from "@/lib/canvasDraw";
 import { getRank } from "@/lib/ranks";
 
 export interface ShareCardData {
@@ -43,125 +56,19 @@ const PANEL_H =
 export const CARD_WIDTH = 400;
 export const CARD_HEIGHT = PANEL_TOP + PANEL_H + GAP_FOOTER + FOOTER_H + PAD;
 
-const FONT = "Fredoka, sans-serif";
 const INK = "hsl(24, 42%, 16%)";
 const MUTED = "hsl(27, 24%, 42%)";
 
 // --- Assets -----------------------------------------------------------------
+//
+// The loader and the drawing primitives live in `lib/canvasDraw`, shared with
+// the Food Track day card. Re-exported under their original names so callers
+// of this module didn't have to move with them.
 
-export interface ShareCardAssets {
-  /** null when the logo can't be loaded — the card falls back to a wordmark. */
-  logo: HTMLImageElement | null;
-}
-
-let assetsPromise: Promise<ShareCardAssets> | null = null;
-
-const loadLogo = () =>
-  new Promise<HTMLImageElement | null>((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = "/logo.png";
-  });
-
-/** Web fonts and the logo, so the first paint isn't drawn in a fallback face. */
-export function prepareShareCard(): Promise<ShareCardAssets> {
-  assetsPromise ??= (async () => {
-    if (typeof document !== "undefined" && document.fonts) {
-      // A single size is enough — it loads the whole face.
-      await Promise.all([
-        document.fonts.load(`700 16px ${FONT}`),
-        document.fonts.load(`600 16px ${FONT}`),
-      ]).catch(() => undefined);
-    }
-    return { logo: await loadLogo() };
-  })();
-  return assetsPromise;
-}
+export type ShareCardAssets = CardAssets;
+export const prepareShareCard = prepareCardAssets;
 
 // --- Drawing helpers --------------------------------------------------------
-
-type Ctx = CanvasRenderingContext2D;
-
-/** roundRect() by hand — Safari 15 and jsdom don't have the built-in. */
-function roundRectPath(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
-  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.arcTo(x + w, y, x + w, y + h, rr);
-  ctx.arcTo(x + w, y + h, x, y + h, rr);
-  ctx.arcTo(x, y + h, x, y, rr);
-  ctx.arcTo(x, y, x + w, y, rr);
-  ctx.closePath();
-}
-
-/** Top-to-bottom gradient across [y, y + h]. */
-function vGradient(ctx: Ctx, y: number, h: number, stops: string[]): CanvasGradient {
-  const g = ctx.createLinearGradient(0, y, 0, y + h);
-  stops.forEach((c, i) => g.addColorStop(stops.length === 1 ? 0 : i / (stops.length - 1), c));
-  return g;
-}
-
-function circle(ctx: Ctx, cx: number, cy: number, r: number) {
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.closePath();
-}
-
-/** Width of `text` at the context's current font, including letter tracking. */
-function textWidth(ctx: Ctx, text: string, tracking: number): number {
-  if (tracking === 0) return ctx.measureText(text).width;
-  let w = 0;
-  for (const ch of text) w += ctx.measureText(ch).width + tracking;
-  return Math.max(0, w - tracking);
-}
-
-interface TextOpts {
-  font: string;
-  color: string;
-  align?: "left" | "center" | "right";
-  /** Extra space between glyphs, mirroring Tailwind's `tracking-*`. */
-  tracking?: number;
-}
-
-/** Draws `text` with `y` as its vertical centre. Returns the width drawn. */
-function drawText(ctx: Ctx, text: string, x: number, y: number, o: TextOpts): number {
-  ctx.font = o.font;
-  ctx.fillStyle = o.color;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  const tracking = o.tracking ?? 0;
-  const w = textWidth(ctx, text, tracking);
-  let cursor = o.align === "center" ? x - w / 2 : o.align === "right" ? x - w : x;
-  if (tracking === 0) {
-    ctx.fillText(text, cursor, y);
-    return w;
-  }
-  for (const ch of text) {
-    ctx.fillText(ch, cursor, y);
-    cursor += ctx.measureText(ch).width + tracking;
-  }
-  return w;
-}
-
-/** Largest size in [min, max] that fits `maxW`, so long nicknames still fit. */
-function fitFont(ctx: Ctx, text: string, maxW: number, max: number, min: number): string {
-  let size = max;
-  while (size > min) {
-    ctx.font = `700 ${size}px ${FONT}`;
-    if (ctx.measureText(text).width <= maxW) break;
-    size -= 1;
-  }
-  return `700 ${size}px ${FONT}`;
-}
-
-/** Trims to fit, with an ellipsis. Assumes the caller already set the font. */
-function ellipsize(ctx: Ctx, text: string, maxW: number): string {
-  if (ctx.measureText(text).width <= maxW) return text;
-  let t = text;
-  while (t.length > 1 && ctx.measureText(`${t}…`).width > maxW) t = t.slice(0, -1);
-  return `${t}…`;
-}
 
 function drawStar(ctx: Ctx, cx: number, cy: number, r: number, color: string) {
   const inner = r * 0.47;

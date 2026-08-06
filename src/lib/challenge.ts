@@ -10,7 +10,10 @@ export const AWARD_META: {
 }[] = [
   { key: "golden_shoe", label: "Golden Shoe", icon: "👟", desc: "Highest avg steps", metric: "avg_steps" },
   { key: "energetic", label: "The Energetic", icon: "🔥", desc: "Most exercise", metric: "exercise_days" },
-  { key: "biggest_loser", label: "The Biggest Loser", icon: "📉", desc: "Most % weight lost", metric: "pct_weight_loss" },
+  // Key stays `biggest_loser` (it's persisted on challenge_rewards); only the
+  // label changed. Naming a weight-loss prize after the TV show sets a tone this
+  // app shouldn't, especially with a public leaderboard attached.
+  { key: "biggest_loser", label: "The Trend Setter", icon: "📉", desc: "Most % weight lost", metric: "pct_weight_loss" },
   { key: "milestone_master", label: "The Milestone Master", icon: "⭐", desc: "Most quest XP", metric: "xp_window" },
 ];
 

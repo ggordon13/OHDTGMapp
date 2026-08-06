@@ -10,6 +10,7 @@ import { parseDateInputValue } from "@/lib/utils";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import Logo from "@/components/Logo";
 import GameButton from "@/components/game/GameButton";
+import ChallengeSharingNotice from "@/components/ChallengeSharingNotice";
 
 /** Where a not-yet-signed-in visitor's target challenge is stashed across auth. */
 export const PENDING_JOIN_KEY = "pendingJoinChallenge";
@@ -151,10 +152,13 @@ const JoinChallenge = () => {
               )}
 
               {open ? (
-                <GameButton color="leaf" size="lg" className="w-full" disabled={joining} onClick={() => void handleJoin()}>
-                  {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Swords className="h-4 w-4" />}
-                  {joining ? "Joining…" : "Join challenge"}
-                </GameButton>
+                <div className="space-y-3">
+                  <ChallengeSharingNotice />
+                  <GameButton color="leaf" size="lg" className="w-full" disabled={joining} onClick={() => void handleJoin()}>
+                    {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Swords className="h-4 w-4" />}
+                    {joining ? "Joining…" : "Join challenge"}
+                  </GameButton>
+                </div>
               ) : (
                 <div className="space-y-2">
                   <p className="text-sm font-bold text-[hsl(6,55%,45%)]">
