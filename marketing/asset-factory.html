@@ -792,6 +792,21 @@ const ZEROPACK = [
 // The 16 videos
 // ---------------------------------------------------------------------------
 const VIDEOS = [
+  { id: "first-pitch", slot: "★ 1st post", title: "First reel · the pitch",
+    storyboard: [
+      { s: "htext", key: "hook", t: 1600 },
+      { s: "htext", key: "hook2", t: 1900 },
+      { s: "claim", t: 2200 },
+      { s: "levelrank", t: 2400 },
+      { s: "trophy", t: 1900 },
+      { s: "chalovertake", t: 2600 },
+      { s: "ctalink", t: 2200 },
+    ],
+    hook: "You didn't lack discipline.",
+    hook2: "Fitness apps just gave you\nnothing back.",
+    caption: "every tracker I tried died in a week — because it never once told me I was doing well. so I built one that pays you back the same day: quests, levels, ranks, trophies, and challenges with friends. link in bio 👇",
+    tags: "#gamifiedfitness #fitnessapp #weightlossjourney #fitnessph #buildinpublic",
+    end: "bio" },
   { id: "overall-start", slot: "★ Overall", title: "Starting overall reel",
     secs: 21, timeline: ["logday", "claim", "levelrank", "chalovertake", "chalawards", "cta"],
     hook: "watch me run a full day\nin GGLvlup",
@@ -1212,8 +1227,38 @@ function scChalOvertake(ctx, W, H, p) {
   if (e > 0.82) { ctx.globalAlpha = cl01((e - 0.82) / 0.18); txt(ctx, "🔥 you took the lead!", W / 2, H * 0.9, { font: f(700, 54), color: C.goldText, align: "center" }); ctx.globalAlpha = 1; }
 }
 
+// A full-screen hook text that fades/rises in (used for the two-hook opener).
+function drawHookText(ctx, W, H, p, text) {
+  woodBg(ctx, W, H, (String(text).charCodeAt(0) || 70) * 7 + 3);
+  const size = String(text).length > 40 ? 92 : 108;
+  const lines = wrap(ctx, text, W - 180, f(700, size));
+  const lh = size * 1.14;
+  const inn = eOut(cl01(p / 0.3));
+  const start = H / 2 - (lines.length * lh) / 2 + lh / 2 + (1 - inn) * 40;
+  ctx.globalAlpha = inn;
+  lines.forEach((l, i) => txt(ctx, l, W / 2, start + i * lh, { font: f(700, size), color: C.cream, align: "center" }));
+  ctx.globalAlpha = 1;
+  txt(ctx, "GGLVLUP", W / 2, H - 150, { font: f(600, 30), color: C.goldText, align: "center", tracking: 8 });
+}
+// Logo CTA closing on a "Link in bio" button (instead of "comment").
+function scCtaLink(ctx, W, H, p, c) {
+  woodBg(ctx, W, H, 3);
+  const s = 520 * eOut(cl01(p / 0.35));
+  if (s > 20) drawLogo(ctx, W / 2, H * 0.35, s);
+  txt(ctx, "GAMIFIED FITNESS TRACKER", W / 2, H * 0.57, { font: f(700, 50), color: C.goldText, align: "center", tracking: 3 });
+  block(ctx, (c && c.tagline) || "Level up your life", W / 2, H * 0.61, W - 200, 42, "hsl(38,25%,80%)", "center", 500);
+  if (p > 0.25) {
+    const bw = W - 360, bh = 150, bx = 180, by = H * 0.74;
+    rr(ctx, bx, by + 10, bw, bh, 26); ctx.fillStyle = C.leafRim; ctx.fill();
+    rr(ctx, bx, by, bw, bh, 26); ctx.fillStyle = vgrad(ctx, by, bh, C.leafFace, C.leafDeep); ctx.fill();
+    ctx.lineWidth = 5; ctx.strokeStyle = C.leafRim; ctx.stroke();
+    txt(ctx, "👆 LINK IN BIO", bx + bw / 2, by + bh / 2, { font: f(700, 56), color: "#fff", align: "center", tracking: 2 });
+  }
+  wordmark(ctx, W, H - 110);
+}
+
 const SCENES = { levelup: scLevelUp, trophy: scTrophy, leaderboard: scLeaderboard, streak: scStreak, rankladder: scRankLadder, quest: scQuest, daycompare: scDayCompare, generic: scGeneric,
-  logday: scLogDay, claim: scClaim, levelrank: scLevelRank, cta: scCta, chalboard: scChalBoard, chalovertake: scChalOvertake, chalawards: scChalAwards };
+  logday: scLogDay, claim: scClaim, levelrank: scLevelRank, cta: scCta, chalboard: scChalBoard, chalovertake: scChalOvertake, chalawards: scChalAwards, ctalink: scCtaLink };
 const SCENE_BY_ID = {
   "w1-01": "levelup", "w1-02": "trophy", "w1-03": "leaderboard", "w1-04": "generic",
   "w2-05": "rankladder", "w2-06": "streak", "w2-07": "quest", "w2-08": "leaderboard",
@@ -1221,12 +1266,31 @@ const SCENE_BY_ID = {
   "w4-13": "generic", "w4-14": "generic", "w4-15": "generic", "w4-16": "generic",
 };
 
-const clipTotalMs = (v) => Math.max(5000, ((v && v.secs) ? v.secs : CLIP.secs) * 1000);
+const clipTotalMs = (v) => {
+  if (v && v.storyboard) return v.storyboard.reduce((s, seg) => s + seg.t, 0);
+  return Math.max(5000, ((v && v.secs) ? v.secs : CLIP.secs) * 1000);
+};
 function fadeAt(ctx, W, H, elapsed, t) {
   const d = Math.abs(elapsed - t);
   if (d < 120) { ctx.fillStyle = `rgba(0,0,0,${(1 - d / 120) * 0.5})`; ctx.fillRect(0, 0, W, H); }
 }
 function drawClipFrame(ctx, W, H, v, elapsed, c) {
+  // Storyboard: explicit per-segment durations (hook texts + scenes in sequence).
+  if (v.storyboard) {
+    let acc = 0;
+    for (let i = 0; i < v.storyboard.length; i++) {
+      const seg = v.storyboard[i], last = i === v.storyboard.length - 1;
+      if (elapsed < acc + seg.t || last) {
+        const lp = cl01((elapsed - acc) / seg.t);
+        if (seg.s === "htext") drawHookText(ctx, W, H, lp, v[seg.key] || "");
+        else (SCENES[seg.s] || SCENES.generic)(ctx, W, H, lp, c);
+        if (i > 0) fadeAt(ctx, W, H, elapsed, acc);
+        return;
+      }
+      acc += seg.t;
+    }
+    return;
+  }
   const total = clipTotalMs(v), mid0 = CLIP.hookMs;
   // Multi-scene reel: hook, then the timeline scenes fill the rest in sequence.
   if (v.timeline) {
@@ -1363,6 +1427,7 @@ function buildVideos() {
     };
 
     const hookField = field("Hook — shown at start & end (Enter = new line)", v.hook, true, (val) => { v.hook = val; reHook(); });
+    const hook2Field = v.hook2 !== undefined ? field("Hook 2 (second card)", v.hook2, true, (val) => { v.hook2 = val; }) : null;
     const capField = field("Caption", v.caption, true, (val) => { v.caption = val; });
     const tagField = field("Hashtags", v.tags, false, (val) => { v.tags = val; });
 
@@ -1384,7 +1449,7 @@ function buildVideos() {
       mk("📋 Caption", () => { navigator.clipboard.writeText(`${v.caption}\n\n${v.tags}`); toast("Caption + tags copied"); }),
     );
 
-    body.append(head, hookField, capField, tagField, endWrap, btns);
+    body.append(head, hookField, ...(hook2Field ? [hook2Field] : []), capField, tagField, endWrap, btns);
     row.append(cv, body); host.appendChild(row);
   });
 }
@@ -1459,7 +1524,7 @@ friends. One minute a day, and it pays you back the same day. Comment ${k} or ta
 };
 document.getElementById("dlHooks").onclick = async () => {
   toast("Rendering video cards…");
-  const plan = VIDEOS.filter((v) => !v.timeline);
+  const plan = VIDEOS.filter((v) => !v.timeline && !v.storyboard);
   for (const v of plan) {
     await download(`gglvlup-${v.id}-hook.png`, 1080, 1920, (c, w, h) => drawHookCard(c, w, h, v));
     await download(`gglvlup-${v.id}-end.png`, 1080, 1920, (c, w, h) => drawEndCard(c, w, h, v, CFG));
@@ -1502,7 +1567,7 @@ document.getElementById("dlCaptions").onclick = () => {
   });
   document.getElementById("recAll").onclick = async () => {
     const status = document.getElementById("recStatus");
-    const plan = VIDEOS.filter((v) => !v.timeline); // the 16-video plan (not the overall reel)
+    const plan = VIDEOS.filter((v) => !v.timeline && !v.storyboard); // the 16-video plan only
     for (let i = 0; i < plan.length; i++) {
       status.textContent = `Recording ${i + 1} / ${plan.length} — ${plan[i].slot}…`;
       await recordClip(plan[i]);

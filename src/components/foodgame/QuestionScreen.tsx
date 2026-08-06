@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Undo2 } from "lucide-react";
 import GameButton from "@/components/game/GameButton";
 import ChoiceCard from "./ChoiceCard";
+import { ACTION_BUTTON } from "./ui";
 import { COOK_METHODS, PROTEIN_GROUPS, lookupFood } from "@/lib/foodGame/foods";
 import { NONE_SIDE, optionsForStep, stepPrompt, type Step } from "@/lib/foodGame/flow";
 import { sfx } from "@/lib/sfx";
@@ -15,11 +16,18 @@ interface QuestionScreenProps {
    * and skip the question out from under the player mid-tap.
    */
   pending: string[];
+  /**
+   * The question was re-opened from a built meal rather than reached in
+   * sequence. Only changes the way out: an edit can be abandoned, so it offers
+   * a cancel that a first pass has no use for.
+   */
+  editing?: boolean;
   /** Single-select steps commit and advance immediately. */
   onPick: (id: string) => void;
   /** Multi-select steps toggle, then commit via the Continue button. */
   onToggle: (id: string) => void;
   onConfirm: () => void;
+  onCancel: () => void;
 }
 
 /** Multi-select steps let the player tap several answers before continuing. */
@@ -39,7 +47,15 @@ const servingDetail = (kcal100: number, serving: number, protein100: number, not
  * snack/drink picker — and animates the whole block in whenever the step
  * changes so the game reads as a sequence of screens rather than a form.
  */
-const QuestionScreen = ({ step, pending, onPick, onToggle, onConfirm }: QuestionScreenProps) => {
+const QuestionScreen = ({
+  step,
+  pending,
+  editing = false,
+  onPick,
+  onToggle,
+  onConfirm,
+  onCancel,
+}: QuestionScreenProps) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const { title, hint } = stepPrompt(step);
   const isMulti = MULTI_STEPS.has(step.kind);
@@ -149,21 +165,29 @@ const QuestionScreen = ({ step, pending, onPick, onToggle, onConfirm }: Question
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">{cards}</div>
 
-      {isMulti && (
-        <div data-q-foot className="flex justify-center pt-1">
-          <GameButton
-            color={chosenCount > 0 ? "gold" : "wood"}
-            size="lg"
-            className="px-8"
-            onClick={() => {
-              if (chosenCount > 0) sfx.claimAll();
-              else sfx.claim();
-              onConfirm();
-            }}
-          >
-            {chosenCount > 0 ? `Continue (${chosenCount})` : skipLabel}
-            <ArrowRight className="h-5 w-5" />
-          </GameButton>
+      {(isMulti || editing) && (
+        <div data-q-foot className="flex flex-col items-center justify-center gap-2 pt-1 sm:flex-row">
+          {isMulti && (
+            <GameButton
+              color={chosenCount > 0 ? "gold" : "wood"}
+              size="lg"
+              className={ACTION_BUTTON}
+              onClick={() => {
+                if (chosenCount > 0) sfx.claimAll();
+                else sfx.claim();
+                onConfirm();
+              }}
+            >
+              {chosenCount > 0 ? `Continue (${chosenCount})` : skipLabel}
+              <ArrowRight className="h-5 w-5" />
+            </GameButton>
+          )}
+          {editing && (
+            <GameButton color="wood" size="lg" className={ACTION_BUTTON} onClick={onCancel}>
+              <Undo2 className="h-5 w-5" />
+              Cancel
+            </GameButton>
+          )}
         </div>
       )}
     </div>

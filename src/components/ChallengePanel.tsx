@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useChallenge";
 import GamePanel from "@/components/game/GamePanel";
 import GameButton from "@/components/game/GameButton";
+import ChallengeSharingNotice from "@/components/ChallengeSharingNotice";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { formatDateInputValue, parseDateInputValue, cn } from "@/lib/utils";
@@ -23,7 +24,7 @@ import { AWARD_META, awardLabel, topBy, overallWinner } from "@/lib/challenge";
 const GROUP_AWARDS: { key: AwardKey; label: string; icon: string; desc: string }[] = [
   { key: "golden_shoe", label: "Golden Shoe", icon: "👟", desc: "Highest avg steps" },
   { key: "energetic", label: "The Energetic", icon: "🔥", desc: "Most exercise" },
-  { key: "biggest_loser", label: "The Biggest Loser", icon: "📉", desc: "Most % weight lost" },
+  { key: "biggest_loser", label: "The Trend Setter", icon: "📉", desc: "Most % weight lost" },
   { key: "milestone_master", label: "The Milestone Master", icon: "⭐", desc: "Most XP" },
 ];
 
@@ -386,6 +387,7 @@ const InviteCard = ({ view, respond }: { view: ChallengeView; respond: (id: stri
         ))}
       </div>
       <RewardList view={view} />
+      <ChallengeSharingNotice />
       <div className="flex gap-2">
         <GameButton color="leaf" size="sm" className="flex-1" disabled={busy} onClick={() => void act(true)}>
           <Check className="h-4 w-4" /> Accept

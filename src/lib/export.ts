@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { AnalyticsSummary } from "@/lib/analytics";
+import type { DailyLog } from "@/lib/mockData";
 
 export interface ExportMeta {
   /** Who the report is for, shown in the header. */
@@ -80,6 +81,37 @@ function triggerDownload(blob: Blob, filename: string) {
 /** Wrap a CSV field, quoting/escaping only when it contains a comma, quote or newline. */
 function csvField(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/**
+ * Every daily log the user has, raw, one row per day.
+ *
+ * This is the data-portability export and is deliberately **free for everyone**:
+ * a person's own records are theirs regardless of plan, and charging for a copy
+ * of them is not something a paywall should ever cover. The premium export is
+ * the *analysis* (summaries, weekly breakdowns, the PDF report) — not access.
+ */
+export function exportMyDataCsv(logs: DailyLog[], meta: ExportMeta): void {
+  const lines: string[] = [];
+  const row = (cells: string[]) => lines.push(cells.map(csvField).join(","));
+  const num = (v: number | null | undefined) => (v == null ? "" : String(v));
+
+  row(["date", "day", "weight_kg", "calories_kcal", "protein_g", "water_glasses", "steps", "exercise"]);
+  for (const log of logs) {
+    row([
+      log.date,
+      String(log.day),
+      num(log.weight),
+      num(log.calories),
+      num(log.protein),
+      num(log.water),
+      num(log.steps),
+      log.exercise ?? "",
+    ]);
+  }
+
+  const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  triggerDownload(blob, `${slugify(meta.name)}-my-data-${meta.generatedOn.replace(/[^0-9a-z]+/gi, "-")}.csv`);
 }
 
 export function exportAnalyticsCsv(a: AnalyticsSummary, meta: ExportMeta): void {

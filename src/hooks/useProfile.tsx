@@ -59,6 +59,12 @@ export interface UserProfile {
   theme: string | null;
   /** When the one-time 7-day premium trial was started, if ever. */
   premium_trial_started_at: string | null;
+  /**
+   * When the user explicitly consented to health-data processing; null = not yet.
+   * Optional because the generated Supabase types lag behind migrations — this
+   * column arrives with 20260741000000_health_data_consent.sql.
+   */
+  health_data_consent_at?: string | null;
 }
 
 export function useProfile() {

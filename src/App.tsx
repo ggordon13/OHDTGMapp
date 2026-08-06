@@ -14,6 +14,7 @@ import JoinChallenge from "./pages/JoinChallenge";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import NotFound from "./pages/NotFound";
+import AnalyticsConsentBanner from "@/components/AnalyticsConsentBanner";
 
 // Dev-only style preview (mock data, no auth); excluded from production routing.
 const Preview = import.meta.env.DEV ? lazy(() => import("./pages/Preview")) : null;
@@ -63,6 +64,9 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          {/* Inside the router so it can link to /privacy. Self-hides once the
+              choice is made, and entirely when analytics isn't configured. */}
+          <AnalyticsConsentBanner />
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
